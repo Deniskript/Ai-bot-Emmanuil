@@ -417,3 +417,48 @@ async def delete_media(key: str):
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("DELETE FROM bot_media WHERE key=?", (key,))
         await db.commit()
+
+async def get_msg_count(uid: int, bot: str) -> int:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("SELECT COUNT(*) FROM bot_msgs WHERE user_id=? AND bot=?", (uid, bot))
+        return (await c.fetchone())[0]
+
+async def get_history_window(uid: int, bot: str, limit: int = 20) -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("SELECT role, content FROM bot_msgs WHERE user_id=? AND bot=? ORDER BY id DESC LIMIT ?", (uid, bot, limit))
+        rows = await c.fetchall()
+        return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
+
+async def add_message(uid: int, bot: str, role: str, content: str):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("INSERT INTO bot_msgs (user_id, bot, role, content) VALUES (?,?,?,?)", (uid, bot, role, content))
+        await db.commit()
+
+async def cleanup_old_messages(uid: int, bot: str, keep: int = 20):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM bot_msgs WHERE user_id=? AND bot=? AND id NOT IN (SELECT id FROM bot_msgs WHERE user_id=? AND bot=? ORDER BY id DESC LIMIT ?)", (uid, bot, uid, bot, keep))
+        await db.commit()
+
+async def use_tokens(uid: int, amount: int):
+    await update_tokens(uid, amount)
+
+async def get_user_courses(uid: int) -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("SELECT name, current, total, done FROM courses WHERE user_id=? ORDER BY id DESC", (uid,))
+        rows = await c.fetchall()
+        return [{"topic": r[0], "step": r[1], "total": r[2], "completed": r[3]} for r in rows]
+
+async def update_course_step(course_id: int, step: int):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("UPDATE courses SET current=? WHERE id=?", (step, course_id))
+        await db.commit()
+
+async def complete_course(course_id: int):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("UPDATE courses SET done=1 WHERE id=?", (course_id,))
+        await db.commit()
+
+async def save_mood(uid: int, mood: str):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("INSERT INTO mood_stats (user_id, mood) VALUES (?,?)", (uid, mood))
+        await db.commit()

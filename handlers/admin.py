@@ -9,6 +9,7 @@ from loader import bot
 from database import db
 from keyboards import inline
 from config import ADMIN_IDS
+import subprocess
 
 router = Router()
 
@@ -20,16 +21,14 @@ class Adm(StatesGroup):
     model = State()
     version = State()
 
-def is_adm(uid): return uid in ADMIN_IDS
-def fmt(n): return f"{n:,}".replace(",", " ")
-
-class Adm(StatesGroup):
-    find = State()
-    give_id = State()
-    give_amt = State()
-    bc = State()
-    model = State()
-    version = State()
+class Editor(StatesGroup):
+    text_key = State()
+    text_val = State()
+    btn_key = State()
+    btn_emoji = State()
+    btn_text = State()
+    media_upload = State()
+    git_msg = State()
 
 def is_adm(uid): return uid in ADMIN_IDS
 def fmt(n): return f"{n:,}".replace(",", " ")
@@ -347,15 +346,6 @@ async def set_model_btn(cb: CallbackQuery):
     cb.data = f"botcfg:{b}"
     await bot_cfg(cb)
 
-class Editor(StatesGroup):
-    text_key = State()
-    text_val = State()
-    btn_key = State()
-    btn_emoji = State()
-    btn_text = State()
-    media_upload = State()
-    git_msg = State()
-
 @router.callback_query(F.data == "adm:editor")
 async def editor_menu(cb: CallbackQuery, state: FSMContext):
     if not is_adm(cb.from_user.id): return
@@ -465,16 +455,28 @@ async def btn_add_key(msg: Message, state: FSMContext):
 @router.message(Editor.btn_emoji)
 async def btn_add_emoji(msg: Message, state: FSMContext):
     if not is_adm(msg.from_user.id): return
-    await state.update_data(btn_emoji=msg.text)
-    await msg.answer("✏️ Введите текст кнопки:")
-    await state.set_state(Editor.btn_text)
+    d = await state.get_data()
+    if d.get('edit_mode') == 'emoji':
+        b = await db.get_button(d['btn_key'])
+        await db.set_button(d['btn_key'], msg.text, b['text'])
+        await msg.answer(f"✅ Эмодзи изменён!", reply_markup=inline.back_kb("edit:buttons"))
+        await state.clear()
+    else:
+        await state.update_data(btn_emoji=msg.text)
+        await msg.answer("✏️ Введите текст кнопки:")
+        await state.set_state(Editor.btn_text)
 
 @router.message(Editor.btn_text)
 async def btn_add_text(msg: Message, state: FSMContext):
     if not is_adm(msg.from_user.id): return
     d = await state.get_data()
-    await db.set_button(d['btn_key'], d['btn_emoji'], msg.text)
-    await msg.answer(f"✅ Кнопка сохранена: {d['btn_emoji']} {msg.text}", reply_markup=inline.back_kb("edit:buttons"))
+    if d.get('edit_mode') == 'text':
+        b = await db.get_button(d['btn_key'])
+        await db.set_button(d['btn_key'], b['emoji'], msg.text)
+        await msg.answer(f"✅ Текст изменён!", reply_markup=inline.back_kb("edit:buttons"))
+    else:
+        await db.set_button(d['btn_key'], d['btn_emoji'], msg.text)
+        await msg.answer(f"✅ Кнопка сохранена: {d['btn_emoji']} {msg.text}", reply_markup=inline.back_kb("edit:buttons"))
     await state.clear()
 
 @router.callback_query(F.data.startswith("btne:"))
@@ -492,6 +494,16 @@ async def btn_edit_text(cb: CallbackQuery, state: FSMContext):
     await state.update_data(btn_key=key, edit_mode="text")
     await cb.message.edit_text(f"✏️ Введите новый текст для <b>{key}</b>:")
     await state.set_state(Editor.btn_text)
+
+@router.callback_query(F.data.startswith("btnd:"))
+async def btn_delete(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    async with aiosqlite.connect(db.DATABASE_PATH) as conn:
+        await conn.execute("DELETE FROM bot_buttons WHERE key=?", (key,))
+        await conn.commit()
+    await cb.answer(f"🗑 Удалено: {key}")
+    await buttons_list(cb)
 
 @router.callback_query(F.data == "edit:media")
 async def media_menu(cb: CallbackQuery):
@@ -565,8 +577,6 @@ async def git_msg(msg: Message, state: FSMContext):
         f"💾 <b>Подтверждение</b>\n\nКомментарий: {msg.text}\n\nСохранить?",
         reply_markup=inline.confirm_git_kb())
 
-import subprocess
-
 @router.callback_query(F.data == "git:save")
 async def git_save(cb: CallbackQuery, state: FSMContext):
     if not is_adm(cb.from_user.id): return
@@ -576,10 +586,9 @@ async def git_save(cb: CallbackQuery, state: FSMContext):
     try:
         subprocess.run(["git", "add", "."], cwd="/root/ai-bot", check=True)
         subprocess.run(["git", "commit", "-m", msg_text], cwd="/root/ai-bot", check=True)
-        result = subprocess.run(["git", "push"], cwd="/root/ai-bot", capture_output=True, text=True)
+        subprocess.run(["git", "push"], cwd="/root/ai-bot", capture_output=True, text=True)
         await cb.message.edit_text(
-            f"✅ <b>Проект сохранён!</b>\n\n💬 {msg_text}\n\n"
-            f"Git: успешно загружено на сервер",
+            f"✅ <b>Проект сохранён!</b>\n\n💬 {msg_text}",
             reply_markup=inline.back_kb("adm:editor"))
     except Exception as e:
         await cb.message.edit_text(

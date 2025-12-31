@@ -3,12 +3,14 @@ import logging
 import sys
 from loader import bot, dp
 from database.db import init_db
+from database import db as database
 from handlers import start, emmanuil, luca, silas, titus, admin
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
 async def main():
     await init_db()
+    await database.init_texts_tables()
     dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(emmanuil.router)
@@ -21,12 +23,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-# Инициализация таблиц текстов при старте
-import asyncio
-from database import db as database
-
-async def init_all():
-    await database.init_texts_tables()
-
-asyncio.get_event_loop().run_until_complete(init_all())
