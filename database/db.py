@@ -462,3 +462,8 @@ async def save_mood(uid: int, mood: str):
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("INSERT INTO mood_stats (user_id, mood) VALUES (?,?)", (uid, mood))
         await db.commit()
+
+async def delete_course(course_id: int):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM courses WHERE id=?", (course_id,))
+        await db.commit()

@@ -95,7 +95,7 @@ async def bot_cfg(cb: CallbackQuery):
     if not is_adm(cb.from_user.id): return
     b = cb.data.split(":")[1]
     cfg = await db.get_bot_cfg(b)
-    names = {'luca': '🧑 Luca', 'silas': '🧠 Silas', 'titus': '📚 Titus'}
+    names = {'luca': '💭 Luca', 'silas': '🛋️ Silas', 'titus': '📓 Titus'}
     await cb.message.edit_text(
         f"⚙️ <b>{names[b]}</b>\n\nСтатус: {'🟢' if cfg['enabled'] else '🔴'}\n"
         f"Модель: {cfg['model']}\nВерсия: {cfg['version']}",
