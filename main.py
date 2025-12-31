@@ -21,3 +21,12 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# Инициализация таблиц текстов при старте
+import asyncio
+from database import db as database
+
+async def init_all():
+    await database.init_texts_tables()
+
+asyncio.get_event_loop().run_until_complete(init_all())

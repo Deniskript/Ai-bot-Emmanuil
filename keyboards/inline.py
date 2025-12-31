@@ -202,3 +202,84 @@ def models_kb(bot: str):
         [InlineKeyboardButton(text="Claude 3 Sonnet", callback_data=f"setm:{bot}:claude-3-sonnet")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data=f"botcfg:{bot}")]
     ])
+
+def editor_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Тексты", callback_data="edit:texts")],
+        [InlineKeyboardButton(text="🔘 Кнопки", callback_data="edit:buttons")],
+        [InlineKeyboardButton(text="🖼 Медиа", callback_data="edit:media")],
+        [InlineKeyboardButton(text="💾 Git бэкап", callback_data="edit:git")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
+    ])
+
+def texts_list_kb(texts: list):
+    kb = []
+    for t in texts[:10]:
+        kb.append([InlineKeyboardButton(
+            text=f"📝 {t['key'][:20]}", 
+            callback_data=f"txt:{t['key'][:30]}")])
+    kb.append([InlineKeyboardButton(text="➕ Добавить", callback_data="txt:add")])
+    kb.append([InlineKeyboardButton(text="◀️ Назад", callback_data="adm:editor")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def buttons_list_kb(buttons: list):
+    kb = []
+    for b in buttons[:10]:
+        kb.append([InlineKeyboardButton(
+            text=f"{b['emoji']} {b['text'][:15]}", 
+            callback_data=f"btn:{b['key'][:30]}")])
+    kb.append([InlineKeyboardButton(text="➕ Добавить", callback_data="btn:add")])
+    kb.append([InlineKeyboardButton(text="◀️ Назад", callback_data="adm:editor")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def media_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🖼 Приветствие /start", callback_data="media:start")],
+        [InlineKeyboardButton(text="🖼 Luca приветствие", callback_data="media:luca")],
+        [InlineKeyboardButton(text="🖼 Silas приветствие", callback_data="media:silas")],
+        [InlineKeyboardButton(text="🖼 Titus приветствие", callback_data="media:titus")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:editor")]
+    ])
+
+def media_edit_kb(key: str, has_media: bool):
+    kb = [[InlineKeyboardButton(text="📤 Загрузить", callback_data=f"mup:{key}")]]
+    if has_media:
+        kb.append([InlineKeyboardButton(text="🗑 Удалить", callback_data=f"mdel:{key}")])
+    kb.append([InlineKeyboardButton(text="◀️ Назад", callback_data="edit:media")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def confirm_git_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Сохранить", callback_data="git:save")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="adm:editor")]
+    ])
+
+def text_edit_kb(key: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✏️ Изменить", callback_data=f"txte:{key}")],
+        [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"txtd:{key}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="edit:texts")]
+    ])
+
+def button_edit_kb(key: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="😀 Эмодзи", callback_data=f"btne:{key}")],
+        [InlineKeyboardButton(text="✏️ Текст", callback_data=f"btnt:{key}")],
+        [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"btnd:{key}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="edit:buttons")]
+    ])
+
+def admin_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="adm:stats"),
+         InlineKeyboardButton(text="📈 Нагрузка", callback_data="adm:load")],
+        [InlineKeyboardButton(text="🤖 Боты", callback_data="adm:bots"),
+         InlineKeyboardButton(text="🛡 Антифлуд", callback_data="adm:spam")],
+        [InlineKeyboardButton(text="👥 Юзеры", callback_data="adm:users"),
+         InlineKeyboardButton(text="🔍 Поиск", callback_data="adm:find")],
+        [InlineKeyboardButton(text="💎 Выдать", callback_data="adm:give"),
+         InlineKeyboardButton(text="📢 Рассылка", callback_data="adm:bc")],
+        [InlineKeyboardButton(text="✏️ Редактор", callback_data="adm:editor")],
+        [InlineKeyboardButton(text="🔧 Тех.работы", callback_data="adm:maint")],
+        [InlineKeyboardButton(text="❌ Закрыть", callback_data="adm:close")]
+    ])

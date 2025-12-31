@@ -1,5 +1,6 @@
 from aiogram import Router, F
 import psutil
+import aiosqlite
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -345,3 +346,243 @@ async def set_model_btn(cb: CallbackQuery):
     await cb.answer(f"✅ {model}")
     cb.data = f"botcfg:{b}"
     await bot_cfg(cb)
+
+class Editor(StatesGroup):
+    text_key = State()
+    text_val = State()
+    btn_key = State()
+    btn_emoji = State()
+    btn_text = State()
+    media_upload = State()
+    git_msg = State()
+
+@router.callback_query(F.data == "adm:editor")
+async def editor_menu(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    await state.clear()
+    await cb.message.edit_text(
+        "✏️ <b>Редактор бота</b>\n\n"
+        "📝 Тексты — изменить тексты сообщений\n"
+        "🔘 Кнопки — изменить названия кнопок\n"
+        "🖼 Медиа — фото/видео приветствия\n"
+        "💾 Git — сохранить проект",
+        reply_markup=inline.editor_kb())
+
+@router.callback_query(F.data == "edit:texts")
+async def texts_list(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    texts = await db.get_all_texts()
+    if not texts:
+        await db.set_text("start_message", "Привет! Я AI бот 🤖", "Приветствие /start")
+        await db.set_text("help_message", "Выберите помощника", "Текст помощи")
+        texts = await db.get_all_texts()
+    await cb.message.edit_text(
+        "📝 <b>Тексты бота</b>\n\nВыберите для редактирования:",
+        reply_markup=inline.texts_list_kb(texts))
+
+@router.callback_query(F.data.startswith("txt:"))
+async def text_view(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    if key == "add":
+        await cb.message.edit_text("📝 Введите ключ нового текста (латиницей):")
+        await state.set_state(Editor.text_key)
+        return
+    texts = await db.get_all_texts()
+    t = next((x for x in texts if x['key'] == key), None)
+    if t:
+        await cb.message.edit_text(
+            f"📝 <b>{t['key']}</b>\n\n{t['description'] or ''}\n\n"
+            f"<code>{t['value'][:500]}</code>",
+            reply_markup=inline.text_edit_kb(key))
+
+@router.message(Editor.text_key)
+async def text_add_key(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    await state.update_data(text_key=msg.text)
+    await msg.answer("📝 Теперь введите текст:")
+    await state.set_state(Editor.text_val)
+
+@router.message(Editor.text_val)
+async def text_add_val(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    d = await state.get_data()
+    await db.set_text(d['text_key'], msg.text)
+    await msg.answer(f"✅ Текст <b>{d['text_key']}</b> сохранён!", reply_markup=inline.back_kb("edit:texts"))
+    await state.clear()
+
+@router.callback_query(F.data.startswith("txte:"))
+async def text_edit(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    await state.update_data(text_key=key)
+    await cb.message.edit_text(f"✏️ Введите новый текст для <b>{key}</b>:")
+    await state.set_state(Editor.text_val)
+
+@router.callback_query(F.data.startswith("txtd:"))
+async def text_del(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    async with aiosqlite.connect(db.DATABASE_PATH) as conn:
+        await conn.execute("DELETE FROM bot_texts WHERE key=?", (key,))
+        await conn.commit()
+    await cb.answer(f"🗑 Удалено: {key}")
+    await texts_list(cb)
+
+@router.callback_query(F.data == "edit:buttons")
+async def buttons_list(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    buttons = await db.get_all_buttons()
+    if not buttons:
+        await db.set_button("luca", "🧑", "Luca", "Кнопка Luca")
+        await db.set_button("silas", "🧠", "Silas", "Кнопка Silas")
+        await db.set_button("titus", "📚", "Titus", "Кнопка Titus")
+        buttons = await db.get_all_buttons()
+    await cb.message.edit_text(
+        "🔘 <b>Кнопки бота</b>\n\nВыберите для редактирования:",
+        reply_markup=inline.buttons_list_kb(buttons))
+
+@router.callback_query(F.data.startswith("btn:"))
+async def button_view(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    if key == "add":
+        await cb.message.edit_text("🔘 Введите ключ кнопки (латиницей):")
+        await state.set_state(Editor.btn_key)
+        return
+    b = await db.get_button(key)
+    await cb.message.edit_text(
+        f"🔘 <b>{key}</b>\n\n😀 Эмодзи: {b['emoji']}\n✏️ Текст: {b['text']}",
+        reply_markup=inline.button_edit_kb(key))
+
+@router.message(Editor.btn_key)
+async def btn_add_key(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    await state.update_data(btn_key=msg.text)
+    await msg.answer("😀 Введите эмодзи:")
+    await state.set_state(Editor.btn_emoji)
+
+@router.message(Editor.btn_emoji)
+async def btn_add_emoji(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    await state.update_data(btn_emoji=msg.text)
+    await msg.answer("✏️ Введите текст кнопки:")
+    await state.set_state(Editor.btn_text)
+
+@router.message(Editor.btn_text)
+async def btn_add_text(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    d = await state.get_data()
+    await db.set_button(d['btn_key'], d['btn_emoji'], msg.text)
+    await msg.answer(f"✅ Кнопка сохранена: {d['btn_emoji']} {msg.text}", reply_markup=inline.back_kb("edit:buttons"))
+    await state.clear()
+
+@router.callback_query(F.data.startswith("btne:"))
+async def btn_edit_emoji(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    await state.update_data(btn_key=key, edit_mode="emoji")
+    await cb.message.edit_text(f"😀 Введите новый эмодзи для <b>{key}</b>:")
+    await state.set_state(Editor.btn_emoji)
+
+@router.callback_query(F.data.startswith("btnt:"))
+async def btn_edit_text(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":", 1)[1]
+    await state.update_data(btn_key=key, edit_mode="text")
+    await cb.message.edit_text(f"✏️ Введите новый текст для <b>{key}</b>:")
+    await state.set_state(Editor.btn_text)
+
+@router.callback_query(F.data == "edit:media")
+async def media_menu(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    await cb.message.edit_text(
+        "🖼 <b>Медиа приветствия</b>\n\n"
+        "Загрузите фото или видео для приветствий:",
+        reply_markup=inline.media_kb())
+
+@router.callback_query(F.data.startswith("media:"))
+async def media_view(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":")[1]
+    names = {'start': '/start', 'luca': 'Luca', 'silas': 'Silas', 'titus': 'Titus'}
+    m = await db.get_media(key)
+    has = m is not None
+    status = f"✅ {m['type']}" if has else "❌ Не загружено"
+    await cb.message.edit_text(
+        f"🖼 <b>Медиа: {names.get(key, key)}</b>\n\nСтатус: {status}",
+        reply_markup=inline.media_edit_kb(key, has))
+
+@router.callback_query(F.data.startswith("mup:"))
+async def media_upload_start(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":")[1]
+    await state.update_data(media_key=key)
+    await cb.message.edit_text("📤 Отправьте фото или видео:")
+    await state.set_state(Editor.media_upload)
+
+@router.message(Editor.media_upload, F.photo)
+async def media_photo(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    d = await state.get_data()
+    file_id = msg.photo[-1].file_id
+    await db.set_media(d['media_key'], 'photo', file_id)
+    await msg.answer("✅ Фото сохранено!", reply_markup=inline.back_kb("edit:media"))
+    await state.clear()
+
+@router.message(Editor.media_upload, F.video)
+async def media_video(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    d = await state.get_data()
+    file_id = msg.video.file_id
+    await db.set_media(d['media_key'], 'video', file_id)
+    await msg.answer("✅ Видео сохранено!", reply_markup=inline.back_kb("edit:media"))
+    await state.clear()
+
+@router.callback_query(F.data.startswith("mdel:"))
+async def media_delete(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id): return
+    key = cb.data.split(":")[1]
+    await db.delete_media(key)
+    await cb.answer("🗑 Удалено")
+    await media_menu(cb)
+
+@router.callback_query(F.data == "edit:git")
+async def git_menu(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    await cb.message.edit_text(
+        "💾 <b>Git бэкап</b>\n\n"
+        "Сохранить текущее состояние проекта в Git?\n\n"
+        "Введите комментарий к сохранению:",
+        reply_markup=inline.back_kb("adm:editor"))
+    await state.set_state(Editor.git_msg)
+
+@router.message(Editor.git_msg)
+async def git_msg(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id): return
+    await state.update_data(git_msg=msg.text)
+    await msg.answer(
+        f"💾 <b>Подтверждение</b>\n\nКомментарий: {msg.text}\n\nСохранить?",
+        reply_markup=inline.confirm_git_kb())
+
+import subprocess
+
+@router.callback_query(F.data == "git:save")
+async def git_save(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id): return
+    d = await state.get_data()
+    msg_text = d.get('git_msg', 'Auto backup')
+    await cb.message.edit_text("⏳ Сохранение...")
+    try:
+        subprocess.run(["git", "add", "."], cwd="/root/ai-bot", check=True)
+        subprocess.run(["git", "commit", "-m", msg_text], cwd="/root/ai-bot", check=True)
+        result = subprocess.run(["git", "push"], cwd="/root/ai-bot", capture_output=True, text=True)
+        await cb.message.edit_text(
+            f"✅ <b>Проект сохранён!</b>\n\n💬 {msg_text}\n\n"
+            f"Git: успешно загружено на сервер",
+            reply_markup=inline.back_kb("adm:editor"))
+    except Exception as e:
+        await cb.message.edit_text(
+            f"❌ <b>Ошибка Git</b>\n\n{str(e)[:200]}",
+            reply_markup=inline.back_kb("adm:editor"))
+    await state.clear()

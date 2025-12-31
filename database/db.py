@@ -335,3 +335,85 @@ async def init_metrics_table():
             )
         """)
         await conn.commit()
+
+# ========== ТЕКСТЫ И КНОПКИ ==========
+
+async def init_texts_tables():
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.executescript("""
+        CREATE TABLE IF NOT EXISTS bot_texts (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            description TEXT
+        );
+        CREATE TABLE IF NOT EXISTS bot_buttons (
+            key TEXT PRIMARY KEY,
+            emoji TEXT,
+            text TEXT,
+            description TEXT
+        );
+        CREATE TABLE IF NOT EXISTS bot_media (
+            key TEXT PRIMARY KEY,
+            type TEXT,
+            file_id TEXT
+        );
+        """)
+        await db.commit()
+
+async def get_text(key: str, default: str = "") -> str:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("SELECT value FROM bot_texts WHERE key=?", (key,))
+        r = await c.fetchone()
+        return r[0] if r else default
+
+async def set_text(key: str, value: str, desc: str = ""):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO bot_texts (key,value,description) VALUES (?,?,?)",
+            (key, value, desc))
+        await db.commit()
+
+async def get_all_texts() -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM bot_texts ORDER BY key")
+        return [dict(r) for r in await c.fetchall()]
+
+async def get_button(key: str) -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM bot_buttons WHERE key=?", (key,))
+        r = await c.fetchone()
+        return dict(r) if r else {'emoji': '', 'text': key}
+
+async def set_button(key: str, emoji: str, text: str, desc: str = ""):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO bot_buttons (key,emoji,text,description) VALUES (?,?,?,?)",
+            (key, emoji, text, desc))
+        await db.commit()
+
+async def get_all_buttons() -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM bot_buttons ORDER BY key")
+        return [dict(r) for r in await c.fetchall()]
+
+async def get_media(key: str) -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM bot_media WHERE key=?", (key,))
+        r = await c.fetchone()
+        return dict(r) if r else None
+
+async def set_media(key: str, media_type: str, file_id: str):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO bot_media (key,type,file_id) VALUES (?,?,?)",
+            (key, media_type, file_id))
+        await db.commit()
+
+async def delete_media(key: str):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM bot_media WHERE key=?", (key,))
+        await db.commit()
