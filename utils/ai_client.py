@@ -1,27 +1,104 @@
 import httpx
-from config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_CHAT_MODEL
+import base64
+from config import OPENAI_API_KEY
 
 
-async def ask(msgs, model=None):
+# Конфигурация провайдеров
+PROVIDERS = {
+    "anthropic": {
+        "base_url": "https://api.proxyapi.ru/anthropic/v1",
+        "models": [
+            "claude-sonnet-4-5-20250929",
+            "claude-opus-4-5-20251101", 
+            "claude-haiku-4-5-20251001"
+        ]
+    },
+    "openai": {
+        "base_url": "https://api.proxyapi.ru/openai/v1",
+        "models": [
+            "gpt-4.1-mini",
+            "gpt-4.1",
+            "gpt-4o-mini",
+            "gpt-4o",
+            "o3-mini"
+        ]
+    }
+}
+
+
+def get_provider(model: str) -> str:
+    """Определяет провайдера по модели"""
+    if model.startswith("claude"):
+        return "anthropic"
+    return "openai"
+
+
+async def ask(msgs: list, model: str = None, image_base64: str = None) -> tuple:
+    """
+    Универсальный запрос к AI
+    
+    Args:
+        msgs: список сообщений
+        model: название модели
+        image_base64: изображение в base64 (опционально)
+    
+    Returns:
+        (ответ, токены)
+    """
     try:
-        use_model = model or OPENAI_CHAT_MODEL
+        use_model = model or "claude-sonnet-4-5-20250929"
+        provider = get_provider(use_model)
         
+        if provider == "anthropic":
+            return await _ask_anthropic(msgs, use_model, image_base64)
+        else:
+            return await _ask_openai(msgs, use_model, image_base64)
+            
+    except Exception as e:
+        print(f"❌ AI Error: {e}")
+        return f"❌ Ошибка: {e}", 0
+
+
+async def _ask_anthropic(msgs: list, model: str, image_base64: str = None) -> tuple:
+    """Запрос к Anthropic Claude"""
+    try:
         # Собираем system prompt
         system = None
         clean_msgs = []
+        
         for m in msgs:
             if m["role"] == "system":
                 system = m["content"]
             else:
                 clean_msgs.append({"role": m["role"], "content": m["content"]})
         
-        # Если нет сообщений — добавляем заглушку
+        # Если есть изображение — добавляем в последнее сообщение
+        if image_base64 and clean_msgs:
+            last_msg = clean_msgs[-1]
+            clean_msgs[-1] = {
+                "role": last_msg["role"],
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": image_base64
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": last_msg["content"] or "Что на этом изображении?"
+                    }
+                ]
+            }
+        
         if not clean_msgs:
             clean_msgs = [{"role": "user", "content": "Привет"}]
         
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             payload = {
-                "model": use_model,
+                "model": model,
                 "max_tokens": 4000,
                 "messages": clean_msgs
             }
@@ -29,7 +106,7 @@ async def ask(msgs, model=None):
                 payload["system"] = system
             
             response = await client.post(
-                f"{OPENAI_BASE_URL}/messages",
+                f"{PROVIDERS['anthropic']['base_url']}/messages",
                 headers={
                     "x-api-key": OPENAI_API_KEY,
                     "Content-Type": "application/json",
@@ -39,10 +116,7 @@ async def ask(msgs, model=None):
             )
             
             if response.status_code != 200:
-                print(f"❌ API Error {response.status_code}")
-                print(f"❌ Response: {response.text}")
-                print(f"❌ Model: {use_model}")
-                print(f"❌ Messages: {len(clean_msgs)}")
+                print(f"❌ Anthropic Error {response.status_code}: {response.text}")
                 return f"❌ Ошибка API: {response.status_code}", 0
             
             data = response.json()
@@ -50,6 +124,79 @@ async def ask(msgs, model=None):
             inp = data.get("usage", {}).get("input_tokens", 0)
             out = data.get("usage", {}).get("output_tokens", 0)
             return text, inp + out
+            
     except Exception as e:
-        print(f"❌ Exception: {e}")
+        print(f"❌ Anthropic Exception: {e}")
         return f"❌ Ошибка: {e}", 0
+
+
+async def _ask_openai(msgs: list, model: str, image_base64: str = None) -> tuple:
+    """Запрос к OpenAI GPT"""
+    try:
+        clean_msgs = []
+        
+        for m in msgs:
+            clean_msgs.append({"role": m["role"], "content": m["content"]})
+        
+        # Если есть изображение
+        if image_base64 and clean_msgs:
+            last_msg = clean_msgs[-1]
+            clean_msgs[-1] = {
+                "role": last_msg["role"],
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_base64}"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": last_msg["content"] or "Что на этом изображении?"
+                    }
+                ]
+            }
+        
+        if not clean_msgs:
+            clean_msgs = [{"role": "user", "content": "Привет"}]
+        
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                f"{PROVIDERS['openai']['base_url']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 4000,
+                    "messages": clean_msgs
+                }
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ OpenAI Error {response.status_code}: {response.text}")
+                return f"❌ Ошибка API: {response.status_code}", 0
+            
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            tokens = usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
+            return text, tokens
+            
+    except Exception as e:
+        print(f"❌ OpenAI Exception: {e}")
+        return f"❌ Ошибка: {e}", 0
+
+
+def get_available_models() -> dict:
+    """Возвращает список доступных моделей по провайдерам"""
+    return PROVIDERS
+
+
+def get_all_models() -> list:
+    """Возвращает плоский список всех моделей"""
+    models = []
+    for p in PROVIDERS.values():
+        models.extend(p["models"])
+    return models

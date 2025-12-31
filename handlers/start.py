@@ -16,11 +16,10 @@ async def start(msg: Message, state: FSMContext):
     u = await db.get_user(msg.from_user.id)
     if not u:
         u = await db.create_user(msg.from_user.id, msg.from_user.username, msg.from_user.first_name)
-    
     if not u['agreement']:
         await msg.answer(AGREEMENT, reply_markup=inline.agree_kb())
     else:
-        await msg.answer(f"👋 С возвращением!\n\n💎 Баланс: <b>{fmt(u['tokens'])}</b> токенов", reply_markup=reply.main_kb())
+        await msg.answer(f"С возвращением!\n\nБаланс: <b>{fmt(u['tokens'])}</b>", reply_markup=reply.main_kb())
 
 @router.callback_query(F.data == "agree_yes")
 async def agree_yes(cb: CallbackQuery):
@@ -31,7 +30,15 @@ async def agree_yes(cb: CallbackQuery):
 
 @router.callback_query(F.data == "agree_no")
 async def agree_no(cb: CallbackQuery):
-    await cb.message.edit_text("❌ Для использования необходимо принять соглашение.\n\nНажмите /start")
+    await cb.message.edit_text("❌ Нажмите /start чтобы принять")
+
+@router.message(F.text == "🤖 Боты")
+async def bots_menu(msg: Message):
+    await msg.answer("🤖 <b>Выберите бота:</b>", reply_markup=inline.bots_kb())
+
+@router.callback_query(F.data == "bots")
+async def bots_cb(cb: CallbackQuery):
+    await cb.message.edit_text("🤖 <b>Выберите бота:</b>", reply_markup=inline.bots_kb())
 
 @router.message(F.text == "👤 Кабинет")
 async def cabinet(msg: Message):
@@ -41,8 +48,7 @@ async def cabinet(msg: Message):
         f"👤 <b>Мой кабинет</b>\n\n"
         f"🆔 ID: <code>{msg.from_user.id}</code>\n"
         f"💎 Баланс: <b>{fmt(u['tokens'])}</b>\n"
-        f"📊 Запросов: {u['total_requests']}\n"
-        f"📉 Потрачено: {fmt(u['total_used'])} токенов",
+        f"📊 Запросов: {u['total_requests']}",
         reply_markup=inline.cabinet_kb()
     )
 
@@ -50,9 +56,7 @@ async def cabinet(msg: Message):
 async def topup_cb(cb: CallbackQuery):
     u = await db.get_user(cb.from_user.id)
     await cb.message.edit_text(
-        f"💰 <b>Пополнение</b>\n\n"
-        f"💎 Баланс: <b>{fmt(u['tokens'])}</b>\n\n"
-        f"Выберите пакет:",
+        f"💰 <b>Пополнение</b>\n\n💎 Баланс: <b>{fmt(u['tokens'])}</b>",
         reply_markup=inline.topup_kb()
     )
 
@@ -60,25 +64,24 @@ async def topup_cb(cb: CallbackQuery):
 async def topup(msg: Message):
     u = await db.get_user(msg.from_user.id)
     await msg.answer(
-        f"💰 <b>Пополнение</b>\n\n"
-        f"💎 Баланс: <b>{fmt(u['tokens'])}</b>\n\n"
-        f"Выберите пакет:",
+        f"💰 <b>Пополнение</b>\n\n💎 Баланс: <b>{fmt(u['tokens'])}</b>",
         reply_markup=inline.topup_kb()
     )
 
 @router.message(F.text == "💡 Помощь")
 async def help_cmd(msg: Message):
-    await msg.answer("💡 <b>Помощь</b>\n\nВыберите раздел:", reply_markup=inline.help_kb())
+    await msg.answer("💡 <b>Помощь</b>", reply_markup=inline.help_kb())
 
 @router.callback_query(F.data.startswith("help:"))
 async def help_section(cb: CallbackQuery):
     s = cb.data.split(":")[1]
     texts = {'luca': HELP_LUCA, 'silas': HELP_SILAS, 'titus': HELP_TITUS, 'pay': HELP_PAY}
-    await cb.message.edit_text(texts.get(s, "?"), reply_markup=inline.back_kb("help_back"))
+    back = {'luca': 'bot:luca', 'silas': 'bot:silas', 'titus': 'bot:titus', 'pay': 'help_back'}
+    await cb.message.edit_text(texts.get(s, "?"), reply_markup=inline.back_kb(back.get(s, "help_back")))
 
 @router.callback_query(F.data == "help_back")
 async def help_back(cb: CallbackQuery):
-    await cb.message.edit_text("💡 <b>Помощь</b>\n\nВыберите раздел:", reply_markup=inline.help_kb())
+    await cb.message.edit_text("💡 <b>Помощь</b>", reply_markup=inline.help_kb())
 
 @router.callback_query(F.data == "back_main")
 async def back_main(cb: CallbackQuery):

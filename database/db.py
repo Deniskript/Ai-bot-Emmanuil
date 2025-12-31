@@ -273,3 +273,65 @@ async def get_metrics() -> Optional[Dict]:
         c = await db.execute("SELECT * FROM server_metrics ORDER BY ts DESC LIMIT 1")
         r = await c.fetchone()
         return dict(r) if r else None
+
+
+async def get_blocked_count() -> int:
+    async with aiosqlite.connect(DATABASE_PATH) as conn:
+        cursor = await conn.execute(
+            "SELECT COUNT(*) FROM users WHERE is_blocked = 1"
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+
+async def get_blocked_users():
+    async with aiosqlite.connect(DATABASE_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT user_id, username FROM users WHERE is_blocked = 1"
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def unblock_user(user_id: int):
+    async with aiosqlite.connect(DATABASE_PATH) as conn:
+        await conn.execute(
+            "UPDATE users SET is_blocked = 0 WHERE user_id = ?",
+            (user_id,)
+        )
+        await conn.commit()
+
+
+async def save_metrics(load_pct: int, active_users: int, rpm: int, avg_time: float):
+    async with aiosqlite.connect(DATABASE_PATH) as conn:
+        await conn.execute(
+            """INSERT OR REPLACE INTO metrics 
+               (id, load_pct, active_users, rpm, avg_time, updated_at)
+               VALUES (1, ?, ?, ?, ?, datetime('now'))""",
+            (load_pct, active_users, rpm, avg_time)
+        )
+        await conn.commit()
+
+
+async def get_metrics():
+    async with aiosqlite.connect(DATABASE_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute("SELECT * FROM metrics WHERE id = 1")
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+
+async def init_metrics_table():
+    async with aiosqlite.connect(DATABASE_PATH) as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS metrics (
+                id INTEGER PRIMARY KEY,
+                load_pct INTEGER DEFAULT 0,
+                active_users INTEGER DEFAULT 0,
+                rpm INTEGER DEFAULT 0,
+                avg_time REAL DEFAULT 0,
+                updated_at TEXT
+            )
+        """)
+        await conn.commit()
