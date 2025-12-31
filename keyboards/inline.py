@@ -13,6 +13,18 @@ def main_menu_kb():
         [InlineKeyboardButton(text="💰 Пополнить", callback_data="topup")]
     ])
 
+async def get_bots_kb():
+    from database import db
+    luca = await db.get_button("luca")
+    silas = await db.get_button("silas") 
+    titus = await db.get_button("titus")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{luca.get('emoji','🧑')} {luca.get('text','Luca')}", callback_data="bot:luca")],
+        [InlineKeyboardButton(text=f"{silas.get('emoji','🧠')} {silas.get('text','Silas')}", callback_data="bot:silas")],
+        [InlineKeyboardButton(text=f"{titus.get('emoji','📚')} {titus.get('text','Titus')}", callback_data="bot:titus")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
+    ])
+
 def bots_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🧑 Luca — друг", callback_data="bot:luca")],
@@ -80,19 +92,6 @@ def titus_kb():
         [InlineKeyboardButton(text="◀️ К ботам", callback_data="bots")]
     ])
 
-def admin_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="adm:stats"),
-         InlineKeyboardButton(text="📈 Нагрузка", callback_data="adm:load")],
-        [InlineKeyboardButton(text="🤖 Боты", callback_data="adm:bots"),
-         InlineKeyboardButton(text="🛡 Антифлуд", callback_data="adm:spam")],
-        [InlineKeyboardButton(text="👥 Юзеры", callback_data="adm:users"),
-         InlineKeyboardButton(text="🔍 Найти", callback_data="adm:find")],
-        [InlineKeyboardButton(text="💎 Выдать", callback_data="adm:give"),
-         InlineKeyboardButton(text="📢 Рассылка", callback_data="adm:bc")],
-        [InlineKeyboardButton(text="🔧 Тех.работы", callback_data="adm:maint")],
-        [InlineKeyboardButton(text="❌ Закрыть", callback_data="adm:close")]
-    ])
 
 def admin_bots_kb(l, s, t):
     el = "🟢" if l else "🔴"
