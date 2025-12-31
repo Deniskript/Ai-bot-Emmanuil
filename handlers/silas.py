@@ -25,7 +25,7 @@ class SilasSt(StatesGroup):
 
 MOODS = {'good': SILAS_GOOD, 'tired': SILAS_TIRED, 'pain': SILAS_PAIN}
 
-@router.message(F.text == "🧠 Silas")
+@router.message(F.text == "🛋️ Silas")
 async def silas_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('silas')
     if not cfg['enabled']:
@@ -34,7 +34,7 @@ async def silas_enter(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
     await msg.answer(f"<b>Silas — психолог</b>\n\nМодель: {cfg['model']}", reply_markup=reply.silas_kb())
 
-@router.message(SilasSt.menu, F.text == "🧠 Начать сеанс")
+@router.message(SilasSt.menu, F.text == "🛋️ Начать сеанс")
 async def silas_start_session(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.duration)
     await msg.answer("<b>Выберите длительность сеанса:</b>", reply_markup=reply.silas_dur_kb())
@@ -91,7 +91,7 @@ async def mood_pain(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
     await msg.answer("Настроение сохранено: Тяжело", reply_markup=reply.silas_kb())
 
-@router.message(SilasSt.mood, F.text == "Ваше настроение")
+@router.message(SilasSt.mood, F.text == "✏️Ваше настроение")
 async def mood_custom(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.custom)
     await msg.answer("Опишите ваше состояние (1-2 слова):")

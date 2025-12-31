@@ -23,7 +23,7 @@ class LucaSt(StatesGroup):
 CHARS = {'душевный': LUCA_SOUL, 'серьезный': LUCA_SER, 'человек': LUCA_HUM}
 
 # === ВХОД В LUCA ===
-@router.message(F.text == "📝 Luca")
+@router.message(F.text == "💭Luca")
 async def luca_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('luca')
     if not cfg['enabled']:
@@ -33,7 +33,7 @@ async def luca_enter(msg: Message, state: FSMContext):
     s = await db.get_user_bot(msg.from_user.id, 'luca')
     await msg.answer(
         f"📝 <b>Luca — универсальный помощник</b>\n\n"
-        f"🎭 Характер: {s['character']}\n"
+        f"🎚️ Характер: {s['character']}\n"
         f"🤖 Модель: {cfg['model']}",
         reply_markup=reply.luca_kb()
     )
@@ -49,7 +49,7 @@ async def luca_start_chat(msg: Message, state: FSMContext):
         reply_markup=reply.luca_chat_kb()
     )
 
-@router.message(LucaSt.menu, F.text == "🎭 Характер")
+@router.message(LucaSt.menu, F.text == "🎚️ Характер")
 async def luca_char_menu(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.char)
     await msg.answer("🎭 Выбери характер Luca:", reply_markup=reply.luca_char_kb())
@@ -72,19 +72,19 @@ async def luca_back(msg: Message, state: FSMContext):
     await msg.answer("🤖 Выбери бота:", reply_markup=reply.bots_menu_kb())
 
 # === ВЫБОР ХАРАКТЕРА ===
-@router.message(LucaSt.char, F.text == "💫 Душевный")
+@router.message(LucaSt.char, F.text == "🙏 Душевный")
 async def char_soul(msg: Message, state: FSMContext):
     await db.set_char(msg.from_user.id, 'душевный')
     await state.set_state(LucaSt.menu)
     await msg.answer("✅ Характер: Душевный", reply_markup=reply.luca_kb())
 
-@router.message(LucaSt.char, F.text == "📊 Серьезный")
+@router.message(LucaSt.char, F.text == "💯 Серьезный")
 async def char_ser(msg: Message, state: FSMContext):
     await db.set_char(msg.from_user.id, 'серьезный')
     await state.set_state(LucaSt.menu)
     await msg.answer("✅ Характер: Серьезный", reply_markup=reply.luca_kb())
 
-@router.message(LucaSt.char, F.text == "🧑 Человек")
+@router.message(LucaSt.char, F.text == "❤️ Человек")
 async def char_hum(msg: Message, state: FSMContext):
     await db.set_char(msg.from_user.id, 'человек')
     await state.set_state(LucaSt.menu)
@@ -96,7 +96,7 @@ async def char_back(msg: Message, state: FSMContext):
     s = await db.get_user_bot(msg.from_user.id, 'luca')
     cfg = await db.get_bot_cfg('luca')
     await msg.answer(
-        f"📝 <b>Luca</b>\n\n🎭 Характер: {s['character']}\n🤖 Модель: {cfg['model']}",
+        f"📝 <b>Luca</b>\n\n🎚️ Характер: {s['character']}\n🤖 Модель: {cfg['model']}",
         reply_markup=reply.luca_kb()
     )
 
@@ -107,7 +107,7 @@ async def luca_stop(msg: Message, state: FSMContext):
     s = await db.get_user_bot(msg.from_user.id, 'luca')
     cfg = await db.get_bot_cfg('luca')
     await msg.answer(
-        f"👋 Диалог завершён!\n\n📝 <b>Luca</b>\n🎭 Характер: {s['character']}",
+        f"👋 Диалог завершён!\n\n📝 <b>Luca</b>\n🎚️ Характер: {s['character']}",
         reply_markup=reply.luca_kb()
     )
 
@@ -158,7 +158,7 @@ async def process_luca_message(msg: Message, text: str, image_b64: str = None):
         except:
             pass
     elapsed = int(asyncio.get_event_loop().time() - start_time)
-    await msg.answer(f"{resp}\n\n<i>📝 Luca | ⏱ {elapsed} сек</i>")
+    await msg.answer(f"{resp}\n\n<i>💭Luca | ⏱ {elapsed} сек</i>")
 
 @router.message(LucaSt.chat, F.text)
 async def luca_chat_text(msg: Message):

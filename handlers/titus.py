@@ -19,7 +19,7 @@ class TitusSt(StatesGroup):
     menu = State()
     chat = State()
 
-@router.message(F.text == "📚 Titus")
+@router.message(F.text == "📓 Titus")
 async def titus_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('titus')
     if not cfg['enabled']:
@@ -77,7 +77,7 @@ async def process_titus_message(msg: Message, text: str, image_b64: str = None):
             await asyncio.sleep(1)
             elapsed = int(asyncio.get_event_loop().time() - start_time)
             try:
-                await status_msg.edit_text(f"📚 Titus изучает... {elapsed} сек")
+                await status_msg.edit_text(f"📓 Titus изучает... {elapsed} сек")
             except:
                 break
     status_task = asyncio.create_task(update_status())
@@ -99,7 +99,7 @@ async def process_titus_message(msg: Message, text: str, image_b64: str = None):
         except:
             pass
     elapsed = int(asyncio.get_event_loop().time() - start_time)
-    await msg.answer(f"{resp}\n\n<i>📚 Titus | ⏱ {elapsed} сек</i>")
+    await msg.answer(f"{resp}\n\n<i>📓 Titus | ⏱ {elapsed} сек</i>")
 
 @router.message(TitusSt.chat, F.text)
 async def titus_chat_text(msg: Message):

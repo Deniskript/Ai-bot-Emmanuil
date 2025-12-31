@@ -42,7 +42,7 @@ async def agree_no(cb: CallbackQuery):
     await cb.message.edit_text("❌ Нажмите /start чтобы принять")
 
 # === МЕНЮ БОТОВ ===
-@router.message(F.text == "🤖 Emmanuil AI")
+@router.message(F.text == "✨ Emmanuil AI")
 async def bots_menu(msg: Message):
     await msg.answer("🤖 <b>Выберите бота:</b>", reply_markup=reply.bots_menu_kb())
 
@@ -53,7 +53,7 @@ async def back_main_menu(msg: Message, state: FSMContext):
     await msg.answer(f"🏠 Главное меню\n\n💎 Баланс: <b>{fmt(u['tokens'])}</b>", reply_markup=reply.main_kb())
 
 # === КАБИНЕТ ===
-@router.message(F.text == "👤 Кабинет")
+@router.message(F.text == "📕 Мой Кабинет")
 async def cabinet(msg: Message):
     u = await db.get_user(msg.from_user.id)
     if not u: return
@@ -73,7 +73,7 @@ async def topup_cb(cb: CallbackQuery):
         reply_markup=inline.topup_kb()
     )
 
-@router.message(F.text == "💰 Пополнить")
+@router.message(F.text == "⚡️ Пополнить баланс")
 async def topup(msg: Message):
     u = await db.get_user(msg.from_user.id)
     await msg.answer(
@@ -82,7 +82,7 @@ async def topup(msg: Message):
     )
 
 # === ПОМОЩЬ ===
-@router.message(F.text == "💡 Помощь")
+@router.message(F.text == "⚠️ Помошь")
 async def help_cmd(msg: Message):
     await msg.answer("💡 <b>Помощь</b>", reply_markup=inline.help_kb())
 

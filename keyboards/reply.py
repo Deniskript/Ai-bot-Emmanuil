@@ -3,19 +3,19 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 def main_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🤖 Emmanuil AI"), KeyboardButton(text="👤 Кабинет")],
-        [KeyboardButton(text="💰 Пополнить"), KeyboardButton(text="💡 Помощь")]
+        [KeyboardButton(text="✨ Emmanuil AI"), KeyboardButton(text="📕 Мой Кабинет")],
+        [KeyboardButton(text="⚡️ Пополнить баланс"), KeyboardButton(text="⚠️ Помошь")]
     ], resize_keyboard=True)
 
 def bots_menu_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📝 Luca"), KeyboardButton(text="🧠 Silas"), KeyboardButton(text="📚 Titus")],
+        [KeyboardButton(text="💭Luca"), KeyboardButton(text="🛋️ Silas"), KeyboardButton(text="📓 Titus")],
         [KeyboardButton(text="◀️ Главное меню")]
     ], resize_keyboard=True)
 
 def luca_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="💬 Начать диалог"), KeyboardButton(text="🎭 Характер")],
+        [KeyboardButton(text="💬 Начать диалог"), KeyboardButton(text="🎚️ Характер")],
         [KeyboardButton(text="🗑 Очистить"), KeyboardButton(text="❓ Помощь")],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
@@ -27,13 +27,13 @@ def luca_chat_kb():
 
 def luca_char_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="💫 Душевный"), KeyboardButton(text="📊 Серьезный"), KeyboardButton(text="🧑 Человек")],
+        [KeyboardButton(text="🙏 Душевный"), KeyboardButton(text="💯 Серьезный"), KeyboardButton(text="❤️ Человек")],
         [KeyboardButton(text="◀️ Назад к Luca")]
     ], resize_keyboard=True)
 
 def silas_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🧠 Начать сеанс"), KeyboardButton(text="📔 Настроение")],
+        [KeyboardButton(text="🛋️ Начать сеанс"), KeyboardButton(text="📔 Настроение")],
         [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
@@ -51,7 +51,7 @@ def silas_dur_kb():
 def silas_mood_kb():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="Хорошо"), KeyboardButton(text="Устал"), KeyboardButton(text="Тяжело")],
-        [KeyboardButton(text="Ваше настроение"), KeyboardButton(text="Статистика")],
+        [KeyboardButton(text="✏️Ваше настроение"), KeyboardButton(text="Статистика")],
         [KeyboardButton(text="◀️ Назад к Silas")]
     ], resize_keyboard=True)
 
