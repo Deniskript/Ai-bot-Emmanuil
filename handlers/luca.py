@@ -108,7 +108,7 @@ async def luca_chat_text(msg: Message, state: FSMContext):
     if msg.text.startswith("/"):
         if msg.text == "/stop":
             await state.clear()
-            await msg.answer("👋 Диалог завершён!", reply_markup=inline.bots_kb())
+            await msg.answer("👋 Диалог завершён!", reply_markup=await inline.get_bots_kb_dynamic())
         return
     await process_luca_message(msg, state, msg.text)
 

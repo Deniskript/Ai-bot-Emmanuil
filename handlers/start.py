@@ -34,11 +34,11 @@ async def agree_no(cb: CallbackQuery):
 
 @router.message(F.text == "🤖 Боты")
 async def bots_menu(msg: Message):
-    await msg.answer("🤖 <b>Выберите бота:</b>", reply_markup=inline.bots_kb())
+    await msg.answer("🤖 <b>Выберите бота:</b>", reply_markup=await inline.get_bots_kb_dynamic())
 
 @router.callback_query(F.data == "bots")
 async def bots_cb(cb: CallbackQuery):
-    await cb.message.edit_text("🤖 <b>Выберите бота:</b>", reply_markup=inline.bots_kb())
+    await cb.message.edit_text("🤖 <b>Выберите бота:</b>", reply_markup=await inline.get_bots_kb_dynamic())
 
 @router.message(F.text == "👤 Кабинет")
 async def cabinet(msg: Message):

@@ -282,3 +282,15 @@ def admin_kb():
         [InlineKeyboardButton(text="🔧 Тех.работы", callback_data="adm:maint")],
         [InlineKeyboardButton(text="❌ Закрыть", callback_data="adm:close")]
     ])
+
+async def get_bots_kb_dynamic():
+    from database import db
+    luca = await db.get_button("luca")
+    silas = await db.get_button("silas")
+    titus = await db.get_button("titus")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{luca.get('emoji','🧑')} {luca.get('text','Luca — друг')}", callback_data="bot:luca")],
+        [InlineKeyboardButton(text=f"{silas.get('emoji','🧠')} {silas.get('text','Silas — эксперт')}", callback_data="bot:silas")],
+        [InlineKeyboardButton(text=f"{titus.get('emoji','📚')} {titus.get('text','Titus — учитель')}", callback_data="bot:titus")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
+    ])
