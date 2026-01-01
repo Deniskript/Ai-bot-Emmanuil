@@ -467,3 +467,82 @@ async def delete_course(course_id: int):
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("DELETE FROM courses WHERE id=?", (course_id,))
         await db.commit()
+
+
+# ========== ПАМЯТЬ КУРСОВ TITUS ==========
+
+async def init_course_memory_table():
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.executescript("""
+        CREATE TABLE IF NOT EXISTS course_memory (
+            course_id INTEGER PRIMARY KEY,
+            summary TEXT DEFAULT '',
+            problem_zones TEXT DEFAULT '[]',
+            completed_topics TEXT DEFAULT '[]',
+            last_context TEXT DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        await db.commit()
+
+
+async def get_course_memory(course_id: int) -> Dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM course_memory WHERE course_id=?", (course_id,))
+        r = await c.fetchone()
+        if r:
+            return {
+                'course_id': r['course_id'],
+                'summary': r['summary'] or '',
+                'problem_zones': json.loads(r['problem_zones'] or '[]'),
+                'completed_topics': json.loads(r['completed_topics'] or '[]'),
+                'last_context': r['last_context'] or ''
+            }
+        # Создаём запись
+        await db.execute("INSERT INTO course_memory (course_id) VALUES (?)", (course_id,))
+        await db.commit()
+        return {'course_id': course_id, 'summary': '', 'problem_zones': [], 'completed_topics': [], 'last_context': ''}
+
+
+async def save_course_memory(course_id: int, summary: str = None, problem_zones: List = None, 
+                             completed_topics: List = None, last_context: str = None):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        mem = await get_course_memory(course_id)
+        await db.execute("""
+            UPDATE course_memory SET 
+                summary = ?,
+                problem_zones = ?,
+                completed_topics = ?,
+                last_context = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE course_id = ?
+        """, (
+            summary if summary is not None else mem['summary'],
+            json.dumps(problem_zones if problem_zones is not None else mem['problem_zones'], ensure_ascii=False),
+            json.dumps(completed_topics if completed_topics is not None else mem['completed_topics'], ensure_ascii=False),
+            last_context if last_context is not None else mem['last_context'],
+            course_id
+        ))
+        await db.commit()
+
+
+
+async def add_problem_zone(course_id: int, step: int, topic: str, question: str):
+    mem = await get_course_memory(course_id)
+    zones = mem['problem_zones']
+    zones.append({'step': step, 'topic': topic, 'question': question[:200]})
+    await save_course_memory(course_id, problem_zones=zones[-20:])
+
+
+async def add_completed_topic(course_id: int, step: int, topic: str, key_points: list):
+    mem = await get_course_memory(course_id)
+    topics = mem['completed_topics']
+    topics.append({'step': step, 'topic': topic, 'key_points': key_points[:5]})
+    await save_course_memory(course_id, completed_topics=topics)
+
+
+async def delete_course_memory(course_id: int):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM course_memory WHERE course_id=?", (course_id,))
+        await db.commit()
