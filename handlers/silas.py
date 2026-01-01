@@ -25,7 +25,7 @@ class SilasSt(StatesGroup):
 
 MOODS = {'good': SILAS_GOOD, 'tired': SILAS_TIRED, 'pain': SILAS_PAIN}
 
-@router.message(F.text == "🛋️ Silas")
+@router.message(F.text == "🛋️ Психолог")
 async def silas_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('silas')
     if not cfg['enabled']:
@@ -67,7 +67,7 @@ async def silas_set_duration(msg: Message, state: FSMContext):
     await db.reset_msg_counter(msg.from_user.id, 'silas')
     await msg.answer(f"<b>Сеанс начат</b>\n\nДлительность: {dur} мин\n\nМожете начинать:", reply_markup=reply.silas_chat_kb())
 
-@router.message(SilasSt.duration, F.text == "◀️ Назад к Silas")
+@router.message(SilasSt.duration, F.text == "◀️ Назад к Психологу")
 async def dur_back(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
     cfg = await db.get_bot_cfg('silas')
@@ -102,7 +102,7 @@ async def mood_stats(msg: Message):
     total = s['good'] + s['tired'] + s['pain']
     await msg.answer(f"<b>Статистика за месяц</b>\n\nХорошо: {s['good']}\nУстал: {s['tired']}\nТяжело: {s['pain']}\n\nВсего: {total}")
 
-@router.message(SilasSt.mood, F.text == "◀️ Назад к Silas")
+@router.message(SilasSt.mood, F.text == "◀️ Назад к Психологу")
 async def mood_back(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
     cfg = await db.get_bot_cfg('silas')

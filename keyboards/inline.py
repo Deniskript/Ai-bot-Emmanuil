@@ -18,22 +18,22 @@ def main_menu_kb():
 
 async def get_bots_kb():
     from database import db
-    luca = await db.get_button("luca")
-    silas = await db.get_button("silas")
-    titus = await db.get_button("titus")
+    dialog = await db.get_button("dialog") or {}
+    psycho = await db.get_button("psycho") or {}
+    study = await db.get_button("study") or {}
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{luca.get('emoji','📈')} {luca.get('text','Luca')}", callback_data="bot:luca"),
-         InlineKeyboardButton(text=f"{silas.get('emoji','🗂')} {silas.get('text','Silas')}", callback_data="bot:silas")],
-        [InlineKeyboardButton(text=f"{titus.get('emoji','📋')} {titus.get('text','Titus')}", callback_data="bot:titus"),
+        [InlineKeyboardButton(text=f"{dialog.get('emoji','💭')} {dialog.get('text','Диалог')}", callback_data="bot:dialog"),
+         InlineKeyboardButton(text=f"{psycho.get('emoji','🛋️')} {psycho.get('text','Психолог')}", callback_data="bot:psycho")],
+        [InlineKeyboardButton(text=f"{study.get('emoji','📓')} {study.get('text','Обучение')}", callback_data="bot:study"),
          InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 
 
 def bots_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📈 Luca", callback_data="bot:luca"),
-         InlineKeyboardButton(text="🗂 Silas", callback_data="bot:silas")],
-        [InlineKeyboardButton(text="📋 Titus", callback_data="bot:titus"),
+        [InlineKeyboardButton(text="💭 Диалог", callback_data="bot:dialog"),
+         InlineKeyboardButton(text="🛋️ Психолог", callback_data="bot:psycho")],
+        [InlineKeyboardButton(text="📓 Обучение", callback_data="bot:study"),
          InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 
@@ -57,9 +57,9 @@ def topup_kb():
 
 def help_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📈 Luca", callback_data="help:luca"),
-         InlineKeyboardButton(text="🗂 Silas", callback_data="help:silas")],
-        [InlineKeyboardButton(text="📋 Titus", callback_data="help:titus"),
+        [InlineKeyboardButton(text="💭 Диалог", callback_data="help:dialog"),
+         InlineKeyboardButton(text="🛋️ Психолог", callback_data="help:psycho")],
+        [InlineKeyboardButton(text="📓 Обучение", callback_data="help:study"),
          InlineKeyboardButton(text="💳 Оплата", callback_data="help:pay")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
@@ -71,69 +71,69 @@ def back_kb(cb_data: str):
     ])
 
 
-def luca_kb():
+def dialog_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💬 Начать диалог", callback_data="luca:start")],
-        [InlineKeyboardButton(text="🎭 Характер", callback_data="luca:char"),
-         InlineKeyboardButton(text="📖 Инструкция", callback_data="help:luca")],
+        [InlineKeyboardButton(text="💬 Начать диалог", callback_data="dialog:start")],
+        [InlineKeyboardButton(text="🎭 Характер", callback_data="dialog:char"),
+         InlineKeyboardButton(text="📖 Инструкция", callback_data="help:dialog")],
         [InlineKeyboardButton(text="◀️ К ботам", callback_data="bots")]
     ])
 
 
-def luca_char_kb():
+def dialog_char_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💛 Душевный", callback_data="char:душевный"),
-         InlineKeyboardButton(text="📋 Серьезный", callback_data="char:серьезный")],
-        [InlineKeyboardButton(text="🧑 Человек", callback_data="char:человек")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:luca")]
+        [InlineKeyboardButton(text="🙏 Поддержка", callback_data="char:support"),
+         InlineKeyboardButton(text="🔥 Мотивация", callback_data="char:motivation")],
+        [InlineKeyboardButton(text="⚡️ Решение", callback_data="char:solution")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:dialog")]
     ])
 
 
-def silas_kb():
+def psycho_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📔 Дневник настроения", callback_data="silas:diary")],
-        [InlineKeyboardButton(text="🎯 Начать сеанс", callback_data="silas:session")],
-        [InlineKeyboardButton(text="📖 Инструкция", callback_data="help:silas")],
+        [InlineKeyboardButton(text="📔 Дневник настроения", callback_data="psycho:diary")],
+        [InlineKeyboardButton(text="🎯 Начать сеанс", callback_data="psycho:session")],
+        [InlineKeyboardButton(text="📖 Инструкция", callback_data="help:psycho")],
         [InlineKeyboardButton(text="◀️ К ботам", callback_data="bots")]
     ])
 
 
-def silas_diary_kb():
+def psycho_diary_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="😊 Хорошо", callback_data="mood:good"),
          InlineKeyboardButton(text="😔 Устал", callback_data="mood:tired")],
         [InlineKeyboardButton(text="😰 Больно", callback_data="mood:pain"),
          InlineKeyboardButton(text="✏️ Своё", callback_data="mood:custom")],
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="silas:stats")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:silas")]
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="psycho:stats")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:psycho")]
     ])
 
 
-def silas_dur_kb():
+def psycho_dur_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="15 мин", callback_data="ses:15"),
          InlineKeyboardButton(text="30 мин", callback_data="ses:30")],
         [InlineKeyboardButton(text="45 мин", callback_data="ses:45"),
          InlineKeyboardButton(text="60 мин", callback_data="ses:60")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:silas")]
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:psycho")]
     ])
 
 
-def titus_kb():
+def study_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Новый курс", callback_data="titus:new")],
-        [InlineKeyboardButton(text="📂 Мои курсы", callback_data="titus:list")],
-        [InlineKeyboardButton(text="📖 Инструкция", callback_data="help:titus")],
+        [InlineKeyboardButton(text="📝 Новый курс", callback_data="study:new")],
+        [InlineKeyboardButton(text="📂 Мои курсы", callback_data="study:list")],
+        [InlineKeyboardButton(text="📖 Инструкция", callback_data="help:study")],
         [InlineKeyboardButton(text="◀️ К ботам", callback_data="bots")]
     ])
 
 
-def titus_steps_kb():
+def study_steps_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 10 шагов", callback_data="steps:10"),
          InlineKeyboardButton(text="📘 40 шагов", callback_data="steps:40")],
         [InlineKeyboardButton(text="📖 80 шагов", callback_data="steps:80")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:titus")]
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bot:study")]
     ])
 
 
@@ -153,21 +153,21 @@ def admin_kb():
     ])
 
 
-def admin_bots_kb(l, s, t):
-    el = "🟢" if l else "🔴"
+def admin_bots_kb(d, p, s):
+    ed = "🟢" if d else "🔴"
+    ep = "🟢" if p else "🔴"
     es = "🟢" if s else "🔴"
-    et = "🟢" if t else "🔴"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{el} Luca", callback_data="botcfg:luca"),
-         InlineKeyboardButton(text=f"{es} Silas", callback_data="botcfg:silas")],
-        [InlineKeyboardButton(text=f"{et} Titus", callback_data="botcfg:titus")],
+        [InlineKeyboardButton(text=f"{ed} Диалог", callback_data="botcfg:dialog"),
+         InlineKeyboardButton(text=f"{ep} Психолог", callback_data="botcfg:psycho")],
+        [InlineKeyboardButton(text=f"{es} Обучение", callback_data="botcfg:study")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
     ])
 
 
 def bot_cfg_kb(bot: str, enabled: bool, current_model: str = ""):
     e = "🔴 Выключить" if enabled else "🟢 Включить"
-    is_gpt = current_model.startswith("gpt") if current_model else True
+    is_gpt = current_model.startswith("gpt") or current_model.startswith("o") if current_model else True
     gpt_mark = "🟢" if is_gpt else "⚪"
     claude_mark = "🟢" if not is_gpt else "⚪"
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -186,12 +186,6 @@ def gpt_models_kb(bot: str, current: str = ""):
         [InlineKeyboardButton(text=f"o4-mini {mark('o4-mini-2025-04-16')}", callback_data=f"setm:{bot}:o4-mini-2025-04-16")],
         [InlineKeyboardButton(text=f"o3 {mark('o3-2025-04-16')}", callback_data=f"setm:{bot}:o3-2025-04-16"),
          InlineKeyboardButton(text=f"o3-mini {mark('o3-mini-2025-01-31')}", callback_data=f"setm:{bot}:o3-mini-2025-01-31")],
-        [InlineKeyboardButton(text=f"o3-pro {mark('o3-pro-2025-06-10')}", callback_data=f"setm:{bot}:o3-pro-2025-06-10"),
-         InlineKeyboardButton(text=f"o1 {mark('o1-2024-12-17')}", callback_data=f"setm:{bot}:o1-2024-12-17")],
-        [InlineKeyboardButton(text=f"gpt-5.2 {mark('gpt-5.2-chat-latest')}", callback_data=f"setm:{bot}:gpt-5.2-chat-latest"),
-         InlineKeyboardButton(text=f"gpt-5.1 {mark('gpt-5.1-chat-latest')}", callback_data=f"setm:{bot}:gpt-5.1-chat-latest")],
-        [InlineKeyboardButton(text=f"gpt-5 {mark('gpt-5-chat-latest')}", callback_data=f"setm:{bot}:gpt-5-chat-latest"),
-         InlineKeyboardButton(text=f"gpt-5-mini {mark('gpt-5-mini-2025-08-07')}", callback_data=f"setm:{bot}:gpt-5-mini-2025-08-07")],
         [InlineKeyboardButton(text=f"gpt-4.1 {mark('gpt-4.1-2025-04-14')}", callback_data=f"setm:{bot}:gpt-4.1-2025-04-14"),
          InlineKeyboardButton(text=f"gpt-4.1-mini {mark('gpt-4.1-mini-2025-04-14')}", callback_data=f"setm:{bot}:gpt-4.1-mini-2025-04-14")],
         [InlineKeyboardButton(text=f"gpt-4o {mark('gpt-4o')}", callback_data=f"setm:{bot}:gpt-4o"),
@@ -204,17 +198,12 @@ def claude_models_kb(bot: str, current: str = ""):
     def mark(m):
         return "✅" if current == m else ""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"claude-sonnet-4.5 {mark('claude-sonnet-4-5-20250929')}", callback_data=f"setm:{bot}:claude-sonnet-4-5-20250929")],
-        [InlineKeyboardButton(text=f"claude-opus-4.5 {mark('claude-opus-4-5-20251101')}", callback_data=f"setm:{bot}:claude-opus-4-5-20251101")],
-        [InlineKeyboardButton(text=f"claude-opus-4.1 {mark('claude-opus-4-1-20250805')}", callback_data=f"setm:{bot}:claude-opus-4-1-20250805")],
-        [InlineKeyboardButton(text=f"claude-opus-4 {mark('claude-opus-4-20250514')}", callback_data=f"setm:{bot}:claude-opus-4-20250514")],
         [InlineKeyboardButton(text=f"claude-sonnet-4 {mark('claude-sonnet-4-20250514')}", callback_data=f"setm:{bot}:claude-sonnet-4-20250514")],
+        [InlineKeyboardButton(text=f"claude-opus-4 {mark('claude-opus-4-20250514')}", callback_data=f"setm:{bot}:claude-opus-4-20250514")],
         [InlineKeyboardButton(text=f"claude-3.7-sonnet {mark('claude-3-7-sonnet-20250219')}", callback_data=f"setm:{bot}:claude-3-7-sonnet-20250219")],
-        [InlineKeyboardButton(text=f"claude-haiku-4.5 {mark('claude-haiku-4-5-20251001')}", callback_data=f"setm:{bot}:claude-haiku-4-5-20251001")],
         [InlineKeyboardButton(text=f"claude-3.5-haiku {mark('claude-3-5-haiku-20241022')}", callback_data=f"setm:{bot}:claude-3-5-haiku-20241022")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data=f"botcfg:{bot}")]
     ])
-
 
 
 def spam_kb(interval: int, max_pm: int, blocked: int):
@@ -288,9 +277,9 @@ def buttons_list_kb(buttons: list):
 def media_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🖼 Приветствие /start", callback_data="media:start")],
-        [InlineKeyboardButton(text="🖼 Luca", callback_data="media:luca"),
-         InlineKeyboardButton(text="🖼 Silas", callback_data="media:silas")],
-        [InlineKeyboardButton(text="🖼 Titus", callback_data="media:titus")],
+        [InlineKeyboardButton(text="🖼 Диалог", callback_data="media:dialog"),
+         InlineKeyboardButton(text="🖼 Психолог", callback_data="media:psycho")],
+        [InlineKeyboardButton(text="🖼 Обучение", callback_data="media:study")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:editor")]
     ])
 
@@ -325,3 +314,13 @@ def button_edit_kb(key: str):
         [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"btnd:{key}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="edit:buttons")]
     ])
+
+
+# === Алиасы для совместимости ===
+luca_kb = dialog_kb
+luca_char_kb = dialog_char_kb
+silas_kb = psycho_kb
+silas_diary_kb = psycho_diary_kb
+silas_dur_kb = psycho_dur_kb
+titus_kb = study_kb
+titus_steps_kb = study_steps_kb

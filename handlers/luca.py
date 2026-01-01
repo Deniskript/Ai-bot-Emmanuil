@@ -23,7 +23,7 @@ class LucaSt(StatesGroup):
 CHARS = {'душевный': LUCA_SOUL, 'серьезный': LUCA_SER, 'человек': LUCA_HUM}
 
 # === ВХОД В LUCA ===
-@router.message(F.text == "💭Luca")
+@router.message(F.text == "💭 Диалог")
 async def luca_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('luca')
     if not cfg['enabled']:
@@ -90,7 +90,7 @@ async def char_hum(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.menu)
     await msg.answer("✅ Характер: Человек", reply_markup=reply.luca_kb())
 
-@router.message(LucaSt.char, F.text == "◀️ Назад к Luca")
+@router.message(LucaSt.char, F.text == "◀️ Назад к Диалогу")
 async def char_back(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.menu)
     s = await db.get_user_bot(msg.from_user.id, 'luca')

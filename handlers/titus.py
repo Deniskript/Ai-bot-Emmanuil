@@ -64,7 +64,7 @@ class TitusSt(StatesGroup):
     delete_course = State()
 
 
-@router.message(F.text == "📓 Titus")
+@router.message(F.text == "📓 Обучение")
 async def titus_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('titus')
     if not cfg['enabled']:
