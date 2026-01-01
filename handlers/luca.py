@@ -39,7 +39,7 @@ async def luca_enter(msg: Message, state: FSMContext):
     )
 
 # === МЕНЮ LUCA ===
-@router.message(LucaSt.menu, F.text == "💬 Начать диалог")
+@router.message(LucaSt.menu, F.text == "📝 Новый курс")
 async def luca_start_chat(msg: Message, state: FSMContext):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await db.reset_msg_counter(msg.from_user.id, 'luca')
@@ -72,19 +72,19 @@ async def luca_back(msg: Message, state: FSMContext):
     await msg.answer("🤖 Выбери бота:", reply_markup=reply.bots_menu_kb())
 
 # === ВЫБОР ХАРАКТЕРА ===
-@router.message(LucaSt.char, F.text == "🙏 Душевный")
+@router.message(LucaSt.char, F.text == "🙏 Заботливый")
 async def char_soul(msg: Message, state: FSMContext):
     await db.set_char(msg.from_user.id, 'душевный')
     await state.set_state(LucaSt.menu)
     await msg.answer("✅ Характер: Душевный", reply_markup=reply.luca_kb())
 
-@router.message(LucaSt.char, F.text == "💯 Серьезный")
+@router.message(LucaSt.char, F.text == "💯 Строгий")
 async def char_ser(msg: Message, state: FSMContext):
     await db.set_char(msg.from_user.id, 'серьезный')
     await state.set_state(LucaSt.menu)
     await msg.answer("✅ Характер: Серьезный", reply_markup=reply.luca_kb())
 
-@router.message(LucaSt.char, F.text == "❤️ Человек")
+@router.message(LucaSt.char, F.text == "💭 Нейтральный")
 async def char_hum(msg: Message, state: FSMContext):
     await db.set_char(msg.from_user.id, 'человек')
     await state.set_state(LucaSt.menu)

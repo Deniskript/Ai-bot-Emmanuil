@@ -4,7 +4,7 @@ from keyboards import inline
 
 router = Router()
 
-@router.message(F.text == "✨ Emmanuil AI")
+@router.message(F.text == "🚀   Emmanuil AI")
 async def emmanuil(msg: Message):
     await msg.answer("🤖 <b>Emmanuil AI</b>\n\nВыберите собеседника:", reply_markup=await inline.get_bots_kb_dynamic())
 

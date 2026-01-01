@@ -42,7 +42,7 @@ async def agree_no(cb: CallbackQuery):
     await cb.message.edit_text("❌ Нажмите /start чтобы принять")
 
 # === МЕНЮ БОТОВ ===
-@router.message(F.text == "✨ Emmanuil AI")
+@router.message(F.text == "🚀   Emmanuil AI")
 async def bots_menu(msg: Message):
     await msg.answer("🤖 <b>Выберите бота:</b>", reply_markup=reply.bots_menu_kb())
 
