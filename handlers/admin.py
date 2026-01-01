@@ -11,7 +11,9 @@ from keyboards import inline
 from config import ADMIN_IDS
 import subprocess
 
+
 router = Router()
+
 
 class Adm(StatesGroup):
     find = State()
@@ -20,6 +22,7 @@ class Adm(StatesGroup):
     bc = State()
     model = State()
     version = State()
+
 
 class Editor(StatesGroup):
     text_key = State()
@@ -30,30 +33,43 @@ class Editor(StatesGroup):
     media_upload = State()
     git_msg = State()
 
-def is_adm(uid): return uid in ADMIN_IDS
-def fmt(n): return f"{n:,}".replace(",", " ")
+
+def is_adm(uid):
+    return uid in ADMIN_IDS
+
+
+def fmt(n):
+    return f"{n:,}".replace(",", " ")
+
 
 @router.message(Command("admin"))
 async def admin(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     await state.clear()
     await msg.answer("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
 
+
 @router.callback_query(F.data == "adm:close")
 async def close(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await state.clear()
     await cb.message.delete()
 
+
 @router.callback_query(F.data == "adm:back")
 async def back(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await state.clear()
     await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
 
+
 @router.callback_query(F.data == "adm:stats")
 async def stats(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     s = await db.get_stats()
     blocked = await db.get_blocked_count()
     await cb.message.edit_text(
@@ -64,23 +80,30 @@ async def stats(cb: CallbackQuery):
         f"💎 Токенов: {fmt(s['tokens'])}",
         reply_markup=inline.back_kb("adm:back"))
 
+
 @router.callback_query(F.data == "adm:load")
 async def load(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     cpu = psutil.cpu_percent(interval=0.5)
     mem = psutil.virtual_memory()
     s = await db.get_stats()
-    if cpu < 50: status = "🟢 Нормальная"
-    elif cpu < 80: status = "🟡 Средняя"
-    else: status = "🔴 Высокая"
+    if cpu < 50:
+        status = "🟢 Нормальная"
+    elif cpu < 80:
+        status = "🟡 Средняя"
+    else:
+        status = "🔴 Высокая"
     await cb.message.edit_text(
         f"📈 <b>Нагрузка</b>\n\n💻 CPU: {cpu}%\n🧠 RAM: {mem.percent}%\n"
         f"👥 Юзеров: {fmt(s['users'])}\n💬 Запросов: {fmt(s['reqs'])}\n\nСтатус: {status}",
         reply_markup=inline.back_kb("adm:back"))
 
+
 @router.callback_query(F.data == "adm:bots")
 async def bots(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     l = await db.get_bot_cfg('luca')
     s = await db.get_bot_cfg('silas')
     t = await db.get_bot_cfg('titus')
@@ -90,20 +113,24 @@ async def bots(cb: CallbackQuery):
         f"{e(s['enabled'])} Silas — {s['model']}\n{e(t['enabled'])} Titus — {t['model']}",
         reply_markup=inline.admin_bots_kb(l['enabled'], s['enabled'], t['enabled']))
 
+
 @router.callback_query(F.data.startswith("botcfg:"))
 async def bot_cfg(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     b = cb.data.split(":")[1]
     cfg = await db.get_bot_cfg(b)
     names = {'luca': '💭 Luca', 'silas': '🛋️ Silas', 'titus': '📓 Titus'}
     await cb.message.edit_text(
         f"⚙️ <b>{names[b]}</b>\n\nСтатус: {'🟢' if cfg['enabled'] else '🔴'}\n"
         f"Модель: {cfg['model']}\nВерсия: {cfg['version']}",
-        reply_markup=inline.bot_cfg_kb(b, cfg['enabled']))
+        reply_markup=inline.bot_cfg_kb(b, cfg['enabled'], cfg['model']))
+
 
 @router.callback_query(F.data.startswith("tog:"))
 async def toggle(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     b = cb.data.split(":")[1]
     cfg = await db.get_bot_cfg(b)
     await db.set_bot_enabled(b, not cfg['enabled'])
@@ -111,44 +138,63 @@ async def toggle(cb: CallbackQuery):
     cb.data = f"botcfg:{b}"
     await bot_cfg(cb)
 
-@router.callback_query(F.data.startswith("model:"))
-async def change_model(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
-    b = cb.data.split(":")[1]
-    await state.update_data(bot=b)
-    await state.set_state(Adm.model)
-    await cb.message.edit_text(
-        "🔄 <b>Выберите модель:</b>\n\n"
-        "OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo\n"
-        "Claude: claude-3-opus, claude-3-sonnet\n\nВведите название:")
 
-@router.message(Adm.model)
-async def set_model(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
-    d = await state.get_data()
-    await db.set_bot_model(d['bot'], msg.text)
-    await state.clear()
-    await msg.answer(f"✅ Модель: {msg.text}", reply_markup=inline.back_kb("adm:bots"))
+@router.callback_query(F.data.startswith("prov:"))
+async def select_provider(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    b = parts[1]
+    provider = parts[2]
+    cfg = await db.get_bot_cfg(b)
+    current = cfg['model']
+    if provider == "gpt":
+        await cb.message.edit_text(
+            f"🤖 <b>GPT модели для {b.title()}</b>\n\nТекущая: {current}",
+            reply_markup=inline.gpt_models_kb(b, current))
+    else:
+        await cb.message.edit_text(
+            f"🤖 <b>Claude модели для {b.title()}</b>\n\nТекущая: {current}",
+            reply_markup=inline.claude_models_kb(b, current))
+
+
+@router.callback_query(F.data.startswith("setm:"))
+async def set_model_btn(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    b = parts[1]
+    model = parts[2]
+    await db.set_bot_model(b, model)
+    await cb.answer(f"✅ {model}")
+    cb.data = f"botcfg:{b}"
+    await bot_cfg(cb)
+
 
 @router.callback_query(F.data.startswith("ver:"))
 async def change_ver(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     b = cb.data.split(":")[1]
     await state.update_data(bot=b)
     await state.set_state(Adm.version)
     await cb.message.edit_text("📝 Введите версию (например 1.0.1):")
 
+
 @router.message(Adm.version)
 async def set_ver(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     d = await state.get_data()
     await db.set_bot_version(d['bot'], msg.text)
     await state.clear()
     await msg.answer(f"✅ Версия: {msg.text}", reply_markup=inline.back_kb("adm:bots"))
 
+
 @router.callback_query(F.data == "adm:spam")
 async def spam_settings(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     interval = int(await db.get_setting('spam_interval') or '2')
     max_rpm = int(await db.get_setting('spam_max_rpm') or '8')
     blocked = await db.get_blocked_count()
@@ -157,13 +203,16 @@ async def spam_settings(cb: CallbackQuery):
         f"📨 Макс/мин: {max_rpm}\n🚫 Заблокировано: {blocked}",
         reply_markup=inline.spam_kb(interval, max_rpm, blocked))
 
+
 @router.callback_query(F.data == "sp:info")
 async def sp_info(cb: CallbackQuery):
     await cb.answer("Используйте + и - для изменения")
 
+
 @router.callback_query(F.data.startswith("sp:int:"))
 async def sp_interval(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     act = cb.data.split(":")[2]
     cur = int(await db.get_setting('spam_interval') or '2')
     new = max(1, cur + (1 if act == "+1" else -1))
@@ -171,9 +220,11 @@ async def sp_interval(cb: CallbackQuery):
     await cb.answer(f"Интервал: {new} сек")
     await spam_settings(cb)
 
+
 @router.callback_query(F.data.startswith("sp:rpm:"))
 async def sp_rpm(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     act = cb.data.split(":")[2]
     cur = int(await db.get_setting('spam_max_rpm') or '8')
     new = max(1, cur + (1 if act == "+1" else -1))
@@ -181,9 +232,11 @@ async def sp_rpm(cb: CallbackQuery):
     await cb.answer(f"Макс/мин: {new}")
     await spam_settings(cb)
 
+
 @router.callback_query(F.data == "spam:list")
 async def spam_list(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     users = await db.get_blocked_users()
     if not users:
         await cb.answer("Нет заблокированных")
@@ -193,9 +246,11 @@ async def spam_list(cb: CallbackQuery):
         txt += f"• {u['user_id']} (@{u['username'] or '—'})\n"
     await cb.message.edit_text(txt, reply_markup=inline.back_kb("adm:spam"))
 
+
 @router.callback_query(F.data == "spam:unblock")
 async def spam_unblock_menu(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     users = await db.get_blocked_users()
     if not users:
         await cb.answer("Нет заблокированных")
@@ -205,9 +260,11 @@ async def spam_unblock_menu(cb: CallbackQuery):
         "\n".join([f"• {u['user_id']}" for u in users[:10]]),
         reply_markup=inline.back_kb("adm:spam"))
 
+
 @router.callback_query(F.data == "adm:users")
 async def users_list(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     users = await db.get_all_users()
     total = len(users)
     txt = f"👥 <b>Пользователи ({total})</b>\n\n"
@@ -218,15 +275,19 @@ async def users_list(cb: CallbackQuery):
         txt += f"\n... и ещё {total - 15}"
     await cb.message.edit_text(txt, reply_markup=inline.back_kb("adm:back"))
 
+
 @router.callback_query(F.data == "adm:find")
 async def find_start(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await cb.message.edit_text("🔍 <b>Поиск</b>\n\nВведите ID пользователя:")
     await state.set_state(Adm.find)
 
+
 @router.message(Adm.find)
 async def find_user(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     try:
         uid = int(msg.text)
         u = await db.get_user(uid)
@@ -242,23 +303,29 @@ async def find_user(msg: Message, state: FSMContext):
     except:
         await msg.answer("❌ Введите число")
 
+
 @router.callback_query(F.data.startswith("block:"))
 async def block_user(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     uid = int(cb.data.split(":")[1])
     await db.block_user(uid)
     await cb.answer("🚫 Заблокирован")
     await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
 
+
 @router.callback_query(F.data == "adm:give")
 async def give_start(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await cb.message.edit_text("💎 <b>Выдать токены</b>\n\nВведите ID:")
     await state.set_state(Adm.give_id)
 
+
 @router.message(Adm.give_id)
 async def give_id(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     try:
         uid = int(msg.text)
         u = await db.get_user(uid)
@@ -271,9 +338,11 @@ async def give_id(msg: Message, state: FSMContext):
     except:
         await msg.answer("❌ Введите число")
 
+
 @router.callback_query(F.data.startswith("gadd:"))
 async def give_quick(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     amt = cb.data.split(":")[1]
     if amt == "custom":
         await cb.message.edit_text("✏️ Введите количество:")
@@ -281,40 +350,52 @@ async def give_quick(cb: CallbackQuery, state: FSMContext):
         return
     d = await state.get_data()
     await db.add_tokens(d['target'], int(amt))
-    try: await bot.send_message(d['target'], f"🎉 Вам начислено <b>{fmt(int(amt))}</b> токенов!")
-    except: pass
+    try:
+        await bot.send_message(d['target'], f"🎉 Вам начислено <b>{fmt(int(amt))}</b> токенов!")
+    except:
+        pass
     await cb.message.edit_text(f"✅ Выдано {fmt(int(amt))}", reply_markup=inline.back_kb("adm:back"))
     await state.clear()
 
+
 @router.message(Adm.give_amt)
 async def give_custom(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     try:
         amt = int(msg.text)
         d = await state.get_data()
         await db.add_tokens(d['target'], amt)
-        try: await bot.send_message(d['target'], f"🎉 Вам начислено <b>{fmt(amt)}</b> токенов!")
-        except: pass
+        try:
+            await bot.send_message(d['target'], f"🎉 Вам начислено <b>{fmt(amt)}</b> токенов!")
+        except:
+            pass
         await msg.answer(f"✅ Выдано {fmt(amt)}", reply_markup=inline.back_kb("adm:back"))
         await state.clear()
     except:
         await msg.answer("❌ Введите число")
 
+
 @router.callback_query(F.data == "adm:bc")
 async def bc_start(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await cb.message.edit_text("📢 <b>Рассылка</b>\n\nВведите текст:")
     await state.set_state(Adm.bc)
 
+
 @router.message(Adm.bc)
 async def bc_preview(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     await state.update_data(bc_text=msg.text)
     await msg.answer(f"📢 <b>Превью:</b>\n\n{msg.text}", reply_markup=inline.confirm_bc_kb())
 
+
 @router.callback_query(F.data == "bc:send")
 async def bc_send(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     d = await state.get_data()
     users = await db.get_all_users()
     ok, err = 0, 0
@@ -323,32 +404,27 @@ async def bc_send(cb: CallbackQuery, state: FSMContext):
         try:
             await bot.send_message(u['user_id'], d['bc_text'])
             ok += 1
-        except: err += 1
+        except:
+            err += 1
     await cb.message.edit_text(f"✅ Отправлено: {ok}\n❌ Ошибок: {err}", reply_markup=inline.back_kb("adm:back"))
     await state.clear()
 
+
 @router.callback_query(F.data == "adm:maint")
 async def maint(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     c = await db.get_setting('maintenance')
     n = '0' if c == '1' else '1'
     await db.set_setting('maintenance', n)
     await cb.answer(f"🔧 Тех.работы: {'ВКЛ' if n == '1' else 'ВЫКЛ'}")
     await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
 
-@router.callback_query(F.data.startswith("setm:"))
-async def set_model_btn(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
-    parts = cb.data.split(":")
-    b, model = parts[1], parts[2]
-    await db.set_bot_model(b, model)
-    await cb.answer(f"✅ {model}")
-    cb.data = f"botcfg:{b}"
-    await bot_cfg(cb)
 
 @router.callback_query(F.data == "adm:editor")
 async def editor_menu(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await state.clear()
     await cb.message.edit_text(
         "✏️ <b>Редактор бота</b>\n\n"
@@ -358,9 +434,11 @@ async def editor_menu(cb: CallbackQuery, state: FSMContext):
         "💾 Git — сохранить проект",
         reply_markup=inline.editor_kb())
 
+
 @router.callback_query(F.data == "edit:texts")
 async def texts_list(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     texts = await db.get_all_texts()
     if not texts:
         await db.set_text("start_message", "Привет! Я AI бот 🤖", "Приветствие /start")
@@ -370,9 +448,11 @@ async def texts_list(cb: CallbackQuery):
         "📝 <b>Тексты бота</b>\n\nВыберите для редактирования:",
         reply_markup=inline.texts_list_kb(texts))
 
+
 @router.callback_query(F.data.startswith("txt:"))
 async def text_view(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     if key == "add":
         await cb.message.edit_text("📝 Введите ключ нового текста (латиницей):")
@@ -386,32 +466,40 @@ async def text_view(cb: CallbackQuery, state: FSMContext):
             f"<code>{t['value'][:500]}</code>",
             reply_markup=inline.text_edit_kb(key))
 
+
 @router.message(Editor.text_key)
 async def text_add_key(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     await state.update_data(text_key=msg.text)
     await msg.answer("📝 Теперь введите текст:")
     await state.set_state(Editor.text_val)
 
+
 @router.message(Editor.text_val)
 async def text_add_val(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     d = await state.get_data()
     await db.set_text(d['text_key'], msg.text)
     await msg.answer(f"✅ Текст <b>{d['text_key']}</b> сохранён!", reply_markup=inline.back_kb("edit:texts"))
     await state.clear()
 
+
 @router.callback_query(F.data.startswith("txte:"))
 async def text_edit(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     await state.update_data(text_key=key)
     await cb.message.edit_text(f"✏️ Введите новый текст для <b>{key}</b>:")
     await state.set_state(Editor.text_val)
 
+
 @router.callback_query(F.data.startswith("txtd:"))
 async def text_del(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     async with aiosqlite.connect(db.DATABASE_PATH) as conn:
         await conn.execute("DELETE FROM bot_texts WHERE key=?", (key,))
@@ -419,9 +507,11 @@ async def text_del(cb: CallbackQuery):
     await cb.answer(f"🗑 Удалено: {key}")
     await texts_list(cb)
 
+
 @router.callback_query(F.data == "edit:buttons")
 async def buttons_list(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     buttons = await db.get_all_buttons()
     if not buttons:
         await db.set_button("luca", "🧑", "Luca", "Кнопка Luca")
@@ -432,9 +522,11 @@ async def buttons_list(cb: CallbackQuery):
         "🔘 <b>Кнопки бота</b>\n\nВыберите для редактирования:",
         reply_markup=inline.buttons_list_kb(buttons))
 
+
 @router.callback_query(F.data.startswith("btn:"))
 async def button_view(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     if key == "add":
         await cb.message.edit_text("🔘 Введите ключ кнопки (латиницей):")
@@ -445,59 +537,71 @@ async def button_view(cb: CallbackQuery, state: FSMContext):
         f"🔘 <b>{key}</b>\n\n😀 Эмодзи: {b['emoji']}\n✏️ Текст: {b['text']}",
         reply_markup=inline.button_edit_kb(key))
 
+
 @router.message(Editor.btn_key)
 async def btn_add_key(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     await state.update_data(btn_key=msg.text)
     await msg.answer("😀 Введите эмодзи:")
     await state.set_state(Editor.btn_emoji)
 
+
 @router.message(Editor.btn_emoji)
 async def btn_add_emoji(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     d = await state.get_data()
     if d.get('edit_mode') == 'emoji':
         b = await db.get_button(d['btn_key'])
         await db.set_button(d['btn_key'], msg.text, b['text'])
-        await msg.answer(f"✅ Эмодзи изменён!", reply_markup=inline.back_kb("edit:buttons"))
+        await msg.answer("✅ Эмодзи изменён!", reply_markup=inline.back_kb("edit:buttons"))
         await state.clear()
     else:
         await state.update_data(btn_emoji=msg.text)
         await msg.answer("✏️ Введите текст кнопки:")
         await state.set_state(Editor.btn_text)
 
+
 @router.message(Editor.btn_text)
 async def btn_add_text(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     d = await state.get_data()
     if d.get('edit_mode') == 'text':
         b = await db.get_button(d['btn_key'])
         await db.set_button(d['btn_key'], b['emoji'], msg.text)
-        await msg.answer(f"✅ Текст изменён!", reply_markup=inline.back_kb("edit:buttons"))
+        await msg.answer("✅ Текст изменён!", reply_markup=inline.back_kb("edit:buttons"))
     else:
         await db.set_button(d['btn_key'], d['btn_emoji'], msg.text)
         await msg.answer(f"✅ Кнопка сохранена: {d['btn_emoji']} {msg.text}", reply_markup=inline.back_kb("edit:buttons"))
     await state.clear()
 
+
 @router.callback_query(F.data.startswith("btne:"))
 async def btn_edit_emoji(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     await state.update_data(btn_key=key, edit_mode="emoji")
     await cb.message.edit_text(f"😀 Введите новый эмодзи для <b>{key}</b>:")
     await state.set_state(Editor.btn_emoji)
 
+
 @router.callback_query(F.data.startswith("btnt:"))
 async def btn_edit_text(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     await state.update_data(btn_key=key, edit_mode="text")
     await cb.message.edit_text(f"✏️ Введите новый текст для <b>{key}</b>:")
     await state.set_state(Editor.btn_text)
 
+
 @router.callback_query(F.data.startswith("btnd:"))
 async def btn_delete(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":", 1)[1]
     async with aiosqlite.connect(db.DATABASE_PATH) as conn:
         await conn.execute("DELETE FROM bot_buttons WHERE key=?", (key,))
@@ -505,17 +609,21 @@ async def btn_delete(cb: CallbackQuery):
     await cb.answer(f"🗑 Удалено: {key}")
     await buttons_list(cb)
 
+
 @router.callback_query(F.data == "edit:media")
 async def media_menu(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await cb.message.edit_text(
         "🖼 <b>Медиа приветствия</b>\n\n"
         "Загрузите фото или видео для приветствий:",
         reply_markup=inline.media_kb())
 
+
 @router.callback_query(F.data.startswith("media:"))
 async def media_view(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":")[1]
     names = {'start': '/start', 'luca': 'Luca', 'silas': 'Silas', 'titus': 'Titus'}
     m = await db.get_media(key)
@@ -525,43 +633,53 @@ async def media_view(cb: CallbackQuery):
         f"🖼 <b>Медиа: {names.get(key, key)}</b>\n\nСтатус: {status}",
         reply_markup=inline.media_edit_kb(key, has))
 
+
 @router.callback_query(F.data.startswith("mup:"))
 async def media_upload_start(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":")[1]
     await state.update_data(media_key=key)
     await cb.message.edit_text("📤 Отправьте фото или видео:")
     await state.set_state(Editor.media_upload)
 
+
 @router.message(Editor.media_upload, F.photo)
 async def media_photo(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     d = await state.get_data()
     file_id = msg.photo[-1].file_id
     await db.set_media(d['media_key'], 'photo', file_id)
     await msg.answer("✅ Фото сохранено!", reply_markup=inline.back_kb("edit:media"))
     await state.clear()
 
+
 @router.message(Editor.media_upload, F.video)
 async def media_video(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     d = await state.get_data()
     file_id = msg.video.file_id
     await db.set_media(d['media_key'], 'video', file_id)
     await msg.answer("✅ Видео сохранено!", reply_markup=inline.back_kb("edit:media"))
     await state.clear()
 
+
 @router.callback_query(F.data.startswith("mdel:"))
 async def media_delete(cb: CallbackQuery):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     key = cb.data.split(":")[1]
     await db.delete_media(key)
     await cb.answer("🗑 Удалено")
     await media_menu(cb)
 
+
 @router.callback_query(F.data == "edit:git")
 async def git_menu(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     await cb.message.edit_text(
         "💾 <b>Git бэкап</b>\n\n"
         "Сохранить текущее состояние проекта в Git?\n\n"
@@ -569,17 +687,21 @@ async def git_menu(cb: CallbackQuery, state: FSMContext):
         reply_markup=inline.back_kb("adm:editor"))
     await state.set_state(Editor.git_msg)
 
+
 @router.message(Editor.git_msg)
 async def git_msg(msg: Message, state: FSMContext):
-    if not is_adm(msg.from_user.id): return
+    if not is_adm(msg.from_user.id):
+        return
     await state.update_data(git_msg=msg.text)
     await msg.answer(
         f"💾 <b>Подтверждение</b>\n\nКомментарий: {msg.text}\n\nСохранить?",
         reply_markup=inline.confirm_git_kb())
 
+
 @router.callback_query(F.data == "git:save")
 async def git_save(cb: CallbackQuery, state: FSMContext):
-    if not is_adm(cb.from_user.id): return
+    if not is_adm(cb.from_user.id):
+        return
     d = await state.get_data()
     msg_text = d.get('git_msg', 'Auto backup')
     await cb.message.edit_text("⏳ Сохранение...")

@@ -1,5 +1,4 @@
 import httpx
-import base64
 from config import OPENAI_API_KEY
 
 
@@ -9,18 +8,36 @@ PROVIDERS = {
         "base_url": "https://api.proxyapi.ru/anthropic/v1",
         "models": [
             "claude-sonnet-4-5-20250929",
-            "claude-opus-4-5-20251101", 
-            "claude-haiku-4-5-20251001"
+            "claude-opus-4-5-20251101",
+            "claude-opus-4-1-20250805",
+            "claude-opus-4-20250514",
+            "claude-sonnet-4-20250514",
+            "claude-3-7-sonnet-20250219",
+            "claude-haiku-4-5-20251001",
+            "claude-3-5-haiku-20241022"
         ]
     },
     "openai": {
         "base_url": "https://api.proxyapi.ru/openai/v1",
         "models": [
-            "gpt-4.1-mini",
-            "gpt-4.1",
-            "gpt-4o-mini",
+            "o4-mini-2025-04-16",
+            "o3-pro-2025-06-10",
+            "o3-2025-04-16",
+            "o3-mini-2025-01-31",
+            "o1-pro-2025-03-19",
+            "o1-2024-12-17",
+            "gpt-5.2-chat-latest",
+            "gpt-5.1-2025-11-13",
+            "gpt-5.1-chat-latest",
+            "gpt-5-2025-08-07",
+            "gpt-5-chat-latest",
+            "gpt-5-mini-2025-08-07",
+            "gpt-5-nano-2025-08-07",
+            "gpt-4.1-2025-04-14",
+            "gpt-4.1-mini-2025-04-14",
+            "gpt-4.1-nano-2025-04-14",
             "gpt-4o",
-            "o3-mini"
+            "gpt-4o-mini"
         ]
     }
 }
@@ -34,17 +51,7 @@ def get_provider(model: str) -> str:
 
 
 async def ask(msgs: list, model: str = None, image_base64: str = None) -> tuple:
-    """
-    Универсальный запрос к AI
-    
-    Args:
-        msgs: список сообщений
-        model: название модели
-        image_base64: изображение в base64 (опционально)
-    
-    Returns:
-        (ответ, токены)
-    """
+    """Универсальный запрос к AI"""
     try:
         use_model = model or "claude-sonnet-4-5-20250929"
         provider = get_provider(use_model)
@@ -62,7 +69,6 @@ async def ask(msgs: list, model: str = None, image_base64: str = None) -> tuple:
 async def _ask_anthropic(msgs: list, model: str, image_base64: str = None) -> tuple:
     """Запрос к Anthropic Claude"""
     try:
-        # Собираем system prompt
         system = None
         clean_msgs = []
         
@@ -72,7 +78,6 @@ async def _ask_anthropic(msgs: list, model: str, image_base64: str = None) -> tu
             else:
                 clean_msgs.append({"role": m["role"], "content": m["content"]})
         
-        # Если есть изображение — добавляем в последнее сообщение
         if image_base64 and clean_msgs:
             last_msg = clean_msgs[-1]
             clean_msgs[-1] = {
@@ -138,7 +143,6 @@ async def _ask_openai(msgs: list, model: str, image_base64: str = None) -> tuple
         for m in msgs:
             clean_msgs.append({"role": m["role"], "content": m["content"]})
         
-        # Если есть изображение
         if image_base64 and clean_msgs:
             last_msg = clean_msgs[-1]
             clean_msgs[-1] = {
