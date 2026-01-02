@@ -98,11 +98,12 @@ async def topup_cb(cb: CallbackQuery):
     )
 
 
-@router.message(F.text == "⚡️ Пополнить баланс")
-async def topup(msg: Message):
+# === ОПЛАТА (кнопка из главного меню) ===
+@router.message(F.text == "💎 Оплата")
+async def topup_main(msg: Message):
     u = await db.get_user(msg.from_user.id)
     await msg.answer(
-        f"💰 <b>Пополнение</b>\n\n💎 Баланс: <b>{fmt(u['tokens'])}</b>",
+        f"💰 <b>Пополнение баланса</b>\n\n💎 Текущий баланс: <b>{fmt(u['tokens'])}</b>\n\nВыберите пакет:",
         reply_markup=inline.topup_kb()
     )
 
@@ -136,7 +137,6 @@ async def help_cmd(msg: Message):
 @router.callback_query(F.data.startswith("help:"))
 async def help_section(cb: CallbackQuery):
     s = cb.data.split(":")[1]
-    # Новые ключи: dialog, psycho, study + старые для совместимости
     db_keys = {
         'dialog': 'help_dialog', 'psycho': 'help_psycho', 'study': 'help_study', 'pay': 'help_pay',
         'luca': 'help_dialog', 'silas': 'help_psycho', 'titus': 'help_study'
@@ -179,7 +179,6 @@ async def back_main(cb: CallbackQuery):
     await cb.message.delete()
 
 
-# Callback для совместимости
 @router.callback_query(F.data == "bots")
 async def bots_cb(cb: CallbackQuery):
     text = """✨ <b>Душа AI — будущее у тебя в телефоне</b>

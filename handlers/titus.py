@@ -3,18 +3,23 @@ import json
 import base64
 import asyncio
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
-from keyboards import reply
+from keyboards import reply, inline
 from utils.ai_client import ask
 from utils.titus_memory import analyze_student_response
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
+from utils.telegraph import create_telegraph_page, make_preview
 from prompts.all_prompts import TITUS_BASE
 from config import MIN_TOKENS
 from loader import bot
+
+
+# Хранилище последних сообщений для конспекта/telegraph
+last_messages = {}  # {user_id: {"text": str, "course": str, "step": int}}
 
 
 def build_course_context(course_mem):
@@ -117,7 +122,7 @@ async def create_course(msg: Message, state: FSMContext):
     cname = data['cname']
     cid = await db.create_course(msg.from_user.id, cname, steps)
     await state.set_state(TitusSt.chat)
-    await state.update_data(cid=cid, msg_count=0)
+    await state.update_data(cid=cid, cname=cname, msg_count=0)
     await db.clear_msgs(msg.from_user.id, 'titus')
     await msg.answer(f"✅ <b>Курс создан!</b>\n\n📓 {cname}\n📊 Шагов: {steps}", reply_markup=reply.study_chat_kb())
     cfg = await db.get_bot_cfg('titus')
@@ -128,7 +133,21 @@ async def create_course(msg: Message, state: FSMContext):
     await status.delete()
     await db.update_tokens(msg.from_user.id, tok)
     await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp)
-    await msg.answer(resp)
+    
+    # Сохраняем для конспекта
+    last_messages[msg.from_user.id] = {"text": resp, "course": cname, "step": 1}
+    
+    # Определяем нужна ли кнопка Telegraph
+    has_tg = len(resp) >= 3000
+    
+    if has_tg:
+        preview = make_preview(resp, 800)
+        await msg.answer(
+            f"{preview}\n\n<i>⤵️ Читать полностью</i>",
+            reply_markup=inline.titus_msg_kb(msg.from_user.id, has_telegraph=True)
+        )
+    else:
+        await msg.answer(resp, reply_markup=inline.titus_msg_kb(msg.from_user.id, has_telegraph=False))
 
 
 @router.message(TitusSt.menu, F.text == "📂 Ваши курсы")
@@ -263,6 +282,85 @@ async def titus_cancel(msg: Message):
         await msg.answer("Нет активного запроса", reply_markup=reply.study_chat_kb())
 
 
+# === CALLBACK HANDLERS для кнопок ===
+
+@router.callback_query(F.data.startswith("titus:summary:"))
+async def titus_make_summary(cb: CallbackQuery):
+    """Создание конспекта"""
+    user_id = cb.from_user.id
+    
+    if user_id not in last_messages:
+        await cb.answer("❌ Нет текста для конспекта", show_alert=True)
+        return
+    
+    await cb.answer("📝 Создаю конспект...")
+    
+    data = last_messages[user_id]
+    original_text = data['text']
+    course_name = data.get('course', 'Курс')
+    step = data.get('step', 1)
+    
+    # Запрос к AI для создания конспекта
+    cfg = await db.get_bot_cfg('titus')
+    
+    summary_prompt = f"""Сделай краткий конспект для записи в тетрадь из этого текста.
+
+ТЕКСТ:
+{original_text}
+
+ТРЕБОВАНИЯ К КОНСПЕКТУ:
+- Только самое важное и необходимое
+- Структурированно, по пунктам
+- Определения выделяй
+- Формулы/правила отдельно
+- Примеры коротко
+- Для записи от руки в тетрадь
+
+Конспект:"""
+
+    msgs = [{"role": "user", "content": summary_prompt}]
+    
+    try:
+        resp, tok = await ask(msgs, cfg['model'])
+        await db.update_tokens(user_id, tok)
+        
+        await cb.message.answer(
+            f"📝 <b>Конспект | {course_name} | Шаг {step}</b>\n\n{resp}",
+            reply_markup=reply.study_chat_kb()
+        )
+    except Exception as e:
+        await cb.message.answer(f"❌ Ошибка: {e}")
+
+
+@router.callback_query(F.data.startswith("titus:tg:"))
+async def titus_telegraph(cb: CallbackQuery):
+    """Публикация на Telegraph"""
+    user_id = cb.from_user.id
+    
+    if user_id not in last_messages:
+        await cb.answer("❌ Нет текста", show_alert=True)
+        return
+    
+    await cb.answer("📖 Публикую на Telegraph...")
+    
+    data = last_messages[user_id]
+    original_text = data['text']
+    course_name = data.get('course', 'Урок')
+    step = data.get('step', 1)
+    
+    title = f"{course_name} — Шаг {step}"
+    
+    url = await create_telegraph_page(title, original_text)
+    
+    if url:
+        await cb.message.answer(
+            f"📖 <b>Полный текст опубликован</b>\n\n{title}",
+            reply_markup=inline.titus_telegraph_kb(url)
+        )
+    else:
+        await cb.message.answer("❌ Не удалось опубликовать на Telegraph")
+
+
 async def process_titus_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
     # Проверка антифлуда
     allowed, error_msg = await ai_flood.check(msg.from_user.id)
@@ -277,6 +375,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
     
     data = await state.get_data()
     cid = data.get('cid')
+    cname = data.get('cname', 'Курс')
     
     user_id = msg.from_user.id
     active_requests[user_id] = False
@@ -321,6 +420,9 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         await db.add_msg(msg.from_user.id, 'titus', 'user', text)
         await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp)
         
+        # Сохраняем для конспекта/telegraph
+        last_messages[user_id] = {"text": resp, "course": cname, "step": current_step}
+        
         if cid and hist:
             last_bot_msg = hist[-1]['content'] if hist and hist[-1]['role'] == 'assistant' else ""
             asyncio.create_task(analyze_student_response(cid, current_step, last_bot_msg, text))
@@ -345,8 +447,21 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         active_requests.pop(user_id, None)
     
     if resp:
+        # Определяем нужна ли кнопка Telegraph
+        has_tg = len(resp) >= 3000
         step_info = f" • Шаг {current_step}/{total_steps}" if cid else ""
-        await msg.answer(f"{resp}\n\n<i>📓 Обучение{step_info}</i>", reply_markup=reply.study_chat_kb())
+        
+        if has_tg:
+            preview = make_preview(resp, 800)
+            await msg.answer(
+                f"{preview}\n\n<i>📓 Обучение{step_info}</i>",
+                reply_markup=inline.titus_msg_kb(user_id, has_telegraph=True)
+            )
+        else:
+            await msg.answer(
+                f"{resp}\n\n<i>📓 Обучение{step_info}</i>",
+                reply_markup=inline.titus_msg_kb(user_id, has_telegraph=False)
+            )
 
 
 @router.message(TitusSt.chat, F.text)
