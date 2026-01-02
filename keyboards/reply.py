@@ -5,7 +5,7 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 def main_kb():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🚀 Душа AI"), KeyboardButton(text="📕 Мой Кабинет")],
-        [KeyboardButton(text="⚡️ Пополнить баланс"), KeyboardButton(text="❓ Помощь")]
+        [KeyboardButton(text="💎 Оплата"), KeyboardButton(text="❓ Помощь")]
     ], resize_keyboard=True)
 
 
@@ -18,7 +18,7 @@ def bots_menu_kb():
 
 def dialog_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="💬 Начать диалог"), KeyboardButton(text="🎭 Характер")],
+        [KeyboardButton(text="💬 Начать диалог"), KeyboardButton(text="🌓 Характер")],
         [KeyboardButton(text="🗑 Очистить"), KeyboardButton(text="❓ Помощь")],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
@@ -118,3 +118,9 @@ silas_mood_kb = psycho_mood_kb
 titus_kb = study_kb
 titus_chat_kb = study_chat_kb
 titus_steps_kb = study_steps_kb
+
+
+def cancel_kb():
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="⌛️ Отменить запрос")]
+    ], resize_keyboard=True)

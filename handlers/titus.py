@@ -11,6 +11,7 @@ from keyboards import reply
 from utils.ai_client import ask
 from utils.titus_memory import analyze_student_response
 from utils.voice import download_voice, transcribe_voice
+from utils.antiflood import ai_flood
 from prompts.all_prompts import TITUS_BASE
 from config import MIN_TOKENS
 from loader import bot
@@ -47,10 +48,6 @@ def build_course_context(course_mem):
     return "\n".join(parts)
 
 
-async def should_review_problems(course_id, msg_count):
-    return None
-
-
 router = Router()
 
 
@@ -64,16 +61,21 @@ class TitusSt(StatesGroup):
     delete_course = State()
 
 
+active_requests = {}
+
+
 @router.message(F.text == "📓 Обучение")
 async def titus_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('titus')
     if not cfg['enabled']:
-        await msg.answer("🔴 Titus временно недоступен")
+        await msg.answer("🔴 Обучение временно недоступно")
         return
     await state.set_state(TitusSt.menu)
     await msg.answer(
-        f"📚 <b>Titus — репетитор</b>\n\n🤖 Модель: {cfg['model']}",
-        reply_markup=reply.titus_kb()
+        "📓 <b>Обучение — твой личный репетитор</b>\n\n"
+        "🎯 Создаёт курсы по любой теме\n"
+        "✨ Учит шаг за шагом",
+        reply_markup=reply.study_kb()
     )
 
 
@@ -85,21 +87,20 @@ async def titus_new_course(msg: Message, state: FSMContext):
         await msg.answer("❌ Максимум 5 курсов!\n\nУдалите старый в «📂 Ваши курсы»")
         return
     await state.set_state(TitusSt.new_course)
-    await msg.answer("📝 <b>Напиши тему курса:</b>", reply_markup=reply.back_kb())
+    await msg.answer("📝 <b>Напиши тему курса:</b>\n\n<i>Например: Python для начинающих</i>", reply_markup=reply.back_kb())
 
 
 @router.message(TitusSt.new_course, F.text == "◀️ Назад")
 async def new_course_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    cfg = await db.get_bot_cfg('titus')
-    await msg.answer(f"📚 <b>Titus</b>\n\n🤖 Модель: {cfg['model']}", reply_markup=reply.titus_kb())
+    await msg.answer("📓 <b>Обучение</b>\n\n✨ Выбери действие:", reply_markup=reply.study_kb())
 
 
 @router.message(TitusSt.new_course, F.text)
 async def titus_course_name(msg: Message, state: FSMContext):
     await state.update_data(cname=msg.text)
     await state.set_state(TitusSt.select_steps)
-    await msg.answer(f"📓 <b>{msg.text}</b>\n\nВыбери глубину:", reply_markup=reply.titus_steps_kb())
+    await msg.answer(f"📓 <b>{msg.text}</b>\n\n🎯 Выбери глубину изучения:", reply_markup=reply.study_steps_kb())
 
 
 @router.message(TitusSt.select_steps, F.text == "◀️ Назад")
@@ -118,11 +119,11 @@ async def create_course(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.chat)
     await state.update_data(cid=cid, msg_count=0)
     await db.clear_msgs(msg.from_user.id, 'titus')
-    await msg.answer(f"✅ Курс создан!\n\n📓 {cname}\n📊 Шагов: {steps}", reply_markup=reply.titus_chat_kb())
+    await msg.answer(f"✅ <b>Курс создан!</b>\n\n📓 {cname}\n📊 Шагов: {steps}", reply_markup=reply.study_chat_kb())
     cfg = await db.get_bot_cfg('titus')
     sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: 1 из {steps}"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": "Начни шаг 1"}]
-    status = await msg.answer("📓 Готовлю первый шаг...")
+    status = await msg.answer("✍️ Готовлю первый шаг...")
     resp, tok = await ask(msgs, cfg['model'])
     await status.delete()
     await db.update_tokens(msg.from_user.id, tok)
@@ -134,17 +135,17 @@ async def create_course(msg: Message, state: FSMContext):
 async def my_courses(msg: Message, state: FSMContext):
     courses = await db.get_courses(msg.from_user.id)
     if not courses:
-        await msg.answer("📂 Курсов пока нет")
+        await msg.answer("📂 Курсов пока нет\n\nСоздайте первый в «📝 Новый курс»")
         return
     await state.set_state(TitusSt.courses_menu)
     await state.update_data(courses=[dict(c) for c in courses])
-    await msg.answer("📂 <b>Что сделать?</b>", reply_markup=reply.courses_action_kb())
+    await msg.answer("📂 <b>Ваши курсы</b>\n\nВыберите действие:", reply_markup=reply.courses_action_kb())
 
 
 @router.message(TitusSt.courses_menu, F.text == "◀️ Назад")
 async def courses_menu_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer("📚 <b>Titus</b>", reply_markup=reply.titus_kb())
+    await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
 
 
 @router.message(TitusSt.courses_menu, F.text == "▶️ Продолжить курс")
@@ -156,7 +157,7 @@ async def continue_menu(msg: Message, state: FSMContext):
         return
     await state.set_state(TitusSt.continue_course)
     await state.update_data(active_courses=courses)
-    await msg.answer("▶️ <b>Выбери курс:</b>", reply_markup=reply.courses_list_kb(courses))
+    await msg.answer("▶️ <b>Выберите курс:</b>", reply_markup=reply.courses_list_kb(courses))
 
 
 @router.message(TitusSt.courses_menu, F.text == "🗑 Удалить курс")
@@ -168,13 +169,13 @@ async def delete_menu(msg: Message, state: FSMContext):
         return
     await state.set_state(TitusSt.delete_course)
     await state.update_data(del_courses=courses)
-    await msg.answer("🗑 <b>Выбери курс для удаления:</b>", reply_markup=reply.courses_list_kb(courses))
+    await msg.answer("🗑 <b>Выберите курс для удаления:</b>", reply_markup=reply.courses_list_kb(courses))
 
 
 @router.message(TitusSt.continue_course, F.text == "◀️ Назад")
 async def continue_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.courses_menu)
-    await msg.answer("📂 <b>Что сделать?</b>", reply_markup=reply.courses_action_kb())
+    await msg.answer("📂 <b>Ваши курсы</b>", reply_markup=reply.courses_action_kb())
 
 
 @router.message(TitusSt.continue_course, F.text)
@@ -192,20 +193,17 @@ async def continue_select(msg: Message, state: FSMContext):
             progress = ""
             if course_mem and course_mem.get('summary'):
                 progress = f"\n\n📋 {course_mem['summary'][:150]}"
-            await msg.answer(
-                f"📓 <b>{course['name']}</b>\n📊 Шаг {course['current']} из {course['total']}{progress}",
-                reply_markup=reply.titus_chat_kb()
-            )
+            await msg.answer(f"📓 <b>{course['name']}</b>\n📊 Шаг {course['current']} из {course['total']}{progress}", reply_markup=reply.study_chat_kb())
             return
     except:
         pass
-    await msg.answer("❌ Выбери курс из списка")
+    await msg.answer("❌ Выберите курс из списка")
 
 
 @router.message(TitusSt.delete_course, F.text == "◀️ Назад")
 async def delete_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.courses_menu)
-    await msg.answer("📂 <b>Что сделать?</b>", reply_markup=reply.courses_action_kb())
+    await msg.answer("📂 <b>Ваши курсы</b>", reply_markup=reply.courses_action_kb())
 
 
 @router.message(TitusSt.delete_course, F.text)
@@ -224,33 +222,29 @@ async def delete_select(msg: Message, state: FSMContext):
                 pass
             await msg.answer(f"🗑 Курс «{course['name']}» удалён!")
             await state.set_state(TitusSt.menu)
-            await msg.answer("📚 <b>Titus</b>", reply_markup=reply.titus_kb())
+            await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
             return
-    await msg.answer("❌ Выбери курс из списка")
+    await msg.answer("❌ Выберите курс из списка")
 
 
 @router.message(TitusSt.menu, F.text == "❓ Помощь")
 async def titus_help(msg: Message):
-    await msg.answer(
-        "📚 <b>Titus — умный репетитор</b>\n\n"
-        "▸ Создаёт курсы по любой теме\n"
-        "▸ Проверяет понимание вопросами\n"
-        "▸ Возвращается к сложным темам\n\n"
-        "📝 <b>Новый курс</b> — создать\n"
-        "📂 <b>Ваши курсы</b> — продолжить"
-    )
+    text = await db.get_text('help_study')
+    if not text:
+        text = "📓 <b>Обучение — умный репетитор</b>\n\n▸ Создаёт курсы по любой теме\n▸ Проверяет понимание\n▸ Возвращается к сложным темам"
+    await msg.answer(text)
 
 
 @router.message(TitusSt.menu, F.text == "◀️ Назад")
 async def titus_back(msg: Message, state: FSMContext):
     await state.clear()
-    await msg.answer("🤖 Выбери бота:", reply_markup=reply.bots_menu_kb())
+    await msg.answer("✨ Выберите помощника:", reply_markup=reply.bots_menu_kb())
 
 
 @router.message(TitusSt.chat, F.text == "🛑 Завершить")
 async def titus_stop(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer("👋 Курс сохранён!", reply_markup=reply.titus_kb())
+    await msg.answer("👋 <b>Курс сохранён!</b>\n\nПродолжить можно в «📂 Ваши курсы»", reply_markup=reply.study_kb())
 
 
 @router.message(TitusSt.chat, F.text == "🗑 Очистить")
@@ -259,32 +253,48 @@ async def titus_clear(msg: Message):
     await msg.answer("🗑 История очищена")
 
 
+@router.message(TitusSt.chat, F.text == "⌛️ Отменить запрос")
+async def titus_cancel(msg: Message):
+    user_id = msg.from_user.id
+    if user_id in active_requests:
+        active_requests[user_id] = True
+        await msg.answer("❌ Запрос отменён", reply_markup=reply.study_chat_kb())
+    else:
+        await msg.answer("Нет активного запроса", reply_markup=reply.study_chat_kb())
+
+
 async def process_titus_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
+    # Проверка антифлуда
+    allowed, error_msg = await ai_flood.check(msg.from_user.id)
+    if not allowed:
+        await msg.answer(error_msg)
+        return
+    
     u = await db.get_user(msg.from_user.id)
     if not u or u['tokens'] < MIN_TOKENS:
         await msg.answer("❌ Недостаточно токенов!")
         return
+    
     data = await state.get_data()
     cid = data.get('cid')
-    msg_count = data.get('msg_count', 0) + 1
-    await state.update_data(msg_count=msg_count)
-    start_time = asyncio.get_event_loop().time()
-    status_msg = await msg.answer("📓 Думаю...")
-    async def update_status():
-        while True:
-            await asyncio.sleep(1)
-            elapsed = int(asyncio.get_event_loop().time() - start_time)
-            try:
-                await status_msg.edit_text(f"📓 Думаю... {elapsed} сек")
-            except:
-                break
-    status_task = asyncio.create_task(update_status())
+    
+    user_id = msg.from_user.id
+    active_requests[user_id] = False
+    
+    status_msg = await msg.answer("✍️ Печатаю...", reply_markup=reply.cancel_kb())
+    
+    current_step = 1
+    total_steps = 10
+    resp = None
+    
     try:
+        if active_requests.get(user_id, False):
+            return
+            
         cfg = await db.get_bot_cfg('titus')
         hist = await db.get_msgs(msg.from_user.id, 'titus')
         course_info = ""
-        current_step = 1
-        total_steps = 10
+        
         if cid:
             course = await db.get_course(cid)
             if course:
@@ -295,15 +305,26 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                 course_info = f"\n\nКУРС: {course['name']}\nШАГ: {current_step} из {total_steps}\nПРОГРЕСС: {int(current_step/total_steps*100)}%"
                 if memory_context:
                     course_info += f"\n\n{memory_context}"
+        
         sys = TITUS_BASE + course_info
         msgs_to_send = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
+        
+        if active_requests.get(user_id, False):
+            return
+            
         resp, tok = await ask(msgs_to_send, cfg['model'], image_b64)
+        
+        if active_requests.get(user_id, False):
+            return
+            
         await db.update_tokens(msg.from_user.id, tok)
         await db.add_msg(msg.from_user.id, 'titus', 'user', text)
         await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp)
+        
         if cid and hist:
             last_bot_msg = hist[-1]['content'] if hist and hist[-1]['role'] == 'assistant' else ""
             asyncio.create_task(analyze_student_response(cid, current_step, last_bot_msg, text))
+        
         if cid:
             markers = ["переходим к шагу", "идём к шагу", "следующий шаг"]
             if any(m in resp.lower() for m in markers):
@@ -312,18 +333,20 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                     new_step = course['current'] + 1
                     if new_step > course['total']:
                         await db.complete_course(cid)
-                        await msg.answer("🎉 <b>Курс завершён!</b>")
+                        await msg.answer("🎉 <b>Курс завершён!</b>\n\nПоздравляю с достижением!")
                     else:
                         await db.update_course_step(cid, new_step)
+                        
     finally:
-        status_task.cancel()
         try:
             await status_msg.delete()
         except:
             pass
-    elapsed = int(asyncio.get_event_loop().time() - start_time)
-    step_info = f" | Шаг {current_step}/{total_steps}" if cid else ""
-    await msg.answer(f"{resp}\n\n<i>📓 Titus{step_info} | {elapsed}с</i>")
+        active_requests.pop(user_id, None)
+    
+    if resp:
+        step_info = f" • Шаг {current_step}/{total_steps}" if cid else ""
+        await msg.answer(f"{resp}\n\n<i>📓 Обучение{step_info}</i>", reply_markup=reply.study_chat_kb())
 
 
 @router.message(TitusSt.chat, F.text)
@@ -333,31 +356,30 @@ async def titus_text(msg: Message, state: FSMContext):
 
 @router.message(TitusSt.chat, F.voice)
 async def titus_voice(msg: Message, state: FSMContext):
-    status = await msg.answer("🎤 Распознаю...")
+    st = await msg.answer("🎧 Слушаю...")
     try:
-        file_path = await download_voice(bot, msg.voice.file_id)
-        text = await transcribe_voice(file_path)
+        fp = await download_voice(bot, msg.voice.file_id)
+        text = await transcribe_voice(fp)
         if not text:
-            await status.edit_text("❌ Не распознано")
+            await st.edit_text("❌ Не распознано")
             return
-        await status.delete()
+        await st.delete()
     except Exception as e:
-        await status.edit_text(f"❌ {e}")
+        await st.edit_text(f"❌ {e}")
         return
     await process_titus_message(msg, state, text)
 
 
 @router.message(TitusSt.chat, F.photo)
 async def titus_photo(msg: Message, state: FSMContext):
-    status = await msg.answer("📷 Анализирую...")
+    st = await msg.answer("🔎 Смотрю фото...")
     try:
         photo = msg.photo[-1]
         file = await bot.get_file(photo.file_id)
-        file_data = await bot.download_file(file.file_path)
-        image_b64 = base64.b64encode(file_data.read()).decode()
-        await status.delete()
+        data = await bot.download_file(file.file_path)
+        b64 = base64.b64encode(data.read()).decode()
+        await st.delete()
     except Exception as e:
-        await status.edit_text(f"❌ {e}")
+        await st.edit_text(f"❌ {e}")
         return
-    text = msg.caption or "Что на изображении?"
-    await process_titus_message(msg, state, text, image_b64)
+    await process_titus_message(msg, state, msg.caption or "Что на изображении?", b64)

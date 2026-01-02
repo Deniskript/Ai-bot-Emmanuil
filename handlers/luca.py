@@ -7,134 +7,165 @@ from keyboards import reply
 from utils.ai_client import ask
 from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice
+from utils.antiflood import ai_flood
 from prompts.all_prompts import LUCA_BASE, LUCA_SOUL, LUCA_SER, LUCA_HUM
 from config import MIN_TOKENS
 from loader import bot
 import asyncio
 import base64
 
+
 router = Router()
+
 
 class LucaSt(StatesGroup):
     menu = State()
     chat = State()
     char = State()
 
-CHARS = {'душевный': LUCA_SOUL, 'серьезный': LUCA_SER, 'человек': LUCA_HUM}
 
-# === ВХОД В LUCA ===
+CHARS = {'support': LUCA_SOUL, 'motivation': LUCA_SER, 'solution': LUCA_HUM}
+CHAR_NAMES = {'support': '🙏 Поддержка', 'motivation': '🔥 Мотивация', 'solution': '⚡️ Решение'}
+
+active_requests = {}
+
+
 @router.message(F.text == "💭 Диалог")
 async def luca_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('luca')
     if not cfg['enabled']:
-        await msg.answer("🔴 Luca временно недоступен")
+        await msg.answer("🔴 Диалог временно недоступен")
         return
     await state.set_state(LucaSt.menu)
     s = await db.get_user_bot(msg.from_user.id, 'luca')
+    char_name = CHAR_NAMES.get(s['character'], '🙏 Поддержка')
     await msg.answer(
-        f"📝 <b>Luca — универсальный помощник</b>\n\n"
-        f"🎚️ Характер: {s['character']}\n"
-        f"🤖 Модель: {cfg['model']}",
-        reply_markup=reply.luca_kb()
+        f"💭 <b>Диалог — твой личный помощник</b>\n\n"
+        f"🌓 Характер: {char_name}\n"
+        f"✨ Готов выслушать и помочь",
+        reply_markup=reply.dialog_kb()
     )
 
-# === МЕНЮ LUCA ===
-@router.message(LucaSt.menu, F.text == "📝 Новый курс")
+
+@router.message(LucaSt.menu, F.text == "💬 Начать диалог")
 async def luca_start_chat(msg: Message, state: FSMContext):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await db.reset_msg_counter(msg.from_user.id, 'luca')
     await state.set_state(LucaSt.chat)
     await msg.answer(
-        "💬 <b>Диалог с Luca начат!</b>\n\nПиши что угодно:",
-        reply_markup=reply.luca_chat_kb()
+        "💬 <b>Диалог начат!</b>\n\nПиши что угодно — я рядом:",
+        reply_markup=reply.dialog_chat_kb()
     )
 
-@router.message(LucaSt.menu, F.text == "🎚️ Характер")
+
+@router.message(LucaSt.menu, F.text == "🌓 Характер")
 async def luca_char_menu(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.char)
-    await msg.answer("🎭 Выбери характер Luca:", reply_markup=reply.luca_char_kb())
+    await msg.answer("🌓 <b>Выбери стиль общения:</b>", reply_markup=reply.dialog_char_kb())
+
 
 @router.message(LucaSt.menu, F.text == "🗑 Очистить")
 async def luca_clear(msg: Message):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await msg.answer("🗑 История очищена!")
 
+
 @router.message(LucaSt.menu, F.text == "❓ Помощь")
 async def luca_help(msg: Message):
-    text = await db.get_text('help_luca')
+    text = await db.get_text('help_dialog')
     if not text:
-        text = "📝 <b>Luca</b> — универсальный AI-помощник для любых задач"
+        text = "💭 <b>Диалог</b> — твой личный AI-помощник для любых разговоров"
     await msg.answer(text)
+
 
 @router.message(LucaSt.menu, F.text == "◀️ Назад")
 async def luca_back(msg: Message, state: FSMContext):
     await state.clear()
-    await msg.answer("🤖 Выбери бота:", reply_markup=reply.bots_menu_kb())
+    await msg.answer("✨ Выберите помощника:", reply_markup=reply.bots_menu_kb())
 
-# === ВЫБОР ХАРАКТЕРА ===
-@router.message(LucaSt.char, F.text == "🙏 Заботливый")
-async def char_soul(msg: Message, state: FSMContext):
-    await db.set_char(msg.from_user.id, 'душевный')
-    await state.set_state(LucaSt.menu)
-    await msg.answer("✅ Характер: Душевный", reply_markup=reply.luca_kb())
 
-@router.message(LucaSt.char, F.text == "💯 Строгий")
-async def char_ser(msg: Message, state: FSMContext):
-    await db.set_char(msg.from_user.id, 'серьезный')
+@router.message(LucaSt.char, F.text == "🙏 Поддержка")
+async def char_support(msg: Message, state: FSMContext):
+    await db.set_char(msg.from_user.id, 'support')
     await state.set_state(LucaSt.menu)
-    await msg.answer("✅ Характер: Серьезный", reply_markup=reply.luca_kb())
+    await msg.answer("✅ Характер: 🙏 Поддержка\n\n<i>Мягкий, понимающий, заботливый</i>", reply_markup=reply.dialog_kb())
 
-@router.message(LucaSt.char, F.text == "💭 Нейтральный")
-async def char_hum(msg: Message, state: FSMContext):
-    await db.set_char(msg.from_user.id, 'человек')
+
+@router.message(LucaSt.char, F.text == "🔥 Мотивация")
+async def char_motivation(msg: Message, state: FSMContext):
+    await db.set_char(msg.from_user.id, 'motivation')
     await state.set_state(LucaSt.menu)
-    await msg.answer("✅ Характер: Человек", reply_markup=reply.luca_kb())
+    await msg.answer("✅ Характер: 🔥 Мотивация\n\n<i>Энергичный, вдохновляющий, толкающий вперёд</i>", reply_markup=reply.dialog_kb())
+
+
+@router.message(LucaSt.char, F.text == "⚡️ Решение")
+async def char_solution(msg: Message, state: FSMContext):
+    await db.set_char(msg.from_user.id, 'solution')
+    await state.set_state(LucaSt.menu)
+    await msg.answer("✅ Характер: ⚡️ Решение\n\n<i>Конкретный, практичный, по делу</i>", reply_markup=reply.dialog_kb())
+
 
 @router.message(LucaSt.char, F.text == "◀️ Назад к Диалогу")
 async def char_back(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.menu)
     s = await db.get_user_bot(msg.from_user.id, 'luca')
-    cfg = await db.get_bot_cfg('luca')
+    char_name = CHAR_NAMES.get(s['character'], '🙏 Поддержка')
     await msg.answer(
-        f"📝 <b>Luca</b>\n\n🎚️ Характер: {s['character']}\n🤖 Модель: {cfg['model']}",
-        reply_markup=reply.luca_kb()
+        f"💭 <b>Диалог</b>\n\n🌓 Характер: {char_name}",
+        reply_markup=reply.dialog_kb()
     )
 
-# === ЧАТ ===
+
 @router.message(LucaSt.chat, F.text == "🛑 Завершить")
 async def luca_stop(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.menu)
     s = await db.get_user_bot(msg.from_user.id, 'luca')
-    cfg = await db.get_bot_cfg('luca')
+    char_name = CHAR_NAMES.get(s['character'], '🙏 Поддержка')
     await msg.answer(
-        f"👋 Диалог завершён!\n\n📝 <b>Luca</b>\n🎚️ Характер: {s['character']}",
-        reply_markup=reply.luca_kb()
+        f"👋 Диалог завершён!\n\n💭 <b>Диалог</b>\n🌓 Характер: {char_name}",
+        reply_markup=reply.dialog_kb()
     )
+
 
 @router.message(LucaSt.chat, F.text == "🗑 Очистить")
 async def luca_chat_clear(msg: Message):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await msg.answer("🗑 История очищена! Продолжай:")
 
-async def process_luca_message(msg: Message, text: str, image_b64: str = None):
+
+@router.message(LucaSt.chat, F.text == "⌛️ Отменить запрос")
+async def luca_cancel(msg: Message):
+    user_id = msg.from_user.id
+    if user_id in active_requests:
+        active_requests[user_id]['cancelled'] = True
+        await msg.answer("❌ Запрос отменён", reply_markup=reply.dialog_chat_kb())
+    else:
+        await msg.answer("Нет активного запроса", reply_markup=reply.dialog_chat_kb())
+
+
+async def process_luca_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
+    # Проверка антифлуда
+    allowed, error_msg = await ai_flood.check(msg.from_user.id)
+    if not allowed:
+        await msg.answer(error_msg)
+        return
+    
     u = await db.get_user(msg.from_user.id)
     if not u or u['tokens'] < MIN_TOKENS:
         await msg.answer("❌ Недостаточно токенов!")
         return
-    start_time = asyncio.get_event_loop().time()
-    status_msg = await msg.answer("🔎 Обрабатываю...")
-
-    async def update_status():
-        while True:
-            await asyncio.sleep(1)
-            elapsed = int(asyncio.get_event_loop().time() - start_time)
-            try:
-                await status_msg.edit_text(f"✍️ Luca печатает... {elapsed} сек")
-            except:
-                break
-
-    status_task = asyncio.create_task(update_status())
+    
+    user_id = msg.from_user.id
+    request_state = {'cancelled': False}
+    active_requests[user_id] = request_state
+    
+    status_msg = await msg.answer("✍️ Печатаю...", reply_markup=reply.cancel_kb())
+    
+    resp = None
     try:
+        if request_state['cancelled']:
+            return
+            
         cfg = await db.get_bot_cfg('luca')
         s = await db.get_user_bot(msg.from_user.id, 'luca')
         char = CHARS.get(s['character'], LUCA_SOUL)
@@ -146,50 +177,62 @@ async def process_luca_message(msg: Message, text: str, image_b64: str = None):
             sys += "\n\n⚡ Упомяни что-то из памяти!"
             await db.reset_msg_counter(msg.from_user.id, 'luca')
         msgs = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
+        
+        if request_state['cancelled']:
+            return
+            
         resp, tok = await ask(msgs, cfg['model'], image_b64)
+        
+        if request_state['cancelled']:
+            return
+            
         await db.update_tokens(msg.from_user.id, tok)
         await db.add_msg(msg.from_user.id, 'luca', 'user', text)
         await db.add_msg(msg.from_user.id, 'luca', 'assistant', resp)
         asyncio.create_task(update_memory(msg.from_user.id, 'luca', text, resp))
+        
     finally:
-        status_task.cancel()
         try:
             await status_msg.delete()
         except:
             pass
-    elapsed = int(asyncio.get_event_loop().time() - start_time)
-    await msg.answer(f"{resp}\n\n<i>💭Luca | ⏱ {elapsed} сек</i>")
+        active_requests.pop(user_id, None)
+    
+    if resp:
+        await msg.answer(f"{resp}\n\n<i>💭 Диалог</i>", reply_markup=reply.dialog_chat_kb())
+
 
 @router.message(LucaSt.chat, F.text)
-async def luca_chat_text(msg: Message):
-    await process_luca_message(msg, msg.text)
+async def luca_chat_text(msg: Message, state: FSMContext):
+    await process_luca_message(msg, state, msg.text)
+
 
 @router.message(LucaSt.chat, F.voice)
-async def luca_chat_voice(msg: Message):
-    status = await msg.answer("🎤 Распознаю голос...")
+async def luca_chat_voice(msg: Message, state: FSMContext):
+    st = await msg.answer("🎧 Слушаю...")
     try:
-        file_path = await download_voice(bot, msg.voice.file_id)
-        text = await transcribe_voice(file_path)
+        fp = await download_voice(bot, msg.voice.file_id)
+        text = await transcribe_voice(fp)
         if not text:
-            await status.edit_text("❌ Не распознано")
+            await st.edit_text("❌ Не распознано")
             return
-        await status.delete()
+        await st.delete()
     except Exception as e:
-        await status.edit_text(f"❌ {e}")
+        await st.edit_text(f"❌ {e}")
         return
-    await process_luca_message(msg, text)
+    await process_luca_message(msg, state, text)
+
 
 @router.message(LucaSt.chat, F.photo)
-async def luca_chat_photo(msg: Message):
-    status = await msg.answer("📷 Анализирую...")
+async def luca_chat_photo(msg: Message, state: FSMContext):
+    st = await msg.answer("🔎 Смотрю фото...")
     try:
         photo = msg.photo[-1]
         file = await bot.get_file(photo.file_id)
-        file_data = await bot.download_file(file.file_path)
-        image_b64 = base64.b64encode(file_data.read()).decode()
-        await status.delete()
+        data = await bot.download_file(file.file_path)
+        b64 = base64.b64encode(data.read()).decode()
+        await st.delete()
     except Exception as e:
-        await status.edit_text(f"❌ {e}")
+        await st.edit_text(f"❌ {e}")
         return
-    text = msg.caption or "Что на изображении?"
-    await process_luca_message(msg, text, image_b64)
+    await process_luca_message(msg, state, msg.caption or "Что на изображении?", b64)
