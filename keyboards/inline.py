@@ -70,10 +70,12 @@ def admin_kb():
          InlineKeyboardButton(text="🔍 Поиск", callback_data="adm:find")],
         [InlineKeyboardButton(text="💎 Выдать", callback_data="adm:give"),
          InlineKeyboardButton(text="📢 Рассылка", callback_data="adm:bc")],
-        [InlineKeyboardButton(text="✏️ Редактор", callback_data="adm:editor")],
+        [InlineKeyboardButton(text="✏️ Редактор", callback_data="adm:editor"),
+         InlineKeyboardButton(text="🧠 Память", callback_data="adm:memory")],
         [InlineKeyboardButton(text="🔧 Тех.работы", callback_data="adm:maint")],
         [InlineKeyboardButton(text="❌ Закрыть", callback_data="adm:close")]
     ])
+
 
 
 def admin_bots_kb(d, p, s):
@@ -276,3 +278,82 @@ def silas_msg_kb(has_telegraph: bool = False):
             [InlineKeyboardButton(text="📖 Telegraph", callback_data="silas:tg")]
         ])
     return None
+
+
+# === ПАМЯТЬ АДМИН ===
+def memory_admin_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🧠 Память пользователей", callback_data="mem:list:0")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
+    ])
+
+def memory_users_kb(users: list, page: int, total_pages: int):
+    kb = []
+    for u in users:
+        name = f"@{u['username']}" if u.get('username') else str(u['user_id'])
+        kb.append([InlineKeyboardButton(
+            text=f"👤 {name} — {u.get('mem_count', 0)} ботов",
+            callback_data=f"mem:user:{u['user_id']}"
+        )])
+    
+    # Пагинация
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️", callback_data=f"mem:list:{page-1}"))
+    nav.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="mem:info"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton(text="▶️", callback_data=f"mem:list:{page+1}"))
+    if nav:
+        kb.append(nav)
+    
+    kb.append([InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def memory_user_bots_kb(uid: int, bots: dict):
+    kb = []
+    bot_names = {'luca': '💭 Диалог', 'silas': '🧘 Психолог', 'titus': '📚 Репетитор'}
+    for bot, facts in bots.items():
+        name = bot_names.get(bot, bot)
+        kb.append([InlineKeyboardButton(
+            text=f"{name} — {len(facts)} фактов",
+            callback_data=f"mem:bot:{uid}:{bot}"
+        )])
+    kb.append([InlineKeyboardButton(text="🗑 Очистить всё", callback_data=f"mem:clearall:{uid}")])
+    kb.append([InlineKeyboardButton(text="◀️ К списку", callback_data="mem:list:0")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def memory_facts_kb(uid: int, bot: str, facts: list, page: int = 0):
+    kb = []
+    per_page = 5
+    start = page * per_page
+    end = min(start + per_page, len(facts))
+    total_pages = (len(facts) + per_page - 1) // per_page
+    
+    for i in range(start, end):
+        fact_short = facts[i][:30] + "..." if len(facts[i]) > 30 else facts[i]
+        kb.append([
+            InlineKeyboardButton(text=f"{i+1}. {fact_short}", callback_data=f"mem:view:{uid}:{bot}:{i}"),
+            InlineKeyboardButton(text="🗑", callback_data=f"mem:del:{uid}:{bot}:{i}")
+        ])
+    
+    # Пагинация фактов
+    if total_pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"mem:facts:{uid}:{bot}:{page-1}"))
+        nav.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="mem:info"))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"mem:facts:{uid}:{bot}:{page+1}"))
+        kb.append(nav)
+    
+    kb.append([InlineKeyboardButton(text="➕ Добавить факт", callback_data=f"mem:add:{uid}:{bot}")])
+    kb.append([InlineKeyboardButton(text="🗑 Очистить бота", callback_data=f"mem:clear:{uid}:{bot}")])
+    kb.append([InlineKeyboardButton(text="◀️ К пользователю", callback_data=f"mem:user:{uid}")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def memory_fact_view_kb(uid: int, bot: str, idx: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✏️ Редактировать", callback_data=f"mem:edit:{uid}:{bot}:{idx}")],
+        [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"mem:del:{uid}:{bot}:{idx}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"mem:bot:{uid}:{bot}")]
+    ])

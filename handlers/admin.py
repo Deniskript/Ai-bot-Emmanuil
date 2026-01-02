@@ -717,3 +717,222 @@ async def git_save(cb: CallbackQuery, state: FSMContext):
             f"❌ <b>Ошибка Git</b>\n\n{str(e)[:200]}",
             reply_markup=inline.back_kb("adm:editor"))
     await state.clear()
+
+
+# === УПРАВЛЕНИЕ ПАМЯТЬЮ ===
+class MemEdit(StatesGroup):
+    edit_fact = State()
+    add_fact = State()
+
+
+@router.callback_query(F.data == "adm:memory")
+async def memory_menu(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    total = await db.count_users_with_memory()
+    await cb.message.edit_text(
+        f"🧠 <b>Память пользователей</b>\n\n"
+        f"Всего пользователей с памятью: {total}",
+        reply_markup=inline.memory_admin_kb())
+
+
+@router.callback_query(F.data.startswith("mem:list:"))
+async def memory_list(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    page = int(cb.data.split(":")[2])
+    per_page = 10
+    
+    total = await db.count_users_with_memory()
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    users = await db.get_users_with_memory(per_page, page * per_page)
+    
+    if not users:
+        await cb.answer("Нет пользователей с памятью")
+        return
+    
+    await cb.message.edit_text(
+        f"🧠 <b>Пользователи с памятью</b>\n\nСтраница {page+1}/{total_pages}",
+        reply_markup=inline.memory_users_kb(users, page, total_pages))
+
+
+@router.callback_query(F.data.startswith("mem:user:"))
+async def memory_user(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    uid = int(cb.data.split(":")[2])
+    u = await db.get_user(uid)
+    bots = await db.get_user_all_memory(uid)
+    
+    if not bots:
+        await cb.answer("У пользователя нет памяти")
+        return
+    
+    name = f"@{u['username']}" if u and u.get('username') else str(uid)
+    total_facts = sum(len(f) for f in bots.values())
+    
+    await cb.message.edit_text(
+        f"👤 <b>{name}</b>\n"
+        f"🆔 <code>{uid}</code>\n\n"
+        f"📊 Всего фактов: {total_facts}",
+        reply_markup=inline.memory_user_bots_kb(uid, bots))
+
+
+@router.callback_query(F.data.startswith("mem:bot:"))
+async def memory_bot(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    
+    facts = await db.get_memory(uid, bot)
+    bot_names = {'luca': '💭 Диалог', 'silas': '🧘 Психолог', 'titus': '📚 Репетитор'}
+    
+    await cb.message.edit_text(
+        f"🧠 <b>{bot_names.get(bot, bot)}</b>\n"
+        f"👤 ID: <code>{uid}</code>\n\n"
+        f"📋 Фактов: {len(facts)}",
+        reply_markup=inline.memory_facts_kb(uid, bot, facts))
+
+
+@router.callback_query(F.data.startswith("mem:facts:"))
+async def memory_facts_page(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    page = int(parts[4])
+    
+    facts = await db.get_memory(uid, bot)
+    await cb.message.edit_reply_markup(
+        reply_markup=inline.memory_facts_kb(uid, bot, facts, page))
+
+
+@router.callback_query(F.data.startswith("mem:view:"))
+async def memory_view_fact(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    idx = int(parts[4])
+    
+    facts = await db.get_memory(uid, bot)
+    if idx < len(facts):
+        await cb.message.edit_text(
+            f"📝 <b>Факт #{idx+1}</b>\n\n{facts[idx]}",
+            reply_markup=inline.memory_fact_view_kb(uid, bot, idx))
+
+
+@router.callback_query(F.data.startswith("mem:del:"))
+async def memory_delete_fact(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    idx = int(parts[4])
+    
+    await db.delete_memory_fact(uid, bot, idx)
+    await cb.answer("🗑 Факт удалён")
+    
+    # Обновляем список
+    facts = await db.get_memory(uid, bot)
+    bot_names = {'luca': '💭 Диалог', 'silas': '🧘 Психолог', 'titus': '📚 Репетитор'}
+    await cb.message.edit_text(
+        f"🧠 <b>{bot_names.get(bot, bot)}</b>\n"
+        f"👤 ID: <code>{uid}</code>\n\n"
+        f"📋 Фактов: {len(facts)}",
+        reply_markup=inline.memory_facts_kb(uid, bot, facts))
+
+
+@router.callback_query(F.data.startswith("mem:edit:"))
+async def memory_edit_start(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    idx = int(parts[4])
+    
+    facts = await db.get_memory(uid, bot)
+    await state.update_data(mem_uid=uid, mem_bot=bot, mem_idx=idx)
+    await state.set_state(MemEdit.edit_fact)
+    
+    await cb.message.edit_text(
+        f"✏️ <b>Редактирование факта</b>\n\n"
+        f"Текущий текст:\n<code>{facts[idx]}</code>\n\n"
+        f"Введите новый текст:")
+
+
+@router.message(MemEdit.edit_fact)
+async def memory_edit_save(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id):
+        return
+    d = await state.get_data()
+    await db.update_memory_fact(d['mem_uid'], d['mem_bot'], d['mem_idx'], msg.text)
+    await state.clear()
+    await msg.answer("✅ Факт обновлён!", reply_markup=inline.back_kb(f"mem:bot:{d['mem_uid']}:{d['mem_bot']}"))
+
+
+@router.callback_query(F.data.startswith("mem:add:"))
+async def memory_add_start(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    
+    await state.update_data(mem_uid=uid, mem_bot=bot)
+    await state.set_state(MemEdit.add_fact)
+    await cb.message.edit_text("➕ <b>Добавить факт</b>\n\nВведите текст нового факта:")
+
+
+@router.message(MemEdit.add_fact)
+async def memory_add_save(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id):
+        return
+    d = await state.get_data()
+    facts = await db.get_memory(d['mem_uid'], d['mem_bot'])
+    facts.append(msg.text)
+    await db.save_memory(d['mem_uid'], d['mem_bot'], facts)
+    await state.clear()
+    await msg.answer("✅ Факт добавлен!", reply_markup=inline.back_kb(f"mem:bot:{d['mem_uid']}:{d['mem_bot']}"))
+
+
+@router.callback_query(F.data.startswith("mem:clear:"))
+async def memory_clear_bot(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    parts = cb.data.split(":")
+    uid = int(parts[2])
+    bot = parts[3]
+    
+    await db.clear_user_memory(uid, bot)
+    await cb.answer("🗑 Память бота очищена")
+    
+    # Возврат к пользователю
+    bots = await db.get_user_all_memory(uid)
+    if bots:
+        await cb.message.edit_text(
+            f"👤 ID: <code>{uid}</code>",
+            reply_markup=inline.memory_user_bots_kb(uid, bots))
+    else:
+        await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
+
+
+@router.callback_query(F.data.startswith("mem:clearall:"))
+async def memory_clear_all(cb: CallbackQuery):
+    if not is_adm(cb.from_user.id):
+        return
+    uid = int(cb.data.split(":")[2])
+    await db.clear_user_memory(uid)
+    await cb.answer("🗑 Вся память очищена")
+    await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
+
+
+@router.callback_query(F.data == "mem:info")
+async def memory_info(cb: CallbackQuery):
+    await cb.answer("Используйте ◀️ ▶️ для навигации")

@@ -546,3 +546,69 @@ async def delete_course_memory(course_id: int):
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("DELETE FROM course_memory WHERE course_id=?", (course_id,))
         await db.commit()
+
+
+# === ПАМЯТЬ: Админ функции ===
+async def get_users_with_memory(limit: int = 20, offset: int = 0) -> List[Dict]:
+    """Получить пользователей у которых есть память"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT DISTINCT u.user_id, u.username, u.tokens,
+                   (SELECT COUNT(*) FROM bot_memory WHERE user_id=u.user_id AND facts != '[]') as mem_count
+            FROM users u
+            JOIN bot_memory m ON u.user_id = m.user_id
+            WHERE m.facts != '[]'
+            ORDER BY u.user_id DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+        return [dict(r) for r in await c.fetchall()]
+
+async def count_users_with_memory() -> int:
+    """Количество пользователей с памятью"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("""
+            SELECT COUNT(DISTINCT user_id) FROM bot_memory WHERE facts != '[]'
+        """)
+        r = await c.fetchone()
+        return r[0] if r else 0
+
+async def get_user_all_memory(uid: int) -> Dict[str, List]:
+    """Получить память пользователя по всем ботам"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT bot, facts FROM bot_memory WHERE user_id=?", (uid,))
+        rows = await c.fetchall()
+        result = {}
+        for r in rows:
+            facts = json.loads(r['facts'] or '[]')
+            if facts:
+                result[r['bot']] = facts
+        return result
+
+async def delete_memory_fact(uid: int, bot: str, fact_index: int) -> bool:
+    """Удалить конкретный факт из памяти"""
+    facts = await get_memory(uid, bot)
+    if 0 <= fact_index < len(facts):
+        facts.pop(fact_index)
+        await save_memory(uid, bot, facts)
+        return True
+    return False
+
+async def update_memory_fact(uid: int, bot: str, fact_index: int, new_text: str) -> bool:
+    """Обновить конкретный факт"""
+    facts = await get_memory(uid, bot)
+    if 0 <= fact_index < len(facts):
+        facts[fact_index] = new_text
+        await save_memory(uid, bot, facts)
+        return True
+    return False
+
+async def clear_user_memory(uid: int, bot: str = None):
+    """Очистить память пользователя (один бот или все)"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        if bot:
+            await db.execute("UPDATE bot_memory SET facts='[]' WHERE user_id=? AND bot=?", (uid, bot))
+        else:
+            await db.execute("UPDATE bot_memory SET facts='[]' WHERE user_id=?", (uid,))
+        await db.commit()
