@@ -1,13 +1,14 @@
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
-from keyboards import reply
+from keyboards import reply, inline
 from utils.ai_client import ask
 from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
+from utils.telegraph import create_telegraph_page, make_preview
 from prompts.all_prompts import LUCA_BASE, LUCA_SOUL, LUCA_SER, LUCA_HUM
 from config import MIN_TOKENS
 from loader import bot
@@ -28,6 +29,7 @@ CHARS = {'support': LUCA_SOUL, 'motivation': LUCA_SER, 'solution': LUCA_HUM}
 CHAR_NAMES = {'support': '🙏 Поддержка', 'motivation': '🔥 Мотивация', 'solution': '⚡️ Решение'}
 
 active_requests = {}
+last_messages = {}  # {user_id: {"text": str, "char": str}}
 
 
 @router.message(F.text == "💭 Диалог")
@@ -143,8 +145,33 @@ async def luca_cancel(msg: Message):
         await msg.answer("Нет активного запроса", reply_markup=reply.dialog_chat_kb())
 
 
+# === TELEGRAPH CALLBACK ===
+@router.callback_query(F.data == "luca:tg")
+async def luca_telegraph(cb: CallbackQuery):
+    user_id = cb.from_user.id
+    
+    if user_id not in last_messages:
+        await cb.answer("❌ Нет текста", show_alert=True)
+        return
+    
+    await cb.answer("📖 Публикую на Telegraph...")
+    
+    data = last_messages[user_id]
+    text = data['text']
+    char = data.get('char', 'Диалог')
+    
+    url = await create_telegraph_page(f"💭 Диалог — {char}", text)
+    
+    if url:
+        await cb.message.answer(
+            "📖 <b>Полный текст опубликован</b>",
+            reply_markup=inline.titus_telegraph_kb(url)
+        )
+    else:
+        await cb.message.answer("❌ Не удалось опубликовать")
+
+
 async def process_luca_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
-    # Проверка антифлуда
     allowed, error_msg = await ai_flood.check(msg.from_user.id)
     if not allowed:
         await msg.answer(error_msg)
@@ -162,6 +189,7 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
     status_msg = await msg.answer("✍️ Печатаю...", reply_markup=reply.cancel_kb())
     
     resp = None
+    char_name = ""
     try:
         if request_state['cancelled']:
             return
@@ -169,6 +197,7 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         cfg = await db.get_bot_cfg('luca')
         s = await db.get_user_bot(msg.from_user.id, 'luca')
         char = CHARS.get(s['character'], LUCA_SOUL)
+        char_name = CHAR_NAMES.get(s['character'], 'Поддержка')
         mem = await db.get_memory(msg.from_user.id, 'luca')
         hist = await db.get_msgs(msg.from_user.id, 'luca')
         cnt = await db.inc_msg_counter(msg.from_user.id, 'luca')
@@ -191,6 +220,9 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         await db.add_msg(msg.from_user.id, 'luca', 'assistant', resp)
         asyncio.create_task(update_memory(msg.from_user.id, 'luca', text, resp))
         
+        # Сохраняем для Telegraph
+        last_messages[user_id] = {"text": resp, "char": char_name}
+        
     finally:
         try:
             await status_msg.delete()
@@ -199,7 +231,17 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         active_requests.pop(user_id, None)
     
     if resp:
-        await msg.answer(f"{resp}\n\n<i>💭 Диалог</i>", reply_markup=reply.dialog_chat_kb())
+        print(f"DEBUG: len={len(resp)}, has_tg={len(resp) >= 3000}")
+        has_tg = len(resp) >= 3000
+        
+        if has_tg:
+            preview = make_preview(resp, 800)
+            await msg.answer(
+                f"{preview}\n\n<i>💭 Диалог • {char_name}</i>",
+                reply_markup=inline.luca_msg_kb(has_telegraph=True)
+            )
+        else:
+            await msg.answer(f"{resp}\n\n<i>💭 Диалог • {char_name}</i>", reply_markup=reply.dialog_chat_kb())
 
 
 @router.message(LucaSt.chat, F.text)

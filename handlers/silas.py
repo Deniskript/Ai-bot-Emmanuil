@@ -1,13 +1,14 @@
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
-from keyboards import reply
+from keyboards import reply, inline
 from utils.ai_client import ask
 from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
+from utils.telegraph import create_telegraph_page, make_preview
 from prompts.all_prompts import SILAS_BASE, SILAS_GOOD, SILAS_TIRED, SILAS_PAIN
 from config import MIN_TOKENS
 from loader import bot
@@ -29,6 +30,7 @@ class SilasSt(StatesGroup):
 
 MOODS = {'good': SILAS_GOOD, 'tired': SILAS_TIRED, 'pain': SILAS_PAIN}
 active_requests = {}
+last_messages = {}
 
 
 @router.message(F.text == "🛋️ Психолог")
@@ -179,8 +181,26 @@ async def silas_cancel(msg: Message):
         await msg.answer("Нет активного запроса", reply_markup=reply.psycho_chat_kb())
 
 
+@router.callback_query(F.data == "silas:tg")
+async def silas_telegraph(cb: CallbackQuery):
+    user_id = cb.from_user.id
+    if user_id not in last_messages:
+        await cb.answer("❌ Нет текста", show_alert=True)
+        return
+    await cb.answer("📖 Публикую на Telegraph...")
+    data = last_messages[user_id]
+    text = data['text']
+    url = await create_telegraph_page("🛋️ Психолог — Сеанс", text)
+    if url:
+        await cb.message.answer(
+            "📖 <b>Полный текст опубликован</b>",
+            reply_markup=inline.titus_telegraph_kb(url)
+        )
+    else:
+        await cb.message.answer("❌ Не удалось опубликовать")
+
+
 async def process_silas_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
-    # Проверка антифлуда
     allowed, error_msg = await ai_flood.check(msg.from_user.id)
     if not allowed:
         await msg.answer(error_msg)
@@ -213,7 +233,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     try:
         if active_requests.get(user_id, False):
             return
-            
+        
         cfg = await db.get_bot_cfg('silas')
         s = await db.get_user_bot(msg.from_user.id, 'silas')
         mood = MOODS.get(s['mood'], s.get('custom_mood') or 'не указано')
@@ -222,25 +242,29 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         cnt = await db.inc_msg_counter(msg.from_user.id, 'silas')
         sys = SILAS_BASE.format(mood=mood, duration=d['dur'], elapsed=el, remaining=rem)
         sys += build_memory_context(mem)
+        
         if rem <= 5:
             sys += "\n\nОсталось мало времени — начинайте завершение."
         if cnt >= 20:
             sys += "\n\nСвяжите с предыдущими беседами."
             await db.reset_msg_counter(msg.from_user.id, 'silas')
+        
         msgs = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
         
         if active_requests.get(user_id, False):
             return
-            
+        
         resp, tok = await ask(msgs, cfg['model'], image_b64)
         
         if active_requests.get(user_id, False):
             return
-            
+        
         await db.update_tokens(msg.from_user.id, tok)
         await db.add_msg(msg.from_user.id, 'silas', 'user', text)
         await db.add_msg(msg.from_user.id, 'silas', 'assistant', resp)
         asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
+        
+        last_messages[user_id] = {"text": resp}
         
     finally:
         try:
@@ -250,10 +274,19 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         active_requests.pop(user_id, None)
     
     if resp:
+        has_tg = len(resp) >= 3000
         footer = f"\n\n<i>🛋️ Психолог</i>"
         if rem <= 5 and rem > 0:
             footer += f"\n⏱ Осталось {rem} мин"
-        await msg.answer(f"{resp}{footer}", reply_markup=reply.psycho_chat_kb())
+        
+        if has_tg:
+            preview = make_preview(resp, 800)
+            await msg.answer(
+                f"{preview}{footer}",
+                reply_markup=inline.silas_msg_kb(has_telegraph=True)
+            )
+        else:
+            await msg.answer(f"{resp}{footer}", reply_markup=reply.psycho_chat_kb())
 
 
 @router.message(SilasSt.session, F.text)

@@ -77,7 +77,6 @@ def admin_kb():
 
 
 def admin_bots_kb(d, p, s):
-    """d=luca, p=silas, s=titus enabled status"""
     ed = "🟢" if d else "🔴"
     ep = "🟢" if p else "🔴"
     es = "🟢" if s else "🔴"
@@ -242,14 +241,38 @@ def button_edit_kb(key: str):
 
 # === TITUS кнопки под сообщениями ===
 
-def titus_msg_kb(msg_id: int, has_telegraph: bool = False):
-    kb = [[InlineKeyboardButton(text="📝 Конспект", callback_data=f"titus:summary:{msg_id}")]]
+def titus_msg_kb(user_id: int, has_telegraph: bool = False):
+    """Кнопки под сообщением Titus: Конспект + Telegraph"""
+    kb = [[InlineKeyboardButton(text="📝 Конспект", callback_data=f"titus:summary:{user_id}")]]
     if has_telegraph:
-        kb[0].append(InlineKeyboardButton(text="📖 Telegraph", callback_data=f"titus:tg:{msg_id}"))
+        kb[0].append(InlineKeyboardButton(text="📖 Telegraph", callback_data=f"titus:tg:{user_id}"))
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
 
 def titus_telegraph_kb(url: str):
+    """Кнопка для открытия Telegraph страницы"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⤵️ Читать полностью", url=url)]
+        [InlineKeyboardButton(text="📖 Читать полностью", url=url)]
     ])
+
+
+# === LUCA кнопки под сообщениями ===
+
+def luca_msg_kb(has_telegraph: bool = False):
+    """Кнопка Telegraph под сообщением Luca"""
+    if has_telegraph:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📖 Читать полностью", callback_data="luca:tg")]
+        ])
+    return None
+
+
+# === SILAS кнопки под сообщениями ===
+
+def silas_msg_kb(has_telegraph: bool = False):
+    """Кнопка Telegraph под сообщением Silas"""
+    if has_telegraph:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📖 Читать полностью", callback_data="silas:tg")]
+        ])
+    return None
