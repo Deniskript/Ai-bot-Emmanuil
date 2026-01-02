@@ -9,7 +9,7 @@ from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview
-from prompts.all_prompts import SILAS_BASE, SILAS_GOOD, SILAS_TIRED, SILAS_PAIN
+from prompts.silas_prompt import SILAS_SYSTEM, MOOD_GOOD, MOOD_TIRED, MOOD_PAIN
 from config import MIN_TOKENS
 from loader import bot
 from datetime import datetime
@@ -28,7 +28,7 @@ class SilasSt(StatesGroup):
     session = State()
 
 
-MOODS = {'good': SILAS_GOOD, 'tired': SILAS_TIRED, 'pain': SILAS_PAIN}
+MOODS = {'good': MOOD_GOOD, 'tired': MOOD_TIRED, 'pain': MOOD_PAIN}
 active_requests = {}
 last_messages = {}
 
@@ -240,8 +240,8 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         mem = await db.get_memory(msg.from_user.id, 'silas')
         hist = await db.get_msgs(msg.from_user.id, 'silas')
         cnt = await db.inc_msg_counter(msg.from_user.id, 'silas')
-        sys = SILAS_BASE.format(mood=mood, duration=d['dur'], elapsed=el, remaining=rem)
-        sys += build_memory_context(mem)
+        sys = SILAS_SYSTEM.format(mood=mood, duration=d['dur'], elapsed=el, remaining=rem, msg_count=cnt)
+        sys += build_memory_context(mem, cnt)
         
         if rem <= 5:
             sys += "\n\nОсталось мало времени — начинайте завершение."
@@ -274,15 +274,15 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         active_requests.pop(user_id, None)
     
     if resp:
-        has_tg = len(resp) >= 3000
+        has_tg = len(resp) >= 500
         footer = f"\n\n<i>🛋️ Психолог</i>"
-        if rem <= 5 and rem > 0:
+        if False:  # таймер скрыт
             footer += f"\n⏱ Осталось {rem} мин"
         
         if has_tg:
             preview = make_preview(resp, 800)
             await msg.answer(
-                f"{preview}{footer}",
+                f"{preview}\n\n<i>📖 Читать полностью в Telegraph</i>{footer}",
                 reply_markup=inline.silas_msg_kb(has_telegraph=True)
             )
         else:

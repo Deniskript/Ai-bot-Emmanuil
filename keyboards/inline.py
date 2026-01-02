@@ -252,7 +252,7 @@ def titus_msg_kb(user_id: int, has_telegraph: bool = False):
 def titus_telegraph_kb(url: str):
     """Кнопка для открытия Telegraph страницы"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📖 Читать полностью", url=url)]
+        [InlineKeyboardButton(text="📖 Telegraph", url=url)]
     ])
 
 
@@ -262,7 +262,7 @@ def luca_msg_kb(has_telegraph: bool = False):
     """Кнопка Telegraph под сообщением Luca"""
     if has_telegraph:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📖 Читать полностью", callback_data="luca:tg")]
+            [InlineKeyboardButton(text="📖 Telegraph", callback_data="luca:tg")]
         ])
     return None
 
@@ -273,6 +273,6 @@ def silas_msg_kb(has_telegraph: bool = False):
     """Кнопка Telegraph под сообщением Silas"""
     if has_telegraph:
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📖 Читать полностью", callback_data="silas:tg")]
+            [InlineKeyboardButton(text="📖 Telegraph", callback_data="silas:tg")]
         ])
     return None

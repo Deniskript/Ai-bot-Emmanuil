@@ -143,7 +143,7 @@ async def create_course(msg: Message, state: FSMContext):
     if has_tg:
         preview = make_preview(resp, 800)
         await msg.answer(
-            f"{preview}\n\n<i>⤵️ Читать полностью</i>",
+            f"{preview}\n\n<i>📖 Читать полностью в Telegraph</i>\n\n<i>📓 Обучение</i>",
             reply_markup=inline.titus_msg_kb(msg.from_user.id, has_telegraph=True)
         )
     else:
@@ -454,7 +454,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         if has_tg:
             preview = make_preview(resp, 800)
             await msg.answer(
-                f"{preview}\n\n<i>📓 Обучение{step_info}</i>",
+                f"{preview}\n\n<i>📖 Читать полностью в Telegraph</i>\n\n<i>📓 Обучение{step_info}</i>",
                 reply_markup=inline.titus_msg_kb(user_id, has_telegraph=True)
             )
         else:

@@ -231,13 +231,13 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         active_requests.pop(user_id, None)
     
     if resp:
-        print(f"DEBUG: len={len(resp)}, has_tg={len(resp) >= 3000}")
-        has_tg = len(resp) >= 3000
+        print(f"DEBUG: len={len(resp)}, has_tg={len(resp) >= 500}")
+        has_tg = len(resp) >= 500
         
         if has_tg:
             preview = make_preview(resp, 800)
             await msg.answer(
-                f"{preview}\n\n<i>💭 Диалог • {char_name}</i>",
+                f"{preview}\n\n<i>📖 Читать полностью в Telegraph</i>\n\n<i>💭 Диалог • {char_name}</i>",
                 reply_markup=inline.luca_msg_kb(has_telegraph=True)
             )
         else:
