@@ -20,6 +20,8 @@ async def init_db():
             total_requests INTEGER DEFAULT 0, is_blocked INTEGER DEFAULT 0,
             agreement INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE INDEX IF NOT EXISTS idx_users_blocked ON users(is_blocked);
+        CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at);
         CREATE TABLE IF NOT EXISTS user_bots (
             user_id INTEGER, bot TEXT, character TEXT DEFAULT 'душевный',
             mood TEXT, custom_mood TEXT, msg_counter INTEGER DEFAULT 0,
@@ -33,6 +35,7 @@ async def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, bot TEXT,
             role TEXT, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE INDEX IF NOT EXISTS idx_bot_msgs_user_bot ON bot_msgs(user_id, bot, created_at);
         CREATE TABLE IF NOT EXISTS mood_stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, mood TEXT,
             at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -46,6 +49,21 @@ async def init_db():
             total INTEGER, current INTEGER DEFAULT 1, done INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE INDEX IF NOT EXISTS idx_courses_user ON courses(user_id, created_at DESC);
+        CREATE TABLE IF NOT EXISTS user_profile (
+            user_id INTEGER PRIMARY KEY,
+            name TEXT,
+            age INTEGER,
+            gender TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS token_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            tokens_used INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_token_usage_user_date ON token_usage(user_id, created_at);
         CREATE TABLE IF NOT EXISTS bot_cfg (
             bot TEXT PRIMARY KEY, enabled INTEGER DEFAULT 1,
             model TEXT, version TEXT DEFAULT '1.0.0'

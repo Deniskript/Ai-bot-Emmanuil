@@ -750,3 +750,38 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     
     timer_task = asyncio.create_task(update_timer())
     
+    sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
+    msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Разбери подробно темы, которые были сложными: {topics_text}"}]
+    
+    try:
+        resp, tok = await ask(msgs, model)
+        timer_running = False
+        timer_task.cancel()
+        await status.delete()
+        
+        resp_clean = clean_html_for_telegram(resp)
+        
+        await db.use_tokens_smart(cb.from_user.id, tok)
+        await db.increment_requests(cb.from_user.id)
+        await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
+        
+        last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
+        
+        if len(resp_clean) >= 3000:
+            preview = make_preview(resp_clean, 800)
+            text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
+        else:
+            text_to_send = resp_clean
+        
+        await cb.message.answer(
+            f"{text_to_send}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
+            reply_markup=inline.titus_msg_kb(cb.from_user.id, has_telegraph=True)
+        )
+    except Exception as e:
+        timer_running = False
+        timer_task.cancel()
+        try:
+            await status.delete()
+        except:
+            pass
+        await cb.message.answer(f"❌ Ошибка: {str(e)[:200]}", reply_markup=reply.study_chat_kb())

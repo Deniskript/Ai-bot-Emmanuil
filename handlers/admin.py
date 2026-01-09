@@ -812,18 +812,32 @@ async def git_status(cb: CallbackQuery):
     if not is_adm(cb.from_user.id):
         return
     try:
-        result = subprocess.run(['git', 'status', '--short'], cwd="/root/ai-bot", capture_output=True, text=True)
+        result = subprocess.run(
+            ['git', 'status', '--short'], 
+            cwd="/root/ai-bot", 
+            capture_output=True, 
+            text=True, 
+            timeout=10
+        )
         status = result.stdout or "Нет изменений"
         
-        branch = subprocess.run(['git', 'branch', '--show-current'], cwd="/root/ai-bot", capture_output=True, text=True)
+        branch = subprocess.run(
+            ['git', 'branch', '--show-current'], 
+            cwd="/root/ai-bot", 
+            capture_output=True, 
+            text=True, 
+            timeout=10
+        )
         
         await cb.message.edit_text(
             f"📋 <b>Git статус</b>\n\n"
             f"🌿 Ветка: {branch.stdout.strip()}\n\n"
             f"<code>{status[:1000]}</code>",
             reply_markup=inline.back_kb("adm:git"))
+    except subprocess.TimeoutExpired:
+        await cb.message.edit_text("❌ Превышено время ожидания", reply_markup=inline.back_kb("adm:git"))
     except Exception as e:
-        await cb.message.edit_text(f"❌ Ошибка: {e}", reply_markup=inline.back_kb("adm:git"))
+        await cb.message.edit_text(f"❌ Ошибка: {str(e)[:200]}", reply_markup=inline.back_kb("adm:git"))
 
 @router.callback_query(F.data == "git:push")
 async def git_push_start(cb: CallbackQuery, state: FSMContext):
@@ -836,9 +850,11 @@ async def git_push_start(cb: CallbackQuery, state: FSMContext):
 async def git_push_confirm(msg: Message, state: FSMContext):
     if not is_adm(msg.from_user.id):
         return
-    await state.update_data(git_msg=msg.text)
+    # Sanitize commit message - удаляем опасные символы
+    safe_msg = msg.text.replace('"', '\\"').replace("'", "\\'").replace(";", "").replace("&", "").replace("|", "")[:200]
+    await state.update_data(git_msg=safe_msg)
     await msg.answer(
-        f"💾 <b>Подтверждение</b>\n\nКомментарий: {msg.text}\n\nСохранить?",
+        f"💾 <b>Подтверждение</b>\n\nКомментарий: {safe_msg}\n\nСохранить?",
         reply_markup=inline.confirm_git_kb())
 
 @router.callback_query(F.data == "git:confirm")
@@ -850,12 +866,35 @@ async def git_push_do(cb: CallbackQuery, state: FSMContext):
     
     await cb.message.edit_text("⏳ Сохранение...")
     try:
-        subprocess.run(["git", "add", "."], cwd="/root/ai-bot", check=True)
-        subprocess.run(["git", "commit", "-m", msg_text], cwd="/root/ai-bot", check=True)
-        result = subprocess.run(["git", "push"], cwd="/root/ai-bot", capture_output=True, text=True)
+        # Безопасное выполнение с timeout и без shell=True
+        subprocess.run(
+            ["git", "add", "."], 
+            cwd="/root/ai-bot", 
+            check=True, 
+            timeout=30,
+            capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", msg_text], 
+            cwd="/root/ai-bot", 
+            check=True, 
+            timeout=30,
+            capture_output=True
+        )
+        result = subprocess.run(
+            ["git", "push"], 
+            cwd="/root/ai-bot", 
+            capture_output=True, 
+            text=True, 
+            timeout=60
+        )
         
         await cb.message.edit_text(
             f"✅ <b>Проект сохранён!</b>\n\n💬 {msg_text}",
+            reply_markup=inline.back_kb("adm:git"))
+    except subprocess.TimeoutExpired:
+        await cb.message.edit_text(
+            "❌ <b>Ошибка</b>\n\nПревышено время ожидания",
             reply_markup=inline.back_kb("adm:git"))
     except Exception as e:
         await cb.message.edit_text(
@@ -868,10 +907,18 @@ async def git_pull(cb: CallbackQuery):
     if not is_adm(cb.from_user.id):
         return
     try:
-        result = subprocess.run(['git', 'pull'], cwd="/root/ai-bot", capture_output=True, text=True)
+        result = subprocess.run(
+            ['git', 'pull'], 
+            cwd="/root/ai-bot", 
+            capture_output=True, 
+            text=True, 
+            timeout=60
+        )
         output = result.stdout + result.stderr
         await cb.message.edit_text(
             f"📥 <b>Git Pull</b>\n\n<code>{output[:1000]}</code>",
             reply_markup=inline.back_kb("adm:git"))
+    except subprocess.TimeoutExpired:
+        await cb.message.edit_text("❌ Превышено время ожидания", reply_markup=inline.back_kb("adm:git"))
     except Exception as e:
-        await cb.message.edit_text(f"❌ Ошибка: {e}", reply_markup=inline.back_kb("adm:git"))
+        await cb.message.edit_text(f"❌ Ошибка: {str(e)[:200]}", reply_markup=inline.back_kb("adm:git"))

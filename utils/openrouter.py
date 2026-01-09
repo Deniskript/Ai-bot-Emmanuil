@@ -18,6 +18,14 @@ async def get_client():
     return _client
 
 
+async def close_client():
+    """Закрыть httpx client при shutdown"""
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
+
+
 async def ask(msgs: list, model: str = None, image_base64: str = None, max_tokens: int = 2000) -> tuple:
     """Обычный (не стрим) запрос к OpenRouter"""
     try:
