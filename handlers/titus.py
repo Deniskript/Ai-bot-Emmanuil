@@ -138,7 +138,7 @@ async def create_course(msg: Message, state: FSMContext):
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_html_for_telegram(resp_clean)
     
-    await db.use_tokens_smart(msg.from_user.id, tok)
+    await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
     await db.increment_requests(msg.from_user.id)
     await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp_clean)
     
@@ -357,7 +357,7 @@ async def titus_make_summary(cb: CallbackQuery):
     try:
         resp, tok = await ask([{"role": "user", "content": summary_prompt}], model)
         resp = clean_html_for_telegram(resp)
-        await db.use_tokens_smart(user_id, tok)
+        await db.use_tokens_smart(user_id, tok, 'titus')
         await db.increment_requests(user_id)
         await cb.message.answer(
             f"📝 <b>Конспект | {data.get('course', 'Курс')} | Шаг {data.get('step', 1)}</b>\n\n{resp}",
@@ -467,35 +467,72 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         if image_b64:
             resp, tok = await ask(msgs_to_send, model, image_b64)
         else:
-            # Стриминг для текста
+            # УЛУЧШЕННЫЙ STREAMING для Titus
             full_response = ""
+            sentence_buffer = ""
+            displayed_text = ""
             last_update = time.time()
-            typing_seconds = 0
+            typing_phase = 0
+            stream_msg = None
             
-            async for chunk in ask_stream(msgs_to_send, model):
+            async for chunk in ask_stream(msgs_to_send, model, max_tokens=4000):
                 if request_state['cancelled']:
                     return
-                if chunk:
-                    full_response += chunk
+                if not chunk:
+                    continue
                 
+                full_response += chunk
+                sentence_buffer += chunk
                 now = time.time()
-                if now - last_update >= 1.0:
-                    typing_seconds += 1
-                    if typing_seconds <= 3:
-                        try:
-                            await status_msg.edit_text(f"✍️ Печатаю... ({typing_seconds})")
-                        except:
-                            pass
-                    elif len(full_response) > 50:
-                        display = full_response[:4000] + " ▌" if len(full_response) > 4000 else full_response + " ▌"
-                        try:
-                            await status_msg.edit_text(display)
-                        except:
-                            pass
-                    last_update = now
+                
+                # Фаза 1: показываем "печатаю"
+                if typing_phase == 0 and len(full_response) > 20:
+                    typing_phase = 1
+                    try:
+                        await status_msg.edit_text("✍️ Печатаю...")
+                    except:
+                        pass
+                
+                # Фаза 2: начинаем показывать текст блоками
+                if typing_phase == 1 and len(full_response) > 100:
+                    typing_phase = 2
+                    try:
+                        await status_msg.delete()
+                    except:
+                        pass
+                    stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
+                
+                # Обновляем текст блоками
+                if typing_phase == 2 and stream_msg:
+                    if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                        displayed_text += sentence_buffer
+                        sentence_buffer = ""
+                        
+                        if now - last_update >= 0.5:
+                            from utils.telegraph import clean_html_for_telegram
+                            formatted = clean_html_for_telegram(displayed_text)
+                            try:
+                                await stream_msg.edit_text(formatted + " ▌")
+                                last_update = now
+                                await asyncio.sleep(0.3)
+                            except:
+                                pass
             
+            displayed_text += sentence_buffer
             resp = full_response.strip()
             tok = calculate_tokens(msgs_to_send, resp)
+            
+            # Удаляем streaming сообщение
+            if stream_msg:
+                try:
+                    await stream_msg.delete()
+                except:
+                    pass
+            if status_msg and typing_phase < 2:
+                try:
+                    await status_msg.delete()
+                except:
+                    pass
         
         if request_state['cancelled']:
             return
@@ -504,7 +541,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         resp_clean = resp.replace("---NEXT---", "").strip()
         resp_clean = clean_html_for_telegram(resp_clean)
         
-        await db.use_tokens_smart(msg.from_user.id, tok)
+        await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
         await db.increment_requests(msg.from_user.id)
         await db.add_msg(msg.from_user.id, 'titus', 'user', text)
         await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp_clean)
@@ -684,7 +721,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_html_for_telegram(resp_clean)
     
-    await db.use_tokens_smart(cb.from_user.id, tok)
+    await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
     await db.increment_requests(cb.from_user.id)
     await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
     
@@ -761,7 +798,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
         
         resp_clean = clean_html_for_telegram(resp)
         
-        await db.use_tokens_smart(cb.from_user.id, tok)
+        await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
         await db.increment_requests(cb.from_user.id)
         await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
         

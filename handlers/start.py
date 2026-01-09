@@ -248,12 +248,22 @@ async def my_stats_cb(cb: CallbackQuery):
     
     tokens = await db.get_available_tokens(cb.from_user.id)
     
+    # Получаем статистику по ботам
+    bots_tokens = await db.get_all_bots_tokens(cb.from_user.id)
+    luca_tokens = bots_tokens.get('luca', 0)
+    silas_tokens = bots_tokens.get('silas', 0)
+    titus_tokens = bots_tokens.get('titus', 0)
+    
     text = (
         f"📊 <b>Статистика</b>\n\n"
         f"📅 Регистрация: {created[:10] if created else '—'}\n"
         f"💬 Всего запросов: {fmt(total_requests)}\n\n"
         f"💰 <b>Баланс:</b> {fmt(tokens)} токенов\n"
-        f"📉 <b>Потрачено:</b> {fmt(total_used)} токенов"
+        f"📉 <b>Потрачено всего:</b> {fmt(total_used)} токенов\n\n"
+        f"🤖 <b>Использование по ботам:</b>\n"
+        f"💭 Luca (Диалог): {fmt(luca_tokens)}\n"
+        f"🛋️ Silas (Психолог): {fmt(silas_tokens)}\n"
+        f"📓 Titus (Обучение): {fmt(titus_tokens)}"
     )
     await cb.message.edit_text(text, reply_markup=inline.back_kb("cabinet"))
 

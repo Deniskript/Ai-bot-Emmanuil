@@ -232,25 +232,10 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     request_state = {'cancelled': False, 'kb_msg': None, 'status_msg': None}
     active_requests[user_id] = request_state
     
-    status_msg = await msg.answer("⏳ Обрабатываю. Пожалуйста подождите…")
+    status_msg = await msg.answer("⏳ Обрабатываю...")
     request_state['status_msg'] = status_msg
     
     resp = None
-    timer_running = True
-    
-    async def update_status():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running or request_state['cancelled']:
-                break
-            sec += 1
-            try:
-                await status_msg.edit_text(f"✍️ Печатаю... ({sec})")
-            except:
-                pass
-    
-    timer_task = asyncio.create_task(update_status())
     
     try:
         if request_state['cancelled']:
@@ -275,12 +260,79 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         if request_state['cancelled']:
             return
         
-        resp, tok = await ask(msgs, model, image_b64)
+        # УЛУЧШЕННЫЙ STREAMING
+        if image_b64:
+            resp, tok = await ask(msgs, model, image_b64)
+        else:
+            from utils.openrouter import ask_stream
+            from utils.tokens import calculate_tokens
+            import time
+            
+            full_response = ""
+            sentence_buffer = ""
+            displayed_text = ""
+            last_update = time.time()
+            typing_phase = 0
+            stream_msg = None
+            
+            async for chunk in ask_stream(msgs, model, max_tokens=4000):
+                if request_state['cancelled']:
+                    return
+                if not chunk:
+                    continue
+                
+                full_response += chunk
+                sentence_buffer += chunk
+                now = time.time()
+                
+                if typing_phase == 0 and len(full_response) > 20:
+                    typing_phase = 1
+                    try:
+                        await status_msg.edit_text("✍️ Печатаю...")
+                    except:
+                        pass
+                
+                if typing_phase == 1 and len(full_response) > 100:
+                    typing_phase = 2
+                    try:
+                        await status_msg.delete()
+                    except:
+                        pass
+                    stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
+                
+                if typing_phase == 2 and stream_msg:
+                    if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                        displayed_text += sentence_buffer
+                        sentence_buffer = ""
+                        
+                        if now - last_update >= 0.5:
+                            formatted = md_to_html(displayed_text)
+                            try:
+                                await stream_msg.edit_text(formatted + " ▌")
+                                last_update = now
+                                await asyncio.sleep(0.3)
+                            except:
+                                pass
+            
+            displayed_text += sentence_buffer
+            resp = full_response.strip()
+            tok = calculate_tokens(msgs, resp)
+            
+            if stream_msg:
+                try:
+                    await stream_msg.delete()
+                except:
+                    pass
+            if status_msg and typing_phase < 2:
+                try:
+                    await status_msg.delete()
+                except:
+                    pass
         
         if request_state['cancelled']:
             return
         
-        await db.use_tokens_smart(msg.from_user.id, tok)
+        await db.use_tokens_smart(msg.from_user.id, tok, 'silas')
         await db.increment_requests(msg.from_user.id)
         
         await db.add_msg(msg.from_user.id, 'silas', 'user', text)
@@ -290,12 +342,6 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         last_messages[user_id] = {"text": resp}
         
     finally:
-        timer_running = False
-        timer_task.cancel()
-        try:
-            await status_msg.delete()
-        except:
-            pass
         active_requests.pop(user_id, None)
     
     if resp:

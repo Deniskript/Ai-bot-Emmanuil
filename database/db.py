@@ -11,6 +11,24 @@ if os.path.dirname(DATABASE_PATH):
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 
 
+async def migrate_token_usage_table():
+    """Миграция таблицы token_usage - добавление колонки bot_name"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем есть ли колонка bot_name
+        cursor = await db.execute("PRAGMA table_info(token_usage)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        
+        if 'bot_name' not in column_names:
+            print("🔄 Миграция: добавление колонки bot_name в token_usage...")
+            # Добавляем колонку bot_name со значением по умолчанию
+            await db.execute("ALTER TABLE token_usage ADD COLUMN bot_name TEXT DEFAULT 'unknown'")
+            # Создаём индекс для новой колонки
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_token_usage_bot ON token_usage(user_id, bot_name)")
+            await db.commit()
+            print("✅ Миграция завершена успешно!")
+
+
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.executescript("""
@@ -81,6 +99,9 @@ async def init_db():
         INSERT OR IGNORE INTO bot_cfg VALUES ('titus',1,'gpt-4o-mini','1.0.0');
         """)
         await db.commit()
+    
+    # Запускаем миграцию для существующих БД
+    await migrate_token_usage_table()
 
 
 async def get_user(uid: int) -> Optional[Dict]:
@@ -819,13 +840,23 @@ async def get_available_tokens(uid: int) -> int:
     return user['tokens'] if user else 0
 
 
-async def use_tokens_smart(uid: int, amount: int) -> bool:
+async def use_tokens_smart(uid: int, amount: int, bot_name: str = None) -> bool:
     """
     Списать токены:
     - Если есть активная подписка -> из подписки
     - Если нет подписки -> из users.tokens (бонусные, разрешаем минус)
+    - Записываем статистику по ботам
     """
     sub = await get_subscription(uid)
+    
+    # Записываем использование токенов по ботам
+    if bot_name:
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute(
+                "INSERT INTO token_usage (user_id, bot_name, tokens_used) VALUES (?, ?, ?)",
+                (uid, bot_name, amount)
+            )
+            await db.commit()
     
     # Есть активная подписка
     if sub and sub['is_active'] and await check_subscription_active(uid):
@@ -1044,3 +1075,28 @@ async def get_month_tokens(uid: int) -> int:
         """, (uid,))
         r = await c.fetchone()
         return r[0] if r else 0
+
+
+async def get_tokens_by_bot(uid: int, bot_name: str) -> int:
+    """Получить токены использованные конкретным ботом"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("""
+            SELECT COALESCE(SUM(tokens_used), 0) FROM token_usage 
+            WHERE user_id=? AND bot_name=?
+        """, (uid, bot_name))
+        r = await c.fetchone()
+        return r[0] if r else 0
+
+
+async def get_all_bots_tokens(uid: int) -> Dict[str, int]:
+    """Получить статистику использования токенов по всем ботам"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT bot_name, SUM(tokens_used) as total
+            FROM token_usage 
+            WHERE user_id=?
+            GROUP BY bot_name
+        """, (uid,))
+        rows = await c.fetchall()
+        return {row['bot_name']: row['total'] for row in rows}

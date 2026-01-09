@@ -37,38 +37,33 @@ active_requests = {}
 last_messages = {}
 
 
-# ========== НАСТРОЙКИ ТОКЕНОВ ==========
+# ========== УЛУЧШЕННЫЙ СТРИМИНГ ==========
 
-TOKEN_LIMITS = {
-    'fast': 150,
-    'deep': 2000
-}
-
-FAST_SUFFIX = "\n\nОтвечай кратко: 1-3 предложения. Задай 1 уточняющий вопрос."
-
-
-def get_message_type(text: str, history_len: int) -> str:
-    text_lower = text.lower().strip()
+def format_streaming_text(text: str) -> list:
+    """
+    Разбивает текст на блоки по 1-2 предложения для красивого стриминга
+    """
+    import re
     
-    fast_patterns = [
-        'привет', 'здравствуй', 'хай', 'hello', 'hi',
-        'начнём', 'начнем', 'начать', 'давай',
-        'как дела', 'что умеешь', 'кто ты',
-        'спасибо', 'пока', 'до свидания',
-        'не нужно', 'не надо', 'ничего',
-        'ок', 'окей', 'хорошо', 'ладно', 'понял',
-        'норм', 'ясно', 'угу'
-    ]
+    # Разбиваем по предложениям
+    sentences = re.split(r'([.!?]+\s+)', text)
+    blocks = []
+    current_block = ""
     
-    if len(text) < 40:
-        return 'fast'
+    for i, part in enumerate(sentences):
+        current_block += part
+        
+        # Если это конец предложения и накопилось 1-2 предложения
+        if part.strip().endswith(('.', '!', '?')) or (i > 0 and sentences[i-1].strip().endswith(('.', '!', '?'))):
+            if len(current_block.strip()) > 30:  # Минимум символов в блоке
+                blocks.append(current_block.strip())
+                current_block = ""
     
-    if len(text) < 80:
-        for pattern in fast_patterns:
-            if pattern in text_lower:
-                return 'fast'
+    # Добавляем остаток
+    if current_block.strip():
+        blocks.append(current_block.strip())
     
-    return 'deep'
+    return blocks if blocks else [text]
 
 
 # ========== МЕНЮ ==========
@@ -293,13 +288,6 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(hist)
     messages.append({"role": "user", "content": text})
-
-    # Определяем тип сообщения и лимит токенов
-    msg_type = get_message_type(text, len(hist))
-    max_tokens = TOKEN_LIMITS[msg_type]
-    
-    if msg_type == 'fast':
-        messages[0]["content"] += FAST_SUFFIX
     
     # Если есть картинка - обычный запрос
     if image_b64:
@@ -312,22 +300,22 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
             active_requests.pop(user_id, None)
             return
     else:
-        # Streaming для текста
-        status_msg = await msg.answer("⌛️ Обрабатываю... Пожалуйста подождите...")
+        # УЛУЧШЕННЫЙ STREAMING с красивым форматированием
+        status_msg = await msg.answer("⌛️ Обрабатываю...")
         request_state['status_msg'] = status_msg
         
         full_response = ""
-        word_buffer = ""
-        words_collected = []
+        sentence_buffer = ""
+        displayed_text = ""
         last_update = time.time()
-        typing_started = False
-        typing_seconds = 0
+        typing_phase = 0  # 0=loading, 1=typing, 2=streaming blocks
+        stream_msg = None
         
         try:
-            async for chunk in ask_stream(messages, model, max_tokens=max_tokens):
+            async for chunk in ask_stream(messages, model, max_tokens=4000):  # Увеличен лимит!
                 if request_state['cancelled']:
                     try:
-                        await status_msg.edit_text("❌ Отменено")
+                        await status_msg.delete()
                     except:
                         pass
                     active_requests.pop(user_id, None)
@@ -337,72 +325,72 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
                     continue
                 
                 full_response += chunk
-                word_buffer += chunk
-                
-                while ' ' in word_buffer or '\n' in word_buffer:
-                    space_idx = word_buffer.find(' ')
-                    newline_idx = word_buffer.find('\n')
-                    
-                    if space_idx == -1:
-                        split_idx = newline_idx
-                    elif newline_idx == -1:
-                        split_idx = space_idx
-                    else:
-                        split_idx = min(space_idx, newline_idx)
-                    
-                    word = word_buffer[:split_idx]
-                    if word:
-                        words_collected.append(word)
-                    word_buffer = word_buffer[split_idx + 1:]
-                
+                sentence_buffer += chunk
                 now = time.time()
                 
-                if not typing_started and now - last_update >= 1.0:
-                    typing_started = True
-                    typing_seconds = 1
+                # Фаза 1: показываем "печатаю"
+                if typing_phase == 0 and len(full_response) > 20:
+                    typing_phase = 1
                     try:
-                        await status_msg.edit_text(f"✍️ Печатаю... ({typing_seconds})")
-                        last_update = now
+                        await status_msg.edit_text("✍️ Печатаю...")
                     except:
                         pass
-                elif typing_started and typing_seconds < 3 and now - last_update >= 1.0:
-                    typing_seconds += 1
+                
+                # Фаза 2: начинаем показывать текст блоками
+                if typing_phase == 1 and len(full_response) > 100:
+                    typing_phase = 2
                     try:
-                        await status_msg.edit_text(f"✍️ Печатаю... ({typing_seconds})")
-                        last_update = now
+                        await status_msg.delete()
                     except:
                         pass
-                elif typing_seconds >= 3 and len(words_collected) >= 5 and now - last_update >= 0.8:
-                    display_text = ' '.join(words_collected)
-                    if len(display_text) > 4000:
-                        display_text = display_text[:4000] + "..."
-                    try:
-                        await status_msg.edit_text(display_text + " ▌")
-                        last_update = now
-                    except:
-                        pass
+                    # Создаём сообщение для стриминга
+                    stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
+                
+                # Обновляем текст блоками когда накопилось 1-2 предложения
+                if typing_phase == 2 and stream_msg:
+                    # Проверяем конец предложения
+                    if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                        displayed_text += sentence_buffer
+                        sentence_buffer = ""
+                        
+                        # Обновляем с небольшой задержкой (каждые 0.5 сек)
+                        if now - last_update >= 0.5:
+                            formatted = md_to_html(displayed_text)
+                            try:
+                                await stream_msg.edit_text(formatted + " ▌")
+                                last_update = now
+                                await asyncio.sleep(0.3)  # Пауза для читаемости
+                            except:
+                                pass
             
-            if word_buffer:
-                words_collected.append(word_buffer)
-            
+            # Добавляем остаток
+            displayed_text += sentence_buffer
             resp = full_response.strip()
             
-            try:
-                await status_msg.delete()
-            except:
-                pass
+            # Удаляем streaming сообщение
+            if stream_msg:
+                try:
+                    await stream_msg.delete()
+                except:
+                    pass
+            if status_msg and typing_phase < 2:
+                try:
+                    await status_msg.delete()
+                except:
+                    pass
             
             # Точный подсчёт токенов
             tok = calculate_tokens(messages, resp)
-            # (используем новый модуль utils.tokens)
-            
             
         except Exception as e:
             print(f"Stream error: {e}")
             import traceback
             traceback.print_exc()
             try:
-                await status_msg.edit_text(f"❌ Ошибка: {e}")
+                if stream_msg:
+                    await stream_msg.delete()
+                if status_msg:
+                    await status_msg.edit_text(f"❌ Ошибка: {e}")
             except:
                 pass
             active_requests.pop(user_id, None)
@@ -414,8 +402,8 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         await msg.answer("❌ Пустой ответ от AI")
         return
     
-    # Списываем токены
-    await db.use_tokens_smart(user_id, tok)
+    # Списываем токены с отслеживанием по боту
+    await db.use_tokens_smart(user_id, tok, 'luca')
     await db.increment_requests(user_id)
     
     # Сохраняем в историю
