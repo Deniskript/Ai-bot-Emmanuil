@@ -15,6 +15,7 @@ from utils.titus_memory import save_step_progress, build_smart_context
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview, clean_html_for_telegram
+from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from prompts.titus_prompt import TITUS_BASE
 from config import MIN_TOKENS
 from loader import bot
@@ -754,6 +755,13 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                     current_step = new_step
                     await state.update_data(current_step=new_step)
         
+        # Очищаем ответ от служебных строк
+        resp_clean = clean_response(resp_clean)
+        
+        # Сохраняем в систему диалогов
+        await save_message(user_id, 'user', text, 'titus', model)
+        conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus', model)
+        
         last_messages[user_id] = {"text": resp_clean, "course": cname, "step": current_step}
         resp = resp_clean
                         
@@ -769,16 +777,16 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
     if resp:
         step_info = f" • Шаг {current_step}/{total_steps}" if cid else ""
         
-        if len(resp) >= 3000:
-            preview = make_preview(resp, 800)
-            text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
-        else:
-            text_to_send = resp
+        # Проверяем, нужно ли превью
+        needs_preview, display_text = should_show_preview(resp, max_length=3000)
+        
+        # Получаем кнопку для просмотра диалога
+        keyboard = get_chat_button(conv_id, len(resp))
         
         await msg.answer("💬", reply_markup=reply.study_chat_kb())
         await msg.answer(
-            f"{text_to_send}\n\n<i>📓 Обучение{step_info}</i>",
-            reply_markup=inline.titus_msg_kb(user_id, has_telegraph=True)
+            f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
+            reply_markup=keyboard
         )
 
 

@@ -10,6 +10,7 @@ from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview
+from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from prompts.silas_prompt import SILAS_SYSTEM, MOOD_GOOD, MOOD_TIRED, MOOD_PAIN
 from config import MIN_TOKENS
 from loader import bot
@@ -332,11 +333,20 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         if request_state['cancelled']:
             return
         
+        # Очищаем ответ от служебных строк
+        resp = clean_response(resp)
+        
         await db.use_tokens_smart(msg.from_user.id, tok, 'silas')
         await db.increment_requests(msg.from_user.id)
         
         await db.add_msg(msg.from_user.id, 'silas', 'user', text)
         await db.add_msg(msg.from_user.id, 'silas', 'assistant', resp)
+        
+        # Сохраняем в систему диалогов
+        model = await db.get_user_model(msg.from_user.id)
+        await save_message(msg.from_user.id, 'user', text, 'silas', model)
+        conv_id = await save_message(msg.from_user.id, 'assistant', resp, 'silas', model)
+        
         asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
         
         last_messages[user_id] = {"text": resp}
@@ -346,22 +356,19 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     
     if resp:
         resp_html = md_to_html(resp)
-        text_len = len(resp)
         footer = "\n\n<i>🛋️ Психолог</i>"
         
-        if text_len < 1000:
-            await msg.answer(f"{resp_html}{footer}", reply_markup=reply.psycho_chat_kb())
-        elif text_len <= 3000:
-            await msg.answer(
-                f"{resp_html}{footer}",
-                reply_markup=inline.silas_msg_kb(has_telegraph=True)
-            )
-        else:
-            preview = make_preview(resp_html, 800)
-            await msg.answer(
-                f"{preview}\n\n<i>📖 Читать полностью в Telegraph</i>{footer}",
-                reply_markup=inline.silas_msg_kb(has_telegraph=True)
-            )
+        # Проверяем, нужно ли превью
+        needs_preview, display_text = should_show_preview(resp_html, max_length=3000)
+        
+        if needs_preview:
+            display_text = md_to_html(display_text)
+        
+        # Получаем кнопку для просмотра диалога
+        keyboard = get_chat_button(conv_id, len(resp_html))
+        
+        # Отправляем ответ
+        await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
 
 @router.message(SilasSt.session, F.text)
 async def silas_text(msg: Message, state: FSMContext):

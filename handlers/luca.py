@@ -10,6 +10,7 @@ from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview
+from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from prompts.luca_prompt import LUCA_BASE, CHARS, CHAR_NAMES
 from config import MIN_TOKENS
 from loader import bot
@@ -402,6 +403,9 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         await msg.answer("❌ Пустой ответ от AI")
         return
     
+    # Очищаем ответ от служебных строк
+    resp = clean_response(resp)
+    
     # Списываем токены с отслеживанием по боту
     await db.use_tokens_smart(user_id, tok, 'luca')
     await db.increment_requests(user_id)
@@ -410,22 +414,32 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
     await db.add_msg(user_id, 'luca', 'user', text)
     await db.add_msg(user_id, 'luca', 'assistant', resp)
     
+    # Сохраняем в систему диалогов
+    await save_message(user_id, 'user', text, 'luca', model)
+    conv_id = await save_message(user_id, 'assistant', resp, 'luca', model)
+    
     # Обновляем память в фоне
     asyncio.create_task(update_memory(user_id, 'luca', text, resp))
     
     # Сохраняем для Telegraph
     last_messages[user_id] = {"text": resp, "char": char_name}
     
-    resp = md_to_html(resp)
+    resp_html = md_to_html(resp)
+    
+    # Проверяем, нужно ли превью
+    needs_preview, display_text = should_show_preview(resp_html, max_length=3000)
+    
+    if needs_preview:
+        display_text = md_to_html(display_text)
+    
+    # Получаем кнопку для просмотра диалога
+    keyboard = get_chat_button(conv_id, len(resp_html))
     
     # Отправляем ответ
-    if len(resp) < 1000:
-        await msg.answer(f"{resp}\n\n<i>🫧 Soul AI • {char_name}</i>", reply_markup=reply.dialog_chat_kb())
-    elif len(resp) < 3000:
-        await msg.answer(f"{resp}\n\n<i>🫧 Soul AI • {char_name}</i>", reply_markup=inline.luca_msg_kb(has_telegraph=True))
+    if needs_preview:
+        await msg.answer(f"{display_text}\n\n<i>🫧 Soul AI • {char_name}</i>", reply_markup=keyboard)
     else:
-        preview = make_preview(resp, 900)
-        await msg.answer(f"{preview}\n\n<i>📖 Читать полностью в Telegraph</i>\n\n<i>🫧 Soul AI • {char_name}</i>", reply_markup=inline.luca_msg_kb(has_telegraph=True))
+        await msg.answer(f"{display_text}\n\n<i>🫧 Soul AI • {char_name}</i>", reply_markup=keyboard)
 
 
 @router.message(LucaSt.chat, F.text)
