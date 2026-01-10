@@ -315,6 +315,22 @@ async def give_sub_select(cb: CallbackQuery):
     type_name = "🔵 Mini (Sonnet)" if sub_type == "mini" else "🟣 Standard (Opus)"
     await cb.answer(f"✅ Подписка выдана!")
     
+    # Начислить реферальный бонус
+    referrer_id = await db.get_referrer_id(uid)
+    if referrer_id:
+        bonus = 100000 if sub_type == 'mini' else 200000
+        await db.add_tokens(referrer_id, bonus)
+        await db.add_referral_reward(referrer_id, uid, bonus, sub_type)
+        try:
+            await bot.send_message(
+                referrer_id,
+                f"🎉 <b>Реферальная награда!</b>\n\n"
+                f"Ваш друг оформил {type_name}!\n"
+                f"💰 Вам начислено: <b>{bonus:,}</b> токенов!"
+            )
+        except:
+            pass
+    
     try:
         await bot.send_message(uid, 
             f"🎉 <b>Вам выдана подписка!</b>\n\n"
@@ -792,6 +808,8 @@ async def admin_set_mysub(cb: CallbackQuery):
     
     sub_type = cb.data.split(":")[2]
     await db.give_subscription(cb.from_user.id, 36500, sub_type)  # 100 лет
+    
+    # Примечание: для админских подписок не начисляем реферальный бонус
     
     type_name = "🔵 Sonnet (Mini)" if sub_type == "mini" else "🟣 Opus (Standard)"
     await cb.answer(f"✅ Переключено на {type_name}")

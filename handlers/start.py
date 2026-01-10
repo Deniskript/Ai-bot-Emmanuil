@@ -49,8 +49,41 @@ async def start(msg: Message, state: FSMContext):
     await state.clear()
     u = await db.get_user(msg.from_user.id)
     
+    # Проверяем реферальную ссылку
+    referrer_id = None
+    if msg.text and len(msg.text.split()) > 1:
+        args = msg.text.split()[1]  # После /start
+        if args.startswith('ref_'):
+            try:
+                referrer_id = int(args.replace('ref_', ''))
+                # Проверяем что реферер существует и это не сам пользователь
+                if referrer_id == msg.from_user.id:
+                    referrer_id = None
+                elif referrer_id:
+                    referrer = await db.get_user(referrer_id)
+                    if not referrer:
+                        referrer_id = None
+            except:
+                referrer_id = None
+    
     if not u:
-        u = await db.create_user(msg.from_user.id, msg.from_user.username, msg.from_user.first_name)
+        u = await db.create_user(msg.from_user.id, msg.from_user.username, msg.from_user.first_name, referrer_id)
+        
+        # Уведомляем реферера о новом пользователе
+        if referrer_id:
+            try:
+                from aiogram import Bot
+                from config import BOT_TOKEN
+                bot = Bot(token=BOT_TOKEN)
+                await bot.send_message(
+                    referrer_id,
+                    f"🎉 <b>Новый реферал!</b>\n\n"
+                    f"Пользователь {msg.from_user.first_name or 'Новый пользователь'} зарегистрировался по вашей ссылке!\n\n"
+                    f"💡 Когда он оформит подписку, вы получите бонусные токены."
+                )
+            except:
+                pass
+        
         agreement_text = await get_text("agreement", DEFAULT_AGREEMENT)
         await msg.answer(agreement_text, reply_markup=inline.agree_kb())
         return
@@ -73,7 +106,7 @@ async def start(msg: Message, state: FSMContext):
     else:
         start_text = "✨ <b>С возвращением в Душа AI!</b>\n\n⚠️ Токены закончились\n👉 Оформите подписку в разделе 💠 Подписка"
     
-    await msg.answer(start_text, reply_markup=reply.main_kb())
+    await msg.answer(start_text, reply_markup=reply.main_kb(msg.from_user.id))
 @router.callback_query(F.data == "agree_yes")
 async def agree_yes(cb: CallbackQuery, state: FSMContext):
     await db.accept_agreement(cb.from_user.id)
@@ -180,7 +213,7 @@ async def reg_gender(cb: CallbackQuery, state: FSMContext):
         f"Попробуйте бесплатно"
     )
     
-    await cb.message.answer("Выберите раздел:", reply_markup=reply.main_kb())
+    await cb.message.answer("Выберите раздел:", reply_markup=reply.main_kb(msg.from_user.id))
 
 # === МЕНЮ БОТОВ ===
 @router.message(F.text == "🫧 Soul AI")
@@ -201,7 +234,7 @@ async def bots_menu(msg: Message):
 @router.message(F.text == "◀️ Главное меню")
 async def back_main_menu(msg: Message, state: FSMContext):
     await state.clear()
-    await msg.answer("🏠 Главное меню", reply_markup=reply.main_kb())
+    await msg.answer("🏠 Главное меню", reply_markup=reply.main_kb(msg.from_user.id))
 @router.message(F.text == "📱 Кабинет")
 async def cabinet(msg: Message):
     u = await db.get_user(msg.from_user.id)
@@ -364,7 +397,7 @@ async def cmd_restart(msg: Message, state: FSMContext):
     tokens = await db.get_available_tokens(msg.from_user.id)
     await msg.answer(
         f"🔄 Бот перезапущен!\n\n💎 Ваши токены: {tokens}\n\nВыберите собеседника:",
-        reply_markup=reply.main_kb()
+        reply_markup=reply.main_kb(msg.from_user.id)
     )
 
 @router.message(Command("help"))

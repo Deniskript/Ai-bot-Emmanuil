@@ -59,7 +59,7 @@ async def titus_enter(msg: Message, state: FSMContext):
         "🔄 Адаптируется под тебя\n"
         "✅ Проверяет понимание\n\n"
         "📖 Перед началом загляни в раздел «Помощь»",
-        reply_markup=reply.study_kb()
+        reply_markup=reply.study_kb(msg.from_user.id)
     )
 
 
@@ -77,7 +77,7 @@ async def titus_new_course(msg: Message, state: FSMContext):
 @router.message(TitusSt.new_course, F.text == "◀️ Назад")
 async def new_course_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer("📓 <b>Обучение</b>\n\n✨ Выбери действие:", reply_markup=reply.study_kb())
+    await msg.answer("📓 <b>Обучение</b>\n\n✨ Выбери действие:", reply_markup=reply.study_kb(msg.from_user.id))
 
 
 @router.message(TitusSt.new_course, F.text)
@@ -97,7 +97,7 @@ async def steps_back(msg: Message, state: FSMContext):
 async def create_course(msg: Message, state: FSMContext):
     remaining = await db.get_available_tokens(msg.from_user.id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -227,7 +227,7 @@ async def my_courses(msg: Message, state: FSMContext):
 @router.message(TitusSt.courses_menu, F.text == "◀️ Назад")
 async def courses_menu_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
+    await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb(msg.from_user.id))
 
 
 @router.message(TitusSt.courses_menu, F.text == "▶️ Продолжить курс")
@@ -333,7 +333,7 @@ async def delete_select(msg: Message, state: FSMContext):
             await db.delete_course(course['id'])
             await msg.answer(f"🗑 Курс «{course['name']}» удалён!")
             await state.set_state(TitusSt.menu)
-            await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
+            await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb(msg.from_user.id))
             return
     await msg.answer("❌ Выберите курс из списка")
 
@@ -355,7 +355,7 @@ async def video_analysis_start(msg: Message, state: FSMContext):
 @router.message(TitusSt.video_analysis, F.text == "◀️ Назад")
 async def video_analysis_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
+    await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb(msg.from_user.id))
 
 
 @router.message(TitusSt.video_analysis, F.text)
@@ -366,7 +366,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
     # Проверка токенов
     remaining = await db.get_available_tokens(msg.from_user.id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     # Извлечение video_id из ссылки
@@ -454,7 +454,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         )
         
         await state.set_state(TitusSt.menu)
-        await msg.answer("✅ Анализ завершён!", reply_markup=reply.study_kb())
+        await msg.answer("✅ Анализ завершён!", reply_markup=reply.study_kb(msg.from_user.id))
         
     except Exception as e:
         error_msg = str(e)
@@ -481,7 +481,7 @@ async def titus_back(msg: Message, state: FSMContext):
 @router.message(TitusSt.chat, F.text == "🛑 Завершить")
 async def titus_stop(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer("👋 <b>Курс сохранён!</b>\n\nПродолжить можно в «📂 Ваши курсы»", reply_markup=reply.study_kb())
+    await msg.answer("👋 <b>Курс сохранён!</b>\n\nПродолжить можно в «📂 Ваши курсы»", reply_markup=reply.study_kb(msg.from_user.id))
 
 
 @router.message(TitusSt.chat, F.text == "🗑 Очистить")
@@ -583,7 +583,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
     
     remaining = await db.get_available_tokens(msg.from_user.id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -747,7 +747,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                         pass
                     await msg.answer(
                         f"{resp_clean}\n\n🎉 <b>Курс завершён!</b>\n\nПоздравляю с достижением!",
-                        reply_markup=reply.study_kb()
+                        reply_markup=reply.study_kb(msg.from_user.id)
                     )
                     return
                 else:
@@ -878,7 +878,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     
     remaining = await db.get_available_tokens(cb.from_user.id)
     if remaining < MIN_TOKENS:
-        await cb.message.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        await cb.message.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     model = await db.get_user_model(cb.from_user.id)
@@ -1015,7 +1015,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     
     remaining = await db.get_available_tokens(cb.from_user.id)
     if remaining < MIN_TOKENS:
-        await cb.message.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        await cb.message.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     model = await db.get_user_model(cb.from_user.id)

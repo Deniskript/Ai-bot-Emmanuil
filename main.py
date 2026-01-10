@@ -5,7 +5,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeCha
 from loader import bot, dp
 from database.db import init_db, init_subscription_tables
 from database import db as database
-from handlers import start, emmanuil, luca, silas, titus, admin, subscription
+from handlers import start, emmanuil, luca, silas, titus, admin, subscription, images
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -46,6 +46,7 @@ async def main():
         await set_bot_commands()
         
         # Подключение роутеров
+        dp.include_router(images.router)  # Moved up for state priority
         dp.include_router(admin.router)
         dp.include_router(subscription.router)
         dp.include_router(start.router)

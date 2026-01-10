@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul AI - Помощь</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+            line-height: 1.6;
+            margin-top: 12px;
+        }
+
+        .intro {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.4s;
+        }
+
+        .intro p {
+            line-height: 1.8;
+            color: #555;
+            margin-bottom: 12px;
+        }
+
+        .intro p:last-child {
+            margin-bottom: 0;
+        }
+
+        .buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .btn-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            animation: slideUp 0.5s;
+        }
+
+        .btn-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-card:active {
+            transform: translateY(0);
+        }
+
+        .btn-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .btn-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .accordion {
+            display: none;
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.3s;
+        }
+
+        .accordion.active {
+            display: block;
+        }
+
+        .accordion h2 {
+            color: #667eea;
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+
+        .accordion h3 {
+            color: #333;
+            font-size: 16px;
+            margin: 20px 0 12px 0;
+            padding-top: 12px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .accordion h3:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .accordion p {
+            color: #555;
+            line-height: 1.8;
+            margin-bottom: 12px;
+        }
+
+        .accordion ul {
+            margin: 12px 0;
+            padding-left: 20px;
+        }
+
+        .accordion li {
+            color: #555;
+            line-height: 1.8;
+            margin-bottom: 8px;
+        }
+
+        .accordion .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            margin: 16px 0;
+            border-radius: 4px;
+            color: #856404;
+        }
+
+        .back-btn {
+            width: 100%;
+            padding: 16px;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 16px;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                max-height: 0;
+            }
+            to {
+                opacity: 1;
+                max-height: 5000px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🫧 SOUL AI — твой личный AI-помощник</h1>
+            <p>✨ Первые сообщения БЕСПЛАТНО!</p>
+        </div>
+
+        <div class="intro">
+            <p><strong>Три режима для разных задач:</strong></p>
+            <p>• Диалог — друг, который всегда выслушает</p>
+            <p>• Психолог — пространство для честного разговора</p>
+            <p>• Обучение — репетитор, который подстроится под тебя</p>
+            <p style="margin-top: 16px; text-align: center; color: #667eea;"><strong>Выбери кнопку ↓</strong></p>
+        </div>
+
+        <div class="buttons-grid">
+            <div class="btn-card" onclick="toggleSection('dialog')">
+                <div class="btn-icon">💬</div>
+                <div class="btn-title">Диалог</div>
+            </div>
+            <div class="btn-card" onclick="toggleSection('psycho')">
+                <div class="btn-icon">🧠</div>
+                <div class="btn-title">Психолог</div>
+            </div>
+            <div class="btn-card" onclick="toggleSection('study')">
+                <div class="btn-icon">📚</div>
+                <div class="btn-title">Обучение</div>
+            </div>
+            <div class="btn-card" onclick="toggleSection('buttons')">
+                <div class="btn-icon">💡</div>
+                <div class="btn-title">Кнопки</div>
+            </div>
+        </div>
+
+        <!-- ДИАЛОГ -->
+        <div id="dialog" class="accordion">
+            <h2>💬 ДИАЛОГ — друг, который никогда не устаёт слушать</h2>
+            
+            <p>Представь: 3 часа ночи, на душе тяжело, а позвонить некому. 
+            Или в голове хаос мыслей, и нужно просто выговориться.</p>
+            
+            <p>Soul AI создал Диалог — AI, который действительно слушает. И помнит.</p>
+
+            <h3>🧠 ОН ТЕБЯ ПОМНИТ</h3>
+            <p>Это не просто чат-бот. Диалог запоминает:</p>
+            <ul>
+                <li>О чём вы говорили неделю назад</li>
+                <li>Что тебя волнует</li>
+                <li>Какие решения ты принимал</li>
+            </ul>
+            <p>Через месяц он знает контекст твоей жизни лучше, чем случайный собеседник.</p>
+
+            <h3>🔄 ДВА РЕЖИМА — ДВЕ ЛИЧНОСТИ</h3>
+            
+            <p><strong>🕊 «Душа» — когда нужно тепло</strong><br>
+            Мягкий, понимающий. Для разговоров о чувствах, сомнениях, переживаниях. 
+            Не даёт советов, пока не попросишь — просто рядом.</p>
+            
+            <p><strong>💡 «Разум» — когда нужна ясность</strong><br>
+            Чёткий, конкретный. Для задач, решений, планирования. 
+            Структурирует хаос в голове и помогает найти выход.</p>
+            
+            <p>Переключайся одной кнопкой под настроение.</p>
+
+            <h3>📱 КАК ПОЛЬЗОВАТЬСЯ</h3>
+            <ol>
+                <li>Нажми «🫧 Soul AI» → «💬 Диалог»</li>
+                <li>Выбери «🔄 Режим» (Душа или Разум)</li>
+                <li>Нажми «☁️ Начать»</li>
+                <li>Пиши текст, голос или фото</li>
+            </ol>
+            
+            <p>🎤 Записал голосовое на 2 минуты? Расшифрует и ответит.<br>
+            📷 Скинул фото проблемы? Увидит и поможет.</p>
+            
+            <p style="margin-top: 20px; text-align: center; color: #667eea;"><strong>✨ Диалог — пространство, где тебя слышат. Всегда.</strong></p>
+        </div>
+
+        <!-- ПСИХОЛОГ -->
+        <div id="psycho" class="accordion">
+            <h2>🧠 ПСИХОЛОГ — пространство, где можно быть честным</h2>
+            
+            <p>Иногда нужно выговориться. Без страха осуждения. 
+            Без советов, о которых не просил. 
+            Без «да ладно, всё будет хорошо».</p>
+
+            <h3>👨‍⚕️ СОЗДАН С ПСИХОЛОГАМИ</h3>
+            <p>Soul AI разработал Психолога вместе с практикующими специалистами.
+            Мы изучили техники активного слушания, КПТ и гештальт-терапии,
+            чтобы AI вёл сеанс максимально близко к реальному.</p>
+            
+            <p>Это уникальная возможность проработать свои проблемы
+            в безопасном пространстве — без осуждения, без спешки.</p>
+
+            <h3>⏱️ СЕАНСЫ КАК У ТЕРАПЕВТА</h3>
+            <p>Выбери, сколько времени готов уделить себе:</p>
+            <ul>
+                <li>15 минут — быстрая разгрузка</li>
+                <li>30 минут — разобраться в ситуации</li>
+                <li>60 минут — глубокая работа</li>
+            </ul>
+            <p>AI следит за временем и мягко завершает сеанс.</p>
+
+            <h3>📔 ДНЕВНИК НАСТРОЕНИЯ</h3>
+            <p>Отслеживай своё состояние:</p>
+            <p>😊 Хорошо | 😔 Устал | 😰 Тяжело | ✏️ Своё</p>
+            
+            <p>«Статистика» покажет паттерны за месяц.<br>
+            Иногда увидеть эмоции на графике — уже терапия.</p>
+
+            <h3>🧠 ОН ПОМНИТ КОНТЕКСТ</h3>
+            <p>Рассказал о проблеме на работе неделю назад? Спросит, как дела сейчас.
+            Упомянул сложные отношения? Не забудет.</p>
+            
+            <p>Психолог не даёт готовых ответов — задаёт вопросы,
+            которые помогают найти ответы самому.</p>
+
+            <h3>📱 КАК ПОЛЬЗОВАТЬСЯ</h3>
+            <ol>
+                <li>Нажми «🫧 Soul AI» → «🧠 Психолог»</li>
+                <li>Зайди в «📔 Настроение» — отметь состояние</li>
+                <li>Нажми «🛋️ Начать сеанс»</li>
+                <li>Выбери время: 15 / 30 / 60 минут</li>
+                <li>Говори о чём угодно</li>
+            </ol>
+            
+            <p>🎤 Можно голосом — иногда так легче<br>
+            📷 Можно фото, если слова не находятся</p>
+
+            <div class="note">
+                ⚠️ AI не заменяет профессиональную помощь. 
+                Если действительно плохо — обратись к специалисту.
+            </div>
+            
+            <p style="margin-top: 20px; text-align: center; color: #667eea;"><strong>🙏 Психолог — место, где тебя не исправляют. Просто слушают.</strong></p>
+        </div>
+
+        <!-- ОБУЧЕНИЕ -->
+        <div id="study" class="accordion">
+            <h2>📚 ОБУЧЕНИЕ — репетитор, который не забудет, где ты ошибся</h2>
+            
+            <p>Забудь всё, что знал об онлайн-курсах.</p>
+            
+            <p>Никаких предзаписанных видео. Никаких тестов на угадывание.
+            Soul AI создал систему, которая адаптируется под ТЕБЯ в реальном времени.</p>
+
+            <h3>🎯 КУРС ПО ЛЮБОЙ ТЕМЕ ЗА 30 СЕКУНД</h3>
+            <p>Python? Маркетинг? Физика? Инвестиции?</p>
+            
+            <p>Просто напиши тему — AI создаст персональный курс:</p>
+            <ul>
+                <li>🚀 10 шагов — быстрое знакомство (1-2 дня)</li>
+                <li>📘 40 шагов — уверенное владение (1-2 недели)</li>
+                <li>📖 80 шагов — глубокая экспертиза (месяц)</li>
+            </ul>
+
+            <h3>🧠 ОН ПОМНИТ ТВОИ ОШИБКИ</h3>
+            <ul>
+                <li>Не понял тему на шаге 5? Вернётся к ней на шаге 12</li>
+                <li>Путаешь два понятия? Будет уточнять, пока не разберёшься</li>
+                <li>Давно не заходил? Напомнит, на чём остановился</li>
+            </ul>
+            <p>AI ведёт «карту знаний» — видит сильные и слабые места.</p>
+
+            <h3>📱 КАК ПОЛЬЗОВАТЬСЯ</h3>
+            <ol>
+                <li>Нажми «🫧 Soul AI» → «📚 Обучение»</li>
+                <li>Выбери «📝 Новый курс»</li>
+                <li>Напиши тему</li>
+                <li>Выбери глубину: 10 / 40 / 80 шагов</li>
+                <li>Учись в своём темпе</li>
+            </ol>
+            
+            <p>📂 «Ваши курсы» — продолжить где остановился</p>
+
+            <h3>💡 ФИШКИ</h3>
+            <ul>
+                <li>📷 Фото задачи — объяснит решение</li>
+                <li>🎤 Голосом вопрос — ответит текстом</li>
+                <li>📝 «Сделай конспект» — краткая выжимка</li>
+                <li>🎬 Ссылка на видео — сделает конспект из видео</li>
+                <li>📄 Большой текст — разобьёт на структурированный материал</li>
+            </ul>
+            
+            <p style="margin-top: 20px; text-align: center; color: #667eea;"><strong>🏆 Это не курс. Это репетитор, который подстраивается под твой мозг.</strong></p>
+        </div>
+
+        <!-- КНОПКИ -->
+        <div id="buttons" class="accordion">
+            <h2>💡 ПОЛЕЗНЫЕ КНОПКИ</h2>
+            
+            <p><strong>🗑 Очистить</strong> — стереть историю разговора</p>
+            <p><strong>🛑 Завершить</strong> — выйти из режима</p>
+            <p><strong>◀️ Назад</strong> — вернуться в меню</p>
+            <p><strong>⌛️ Отменить</strong> — если AI долго думает</p>
+        </div>
+
+        <button class="back-btn" onclick="Telegram.WebApp.close()">
+            ← Вернуться в бот
+        </button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        function toggleSection(id) {
+            // Закрыть все секции
+            document.querySelectorAll('.accordion').forEach(acc => {
+                acc.classList.remove('active');
+            });
+            
+            // Открыть выбранную
+            document.getElementById(id).classList.add('active');
+            
+            // Плавный скролл к секции
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    </script>
+</body>
+</html>

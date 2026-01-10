@@ -29,6 +29,37 @@ async def migrate_token_usage_table():
             print("✅ Миграция завершена успешно!")
 
 
+async def migrate_referral_system():
+    """Миграция для реферальной системы"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем есть ли колонка referred_by
+        cursor = await db.execute("PRAGMA table_info(users)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        
+        if 'referred_by' not in column_names:
+            print("🔄 Миграция: добавление реферальной системы...")
+            await db.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER DEFAULT NULL")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_users_referred ON users(referred_by)")
+            await db.commit()
+            print("✅ Реферальная система добавлена!")
+        
+        # Создаём таблицу рефералов
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS referrals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_id INTEGER NOT NULL,
+                referred_id INTEGER NOT NULL,
+                tokens_earned INTEGER DEFAULT 0,
+                subscription_type TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(referred_id)
+            )
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id)")
+        await db.commit()
+
+
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.executescript("""
@@ -120,8 +151,9 @@ async def init_db():
         """)
         await db.commit()
     
-    # Запускаем миграцию для существующих БД
+    # Запускаем миграции для существующих БД
     await migrate_token_usage_table()
+    await migrate_referral_system()
 
 
 async def get_user(uid: int) -> Optional[Dict]:
@@ -132,12 +164,21 @@ async def get_user(uid: int) -> Optional[Dict]:
         return dict(r) if r else None
 
 
-async def create_user(uid: int, uname: str=None, fname: str=None) -> Dict:
+async def create_user(uid: int, uname: str=None, fname: str=None, referred_by: int=None) -> Dict:
     """Создаём пользователя с бонусными токенами, БЕЗ подписки"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        await db.execute("INSERT INTO users (user_id,username,first_name,tokens) VALUES (?,?,?,?)",
-                        (uid, uname, fname, NEW_USER_BONUS))
+        await db.execute("INSERT INTO users (user_id,username,first_name,tokens,referred_by) VALUES (?,?,?,?,?)",
+                        (uid, uname, fname, NEW_USER_BONUS, referred_by))
         await db.commit()
+        
+        # Если есть реферер, создаём запись в таблице referrals
+        if referred_by:
+            await db.execute("""
+                INSERT INTO referrals (referrer_id, referred_id, tokens_earned) 
+                VALUES (?, ?, 0)
+            """, (referred_by, uid))
+            await db.commit()
+    
     return await get_user(uid)
 
 
@@ -158,6 +199,13 @@ async def update_tokens(uid: int, used: int):
 async def add_tokens(uid: int, amt: int):
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("UPDATE users SET tokens=tokens+? WHERE user_id=?", (amt, uid))
+        await db.commit()
+
+
+async def subtract_tokens(uid: int, amount: int):
+    """Простое вычитание токенов из users.tokens"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("UPDATE users SET tokens=tokens-?, total_used=total_used+? WHERE user_id=?", (amount, amount, uid))
         await db.commit()
 
 
@@ -1191,3 +1239,73 @@ async def get_user_conversations(uid: int, bot: str = None, limit: int = 50) -> 
                 LIMIT ?
             """, (uid, limit))
         return [dict(r) for r in await c.fetchall()]
+
+
+# ================== РЕФЕРАЛЬНАЯ СИСТЕМА ==================
+
+
+async def get_referrer_id(uid: int) -> Optional[int]:
+    """Получить ID реферера пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("SELECT referred_by FROM users WHERE user_id=?", (uid,))
+        r = await c.fetchone()
+        return r[0] if r and r[0] else None
+
+
+async def add_referral_reward(referrer_id: int, referred_id: int, tokens: int, sub_type: str):
+    """Начислить награду рефереру"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Начисляем токены рефереру
+        await db.execute("UPDATE users SET tokens = tokens + ? WHERE user_id = ?", (tokens, referrer_id))
+        
+        # Обновляем запись в referrals
+        await db.execute("""
+            UPDATE referrals 
+            SET tokens_earned = tokens_earned + ?, subscription_type = ?
+            WHERE referrer_id = ? AND referred_id = ?
+        """, (tokens, sub_type, referrer_id, referred_id))
+        
+        await db.commit()
+
+
+async def get_referral_stats(uid: int) -> Dict:
+    """Получить статистику рефералов"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        
+        # Всего рефералов
+        c = await db.execute("SELECT COUNT(*) as total FROM referrals WHERE referrer_id=?", (uid,))
+        total = (await c.fetchone())['total']
+        
+        # Всего заработано токенов
+        c = await db.execute("SELECT COALESCE(SUM(tokens_earned), 0) as earned FROM referrals WHERE referrer_id=?", (uid,))
+        earned = (await c.fetchone())['earned']
+        
+        # Рефералы с подпиской
+        c = await db.execute("""
+            SELECT COUNT(*) as with_sub FROM referrals 
+            WHERE referrer_id=? AND subscription_type IS NOT NULL
+        """, (uid,))
+        with_sub = (await c.fetchone())['with_sub']
+        
+        return {
+            'total_referrals': total,
+            'tokens_earned': earned,
+            'referrals_with_subscription': with_sub
+        }
+
+
+async def get_user_referrals(uid: int, limit: int = 50) -> List[Dict]:
+    """Получить список рефералов пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT r.referred_id, r.tokens_earned, r.subscription_type, r.created_at,
+                   u.username, u.first_name
+            FROM referrals r
+            LEFT JOIN users u ON r.referred_id = u.user_id
+            WHERE r.referrer_id=?
+            ORDER BY r.created_at DESC
+            LIMIT ?
+        """, (uid, limit))
+        return [dict(row) for row in await c.fetchall()]

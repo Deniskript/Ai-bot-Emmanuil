@@ -271,3 +271,90 @@ async def show_plans(cb: CallbackQuery):
 Выберите тариф:"""
     
     await cb.message.edit_text(text, reply_markup=inline.subscription_plans_kb())
+
+
+# === ОБРАБОТКА УСПЕШНОЙ ОПЛАТЫ ===
+async def process_successful_payment(tx_id: int, robokassa_id: int = None):
+    """
+    Обработка успешной оплаты и начисление рефераль rewards
+    Эта функция должна вызываться из webhook ResultURL от Robokassa
+    """
+    from aiogram import Bot
+    from config import BOT_TOKEN
+    
+    tx = await db.get_transaction(tx_id)
+    if not tx or tx['status'] == 'completed':
+        return
+    
+    user_id = tx['user_id']
+    tx_type = tx['type']
+    tokens = tx['tokens']
+    
+    # Подтверждаем транзакцию
+    await db.complete_transaction(tx_id, robokassa_id)
+    
+    bot = Bot(token=BOT_TOKEN)
+    
+    try:
+        # Определяем тип платежа
+        if tx_type.startswith('subscription:'):
+            sub_type = tx_type.split(':')[1]
+            
+            # Создаём/обновляем подписку
+            await db.create_subscription(user_id, sub_type, tokens, days=30)
+            
+            # Уведомляем пользователя
+            plan_name = SUBSCRIPTIONS.get(sub_type, {}).get('name', sub_type)
+            await bot.send_message(
+                user_id,
+                f"✅ <b>Подписка активирована!</b>\n\n"
+                f"💎 Тариф: <b>{plan_name}</b>\n"
+                f"🔢 Токенов: <b>{fmt(tokens)}</b>\n"
+                f"📅 Действует: <b>30 дней</b>\n\n"
+                f"Спасибо за покупку! 🎉"
+            )
+            
+            # Проверяем реферальную систему
+            referrer_id = await db.get_referrer_id(user_id)
+            if referrer_id:
+                # Начисляем награду рефереру
+                if sub_type == 'mini':
+                    reward_tokens = 100000  # 100K за Mini
+                elif sub_type == 'standard':
+                    reward_tokens = 200000  # 200K за Standard
+                else:
+                    reward_tokens = 0
+                
+                if reward_tokens > 0:
+                    await db.add_referral_reward(referrer_id, user_id, reward_tokens, sub_type)
+                    
+                    # Уведомляем реферера
+                    try:
+                        await bot.send_message(
+                            referrer_id,
+                            f"🎉🎉🎉 <b>Реферальная награда!</b>\n\n"
+                            f"Ваш реферал оформил подписку <b>{plan_name}</b>!\n\n"
+                            f"💰 Вам начислено: <b>{fmt(reward_tokens)}</b> токенов\n\n"
+                            f"Продолжайте делиться ссылкой и зарабатывайте больше! 🚀"
+                        )
+                    except:
+                        pass  # Реферер мог заблокировать бота
+                    
+        elif tx_type.startswith('tokens:'):
+            # Докупка токенов
+            await db.add_subscription_tokens(user_id, tokens)
+            
+            package_id = tx_type.split(':')[1]
+            package_name = TOKEN_PACKAGES.get(package_id, {}).get('name', 'Токены')
+            
+            await bot.send_message(
+                user_id,
+                f"✅ <b>Токены зачислены!</b>\n\n"
+                f"📦 Пакет: <b>{package_name}</b>\n"
+                f"🔢 Начислено: <b>{fmt(tokens)}</b> токенов\n\n"
+                f"Спасибо за покупку! 🎉"
+            )
+    except Exception as e:
+        print(f"Error sending payment notification: {e}")
+    finally:
+        await bot.session.close()

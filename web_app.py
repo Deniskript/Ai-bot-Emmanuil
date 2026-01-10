@@ -453,6 +453,16 @@ def payment():
         return f"Error: {e}", 500
 
 
+@app.route('/help')
+def help_page():
+    """Telegram Mini App - Помощь"""
+    try:
+        return render_template('help.html')
+    except Exception as e:
+        print(f"Error loading help: {e}")
+        return f"Error: {e}", 500
+
+
 @app.route('/api/user/<int:user_id>')
 def api_user(user_id):
     """API для получения данных пользователя"""
@@ -496,5 +506,41 @@ def api_user(user_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/robokassa/result', methods=['POST', 'GET'])
+def robokassa_result():
+    """Webhook для обработки ResultURL от Robokassa"""
+    try:
+        from utils.robokassa import verify_result_signature
+        from handlers.subscription import process_successful_payment
+        
+        # Получаем параметры
+        out_sum = request.args.get('OutSum') or request.form.get('OutSum')
+        inv_id = request.args.get('InvId') or request.form.get('InvId')
+        signature = request.args.get('SignatureValue') or request.form.get('SignatureValue')
+        shp_type = request.args.get('Shp_type') or request.form.get('Shp_type')
+        shp_user = request.args.get('Shp_user') or request.form.get('Shp_user')
+        
+        if not all([out_sum, inv_id, signature, shp_type, shp_user]):
+            return 'ERROR: Missing parameters', 400
+        
+        # Проверяем подпись
+        if not verify_result_signature(out_sum, inv_id, shp_type, shp_user, signature):
+            return 'ERROR: Invalid signature', 403
+        
+        # Обрабатываем оплату
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(process_successful_payment(int(inv_id)))
+        
+        return f'OK{inv_id}'
+        
+    except Exception as e:
+        print(f"Error in robokassa_result: {e}")
+        import traceback
+        traceback.print_exc()
+        return f'ERROR: {str(e)}', 500
+
+
 if __name__ == '__main__':
+    from flask import request
     app.run(host='0.0.0.0', port=5000, debug=False)

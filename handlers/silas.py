@@ -49,7 +49,7 @@ async def silas_enter(msg: Message, state: FSMContext):
         "🔄 Подстраивается под твоё состояние\n"
         "✅ Помогает разобраться в себе\n\n"
         "📖 Перед началом загляни в раздел «Помощь»",
-        reply_markup=reply.psycho_kb()
+        reply_markup=reply.psycho_kb(msg.from_user.id)
     )
 
 @router.message(SilasSt.menu, F.text == "🛋️ Начать сеанс")
@@ -93,25 +93,25 @@ async def silas_set_duration(msg: Message, state: FSMContext):
 @router.message(SilasSt.duration, F.text == "◀️ Назад к Психологу")
 async def dur_back(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
-    await msg.answer("🛋️ <b>Психолог</b>\n\n✨ Готов выслушать", reply_markup=reply.psycho_kb())
+    await msg.answer("🛋️ <b>Психолог</b>\n\n✨ Готов выслушать", reply_markup=reply.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "Хорошо")
 async def mood_good(msg: Message, state: FSMContext):
     await db.set_mood(msg.from_user.id, 'good')
     await state.set_state(SilasSt.menu)
-    await msg.answer("✅ Настроение сохранено: 😊 Хорошо", reply_markup=reply.psycho_kb())
+    await msg.answer("✅ Настроение сохранено: 😊 Хорошо", reply_markup=reply.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "Устал")
 async def mood_tired(msg: Message, state: FSMContext):
     await db.set_mood(msg.from_user.id, 'tired')
     await state.set_state(SilasSt.menu)
-    await msg.answer("✅ Настроение сохранено: 😔 Устал", reply_markup=reply.psycho_kb())
+    await msg.answer("✅ Настроение сохранено: 😔 Устал", reply_markup=reply.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "Тяжело")
 async def mood_pain(msg: Message, state: FSMContext):
     await db.set_mood(msg.from_user.id, 'pain')
     await state.set_state(SilasSt.menu)
-    await msg.answer("✅ Настроение сохранено: 😰 Тяжело", reply_markup=reply.psycho_kb())
+    await msg.answer("✅ Настроение сохранено: 😰 Тяжело", reply_markup=reply.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "✏️ Ваше настроение")
 async def mood_custom(msg: Message, state: FSMContext):
@@ -133,7 +133,7 @@ async def mood_stats(msg: Message):
 @router.message(SilasSt.mood, F.text == "◀️ Назад к Психологу")
 async def mood_back(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
-    await msg.answer("🛋️ <b>Психолог</b>", reply_markup=reply.psycho_kb())
+    await msg.answer("🛋️ <b>Психолог</b>", reply_markup=reply.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.custom)
 async def custom_mood_input(msg: Message, state: FSMContext):
@@ -143,7 +143,7 @@ async def custom_mood_input(msg: Message, state: FSMContext):
         return
     await db.set_mood(msg.from_user.id, 'custom', msg.text)
     await state.set_state(SilasSt.menu)
-    await msg.answer(f"✅ Настроение сохранено: <b>{msg.text}</b>", reply_markup=reply.psycho_kb())
+    await msg.answer(f"✅ Настроение сохранено: <b>{msg.text}</b>", reply_markup=reply.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.session, F.text == "🛑 Завершить")
 async def silas_stop(msg: Message, state: FSMContext):
@@ -152,7 +152,7 @@ async def silas_stop(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
     await msg.answer(
         "🙏 <b>Сеанс завершён</b>\n\nСпасибо за доверие. Берегите себя.",
-        reply_markup=reply.psycho_kb()
+        reply_markup=reply.psycho_kb(msg.from_user.id)
     )
 
 @router.message(SilasSt.session, F.text == "🗑 Очистить")
@@ -211,7 +211,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     
     remaining = await db.get_available_tokens(msg.from_user.id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -225,7 +225,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await state.set_state(SilasSt.menu)
         await msg.answer(
             "⏱ <b>Время сеанса истекло</b>\n\nСпасибо за работу над собой.",
-            reply_markup=reply.psycho_kb()
+            reply_markup=reply.psycho_kb(msg.from_user.id)
         )
         return
     

@@ -288,63 +288,6 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 20px;
-        }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            width: 100%;
-            max-width: 400px;
-        }
-        .token-package {
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 12px;
-            padding: 16px;
-            margin: 12px 0;
-            cursor: pointer;
-            text-align: center;
-        }
-        .token-package:hover {
-            border-color: #667eea;
-        }
-        .token-package.popular {
-            border-color: #667eea;
-            background: #f0f0ff;
-        }
-        .package-badge {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            display: inline-block;
-            margin-bottom: 8px;
-        }
-        .package-tokens {
-            font-size: 24px;
-            font-weight: 700;
-        }
-        .package-price {
-            font-size: 20px;
-            color: #667eea;
-            font-weight: 600;
-        }
     </style>
 </head>
 <body>
@@ -398,36 +341,6 @@
                 <div class="badges" id="badges"></div>
             </div>
 
-            <!-- Настройки генерации фото -->
-            <div class="card">
-                <div class="card-title">🎨 Настройки генерации фото</div>
-                <p style="color: #555; margin-bottom: 16px;">Выберите модель, которая будет использоваться по умолчанию при генерации изображений</p>
-                
-                <div style="background: #f0f8ff; padding: 16px; border-radius: 12px; margin-bottom: 16px; border-left: 4px solid #667eea;">
-                    <div style="font-weight: 600; margin-bottom: 8px;">ℹ️ Как выбрать модель:</div>
-                    <div style="font-size: 14px; color: #666; line-height: 1.6;">
-                        • <strong>Экономный (2K)</strong> - для быстрых набросков<br>
-                        • <strong>Стандарт (8K)</strong> - баланс цены и качества<br>
-                        • <strong>Качество (33K)</strong> - детальные изображения<br>
-                        • <strong>GPT-1.5 (33K)</strong> - продвинутая модель<br>
-                        • <strong>Gemini (29K)</strong> - от Google
-                    </div>
-                </div>
-                
-                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">Модель по умолчанию:</label>
-                <select id="imageModel" onchange="saveImageSettings()" style="width: 100%; padding: 14px; border: 2px solid #e9ecef; border-radius: 12px; font-size: 16px; background: white; cursor: pointer;">
-                    <option value="mini_low">🆓 Экономный (2K токенов)</option>
-                    <option value="mini_medium" selected>⭐ Стандарт (8K токенов)</option>
-                    <option value="mini_high">💎 Качество (33K токенов)</option>
-                    <option value="gpt_medium">🚀 GPT-1.5 Стандарт (33K токенов)</option>
-                    <option value="gemini">✨ Gemini Flash (29K токенов)</option>
-                </select>
-                
-                <div id="saveStatus" style="margin-top: 12px; padding: 12px; background: #d4edda; color: #155724; border-radius: 8px; display: none;">
-                    ✅ Настройки сохранены!
-                </div>
-            </div>
-
             <!-- Реферальная программа -->
             <div class="card">
                 <div class="card-title">👥 Реферальная программа</div>
@@ -439,7 +352,7 @@
                 <div style="display: flex; gap: 8px; margin-top: 16px;">
                     <input id="refLink" readonly value="https://t.me/iisoul_bot?start=ref_USERID" 
                            style="flex: 1; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 14px;">
-                    <button onclick="copyRefLink()" style="padding: 12px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    <button onclick="copyRef()" style="padding: 12px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
                         📋 Копировать
                     </button>
                 </div>
@@ -460,7 +373,6 @@
     <script>
         // Инициализация Telegram WebApp
         let tg = window.Telegram.WebApp;
-        window.tg = tg; // Делаем tg доступным глобально
         tg.ready();
         tg.expand();
         
@@ -594,159 +506,86 @@
             document.getElementById('error').textContent = message;
         }
 
-        window.openSubscription = function() {
-            console.log('openSubscription called!');
+        function openSubscription() {
             // Показываем выбор: подписка или токены
             const modal = document.createElement('div');
             modal.className = 'modal active';
-            modal.id = 'subscriptionModal';
             modal.innerHTML = `
                 <div class="modal-content">
                     <h3 style="text-align: center; margin-bottom: 20px;">💎 Управление подпиской</h3>
-                    <button class="btn" onclick="window.selectSubscription()">
+                    <button class="btn" onclick="tg.sendData('open_subscription'); tg.close();">
                         💎 Оформить подписку
                     </button>
-                    <button class="btn btn-secondary" onclick="window.buyTokens()">
+                    <button class="btn btn-secondary" onclick="buyTokens()">
                         💰 Докуп токенов
                     </button>
-                    <button class="btn btn-secondary" onclick="window.closeModal()" style="margin-top: 8px;">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal').remove()" style="margin-top: 8px;">
                         ← Отмена
                     </button>
                 </div>
             `;
             document.body.appendChild(modal);
-        };
+        }
 
-        window.closeModal = function() {
-            console.log('closeModal called!');
-            const modal = document.getElementById('subscriptionModal');
-            if (modal) {
-                modal.remove();
-            }
-        };
-
-        window.selectSubscription = function() {
-            console.log('selectSubscription called!');
-            window.tg.sendData('open_subscription');
-            window.tg.close();
-        };
-
-        window.buyTokens = function() {
-            console.log('buyTokens called!');
+        function buyTokens() {
             // Удаляем предыдущее модальное окно
             document.querySelectorAll('.modal').forEach(m => m.remove());
             
             // Создаем окно с пакетами токенов
             const modal = document.createElement('div');
             modal.className = 'modal active';
-            modal.id = 'tokensModal';
             modal.innerHTML = `
                 <div class="modal-content">
                     <h3 style="text-align: center; margin-bottom: 20px;">💰 Докупить токены</h3>
                     
-                    <div class="token-package" onclick="window.buyPackage('100k', 149)">
+                    <div class="token-package" onclick="buyPackage('100k', 149)">
                         <div class="package-tokens">100K токенов</div>
                         <div class="package-price">149 ₽</div>
                     </div>
                     
-                    <div class="token-package" onclick="window.buyPackage('200k', 249)">
+                    <div class="token-package" onclick="buyPackage('200k', 249)">
                         <div class="package-tokens">200K токенов</div>
                         <div class="package-price">249 ₽</div>
                     </div>
                     
-                    <div class="token-package popular" onclick="window.buyPackage('800k', 700)">
+                    <div class="token-package popular" onclick="buyPackage('800k', 700)">
                         <div class="package-badge">🔥 ВЫГОДНО</div>
                         <div class="package-tokens">800K токенов</div>
                         <div class="package-price">700 ₽</div>
                     </div>
                     
-                    <button class="btn btn-secondary" onclick="window.closeTokensModal()" style="margin-top: 16px;">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal').remove()" style="margin-top: 16px;">
                         ← Назад
                     </button>
                 </div>
             `;
             document.body.appendChild(modal);
-        };
-
-        window.closeTokensModal = function() {
-            console.log('closeTokensModal called!');
-            const modal = document.getElementById('tokensModal');
-            if (modal) {
-                modal.remove();
-            }
-        };
-
-        window.buyPackage = function(tokens, price) {
-            console.log('buyPackage called:', tokens, price);
-            window.tg.sendData(JSON.stringify({action: 'buy_tokens', tokens: tokens, price: price}));
-            window.tg.showAlert('💰 Переход к оплате ' + tokens + ' за ' + price + '₽');
-            setTimeout(() => window.tg.close(), 1000);
-        };
-
-        function copyRefLink() {
-            const link = document.getElementById('refLink').value;
-            
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(link).then(function() {
-                    showNotification('✅ Ссылка скопирована!');
-                }).catch(function() {
-                    fallbackCopy(link);
-                });
-            } else {
-                fallbackCopy(link);
-            }
         }
 
-        function fallbackCopy(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showNotification('✅ Ссылка скопирована!');
-            } catch (err) {
-                showNotification('❌ Скопируйте вручную');
-            }
-            document.body.removeChild(textarea);
+        function buyPackage(tokens, price) {
+            tg.sendData(JSON.stringify({action: 'buy_tokens', tokens: tokens, price: price}));
+            tg.showAlert('💰 Переход к оплате ' + tokens + ' за ' + price + '₽');
+            setTimeout(() => tg.close(), 1000);
         }
 
-        function showNotification(text) {
-            const notif = document.createElement('div');
-            notif.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#7c3aed;color:white;padding:12px 24px;border-radius:10px;z-index:9999;';
-            notif.textContent = text;
-            document.body.appendChild(notif);
-            setTimeout(() => notif.remove(), 2000);
-        }
-
-        // Сохранение настроек фото
-        window.saveImageSettings = function() {
-            const model = document.getElementById('imageModel').value;
+        function copyRef() {
+            const refLink = document.getElementById('refLink');
+            refLink.select();
+            refLink.setSelectionRange(0, 99999); // For mobile
             
-            // Сохраняем в localStorage
-            localStorage.setItem('imageModel_' + userId, model);
-            
-            // Показываем уведомление
-            const status = document.getElementById('saveStatus');
-            status.style.display = 'block';
-            setTimeout(() => {
-                status.style.display = 'none';
-            }, 2000);
-            
-            console.log('Image model saved:', model);
-        };
-
-        // Загружаем сохранённые настройки
-        function loadImageSettings() {
-            if (userId) {
-                const savedModel = localStorage.getItem('imageModel_' + userId);
-                if (savedModel) {
-                    document.getElementById('imageModel').value = savedModel;
-                    console.log('Loaded saved image model:', savedModel);
-                }
-            }
+            navigator.clipboard.writeText(refLink.value).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Скопировано!';
+                btn.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '#667eea';
+                }, 2000);
+            }).catch(err => {
+                alert('Не удалось скопировать');
+            });
         }
 
         // Загружаем данные при старте
@@ -754,7 +593,6 @@
             // Обновляем реферальную ссылку с реальным user_id
             if (userId) {
                 document.getElementById('refLink').value = `https://t.me/iisoul_bot?start=ref_${userId}`;
-                loadImageSettings(); // Загружаем настройки фото
             }
         });
     </script>

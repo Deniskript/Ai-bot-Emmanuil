@@ -4,16 +4,17 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 # === ОБЩИЕ КЛАВИАТУРЫ ===
 # ============================================
 
-def main_kb():
+def main_kb(user_id: int):
     """Главное меню с Mini App кнопками"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🫧 Soul AI"), KeyboardButton(text="💼 Кабинет", web_app=WebAppInfo(url="https://soul-bot.ru/webapp"))],
-        [KeyboardButton(text="💳 Оплата", web_app=WebAppInfo(url="https://soul-bot.ru/payment")), KeyboardButton(text="❓ Помощь")]
+        [KeyboardButton(text="🫧 Soul AI"), KeyboardButton(text="💼 Кабинет", web_app=WebAppInfo(url=f"https://soul-bot.ru/webapp?user_id={user_id}"))],
+        [KeyboardButton(text="💳 Оплата", web_app=WebAppInfo(url=f"https://soul-bot.ru/payment?user_id={user_id}")), KeyboardButton(text="❓ Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))]
     ], resize_keyboard=True)
 
 def bots_menu_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="💭 Диалог"), KeyboardButton(text="🛋️ Психолог"), KeyboardButton(text="📓 Обучение")],
+        [KeyboardButton(text="💭 Диалог"), KeyboardButton(text="🛋️ Психолог")],
+        [KeyboardButton(text="📓 Обучение"), KeyboardButton(text="📷 Фото")],
         [KeyboardButton(text="◀️ Главное меню")]
     ], resize_keyboard=True)
 
@@ -26,10 +27,10 @@ def back_kb():
 # === ДИАЛОГ (Soul AI) ===
 # ============================================
 
-def dialog_kb():
+def dialog_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="☁️ Начать"), KeyboardButton(text="🔄 Режим")],
-        [KeyboardButton(text="🗑 Очистить"), KeyboardButton(text="🔍 Помощь")],
+        [KeyboardButton(text="🗑 Очистить"), KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
@@ -53,10 +54,10 @@ def dialog_char_kb():
 # === ПСИХОЛОГ (Silas) ===
 # ============================================
 
-def psycho_kb():
+def psycho_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🛋️ Начать сеанс"), KeyboardButton(text="📔 Настроение")],
-        [KeyboardButton(text="🔍 Помощь"), KeyboardButton(text="◀️ Назад")]
+        [KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
 def psycho_chat_kb():
@@ -86,11 +87,11 @@ def psycho_mood_kb():
 # === ОБУЧЕНИЕ (Titus) ===
 # ============================================
 
-def study_kb():
+def study_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="📝 Новый курс"), KeyboardButton(text="📂 Ваши курсы")],
         [KeyboardButton(text="📚 Анализ видео")],
-        [KeyboardButton(text="🔍 Помощь"), KeyboardButton(text="◀️ Назад")]
+        [KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
 def study_chat_kb():
@@ -129,6 +130,17 @@ def courses_list_kb(courses, show_progress: bool = False):
         kb.append([KeyboardButton(text=text)])
     kb.append([KeyboardButton(text="◀️ Назад")])
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+# ============================================
+# === ГЕНЕРАЦИЯ ФОТО ===
+# ============================================
+
+def photo_kb(user_id: int):
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="📷 Создать"), KeyboardButton(text="✏️ Редактор")],
+        [KeyboardButton(text="🎨 4K Фото"), KeyboardButton(text="⚙️ Настройки", web_app=WebAppInfo(url=f"https://soul-bot.ru?user_id={user_id}#photoSettings"))],
+        [KeyboardButton(text="◀️ Назад")]
+    ], resize_keyboard=True)
 
 # ============================================
 # === АЛИАСЫ ДЛЯ СОВМЕСТИМОСТИ ===

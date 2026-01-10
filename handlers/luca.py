@@ -88,7 +88,7 @@ async def luca_enter(msg: Message, state: FSMContext):
         f"🤝 Как друг, который всегда рядом\n\n"
         f"🪞 <b>Режим:</b> {char_name}\n\n"
         f"📖 Перед началом загляни в раздел «Помощь»",
-        reply_markup=reply.dialog_kb()
+        reply_markup=reply.dialog_kb(msg.from_user.id)
     )
 
 @router.message(LucaSt.menu, F.text == "☁️ Начать")
@@ -138,7 +138,7 @@ async def char_soul(msg: Message, state: FSMContext):
     await msg.answer(
         "✅ Режим: 🕊 Душа\n\n"
         "<i>Тёплый, понимающий, для разговоров по душам</i>",
-        reply_markup=reply.dialog_kb()
+        reply_markup=reply.dialog_kb(msg.from_user.id)
     )
 
 
@@ -149,7 +149,7 @@ async def char_mind(msg: Message, state: FSMContext):
     await msg.answer(
         "✅ Режим: 💡 Разум\n\n"
         "<i>Чёткий, деловой, для задач и решений</i>",
-        reply_markup=reply.dialog_kb()
+        reply_markup=reply.dialog_kb(msg.from_user.id)
     )
 
 
@@ -161,7 +161,7 @@ async def char_back(msg: Message, state: FSMContext):
     char_name = CHAR_NAMES.get(char_key, '🕊 Душа')
     await msg.answer(
         f"🫧 <b>Soul AI</b>\n\n🪞 Режим: {char_name}",
-        reply_markup=reply.dialog_kb()
+        reply_markup=reply.dialog_kb(msg.from_user.id)
     )
 
 
@@ -175,7 +175,7 @@ async def luca_stop(msg: Message, state: FSMContext):
     char_name = CHAR_NAMES.get(char_key, '🕊 Душа')
     await msg.answer(
         f"👋 Диалог завершён!\n\n🫧 <b>Soul AI</b>\n🪞 Режим: {char_name}",
-        reply_markup=reply.dialog_kb()
+        reply_markup=reply.dialog_kb(msg.from_user.id)
     )
 
 
@@ -247,7 +247,7 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
     
     remaining = await db.get_available_tokens(user_id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Пополните в разделе 💎 Подписка", reply_markup=reply.main_kb())
+        await msg.answer("❌ Токены закончились!\n\n💎 Пополните в разделе 💎 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
         return
     
     # Модель
