@@ -88,6 +88,7 @@ def psycho_mood_kb():
 def study_kb():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="📝 Новый курс"), KeyboardButton(text="📂 Ваши курсы")],
+        [KeyboardButton(text="📚 Анализ видео")],
         [KeyboardButton(text="🔍 Помощь"), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 

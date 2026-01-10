@@ -64,7 +64,7 @@ def tokens_packages_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📦 100K — 149₽", callback_data="tokens:buy:100k")],
         [InlineKeyboardButton(text="📦 200K — 249₽", callback_data="tokens:buy:200k")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="subscription")]
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="sub:back")]
     ])
 
 def payment_kb(url: str, tx_id: int):

@@ -38,6 +38,7 @@ class TitusSt(StatesGroup):
     courses_menu = State()
     continue_course = State()
     delete_course = State()
+    video_analysis = State()
 
 
 active_requests = {}
@@ -114,26 +115,81 @@ async def create_course(msg: Message, state: FSMContext):
     sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: 1 из {steps}\n\n⚠️ НЕ представляйся! Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": "Начни шаг 1"}]
     
-    status = await msg.answer("⏳ Обрабатываю. Пожалуйста подождите...")
-    timer_running = True
+    status = await msg.answer("⏳ Обрабатываю...")
     
-    async def update_timer():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running:
-                break
-            sec += 1
+    # STREAMING для создания курса
+    full_response = ""
+    sentence_buffer = ""
+    displayed_text = ""
+    last_update = time.time()
+    typing_phase = 0
+    stream_msg = None
+    
+    try:
+        async for chunk in ask_stream(msgs, model, max_tokens=4000):
+            if not chunk:
+                continue
+            
+            full_response += chunk
+            sentence_buffer += chunk
+            now = time.time()
+            
+            if typing_phase == 0 and len(full_response) > 20:
+                typing_phase = 1
+                try:
+                    await status.edit_text("✍️ Печатаю...")
+                except:
+                    pass
+            
+            if typing_phase == 1 and len(full_response) > 100:
+                typing_phase = 2
+                try:
+                    await status.delete()
+                except:
+                    pass
+                stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
+            
+            if typing_phase == 2 and stream_msg:
+                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                    displayed_text += sentence_buffer
+                    sentence_buffer = ""
+                    
+                    if now - last_update >= 0.5:
+                        formatted = clean_html_for_telegram(displayed_text)
+                        try:
+                            await stream_msg.edit_text(formatted + " ▌")
+                            last_update = now
+                            await asyncio.sleep(0.3)
+                        except:
+                            pass
+        
+        displayed_text += sentence_buffer
+        resp = full_response.strip()
+        tok = calculate_tokens(msgs, resp)
+        
+        if stream_msg:
             try:
-                await status.edit_text(f"✍️ Печатаю... ({sec} сек)")
+                await stream_msg.delete()
             except:
                 pass
-    
-    timer_task = asyncio.create_task(update_timer())
-    resp, tok = await ask(msgs, model)
-    timer_running = False
-    timer_task.cancel()
-    await status.delete()
+        if status and typing_phase < 2:
+            try:
+                await status.delete()
+            except:
+                pass
+    except Exception as e:
+        print(f"Stream error in create_course: {e}")
+        if stream_msg:
+            try:
+                await stream_msg.delete()
+            except:
+                pass
+        if status:
+            try:
+                await status.delete()
+            except:
+                pass
+        raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_html_for_telegram(resp_clean)
@@ -279,6 +335,132 @@ async def delete_select(msg: Message, state: FSMContext):
             await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
             return
     await msg.answer("❌ Выберите курс из списка")
+
+
+@router.message(TitusSt.menu, F.text == "📚 Анализ видео")
+async def video_analysis_start(msg: Message, state: FSMContext):
+    await state.set_state(TitusSt.video_analysis)
+    await msg.answer(
+        "📚 <b>Анализ видео с YouTube</b>\n\n"
+        "Отправьте ссылку на YouTube видео, и я:\n"
+        "✅ Извлеку субтитры\n"
+        "✅ Проанализирую содержимое\n"
+        "✅ Составлю краткий конспект\n\n"
+        "📝 <i>Работает только с видео, у которых есть субтитры</i>",
+        reply_markup=reply.back_kb()
+    )
+
+
+@router.message(TitusSt.video_analysis, F.text == "◀️ Назад")
+async def video_analysis_back(msg: Message, state: FSMContext):
+    await state.set_state(TitusSt.menu)
+    await msg.answer("📓 <b>Обучение</b>", reply_markup=reply.study_kb())
+
+
+@router.message(TitusSt.video_analysis, F.text)
+async def video_analysis_process(msg: Message, state: FSMContext):
+    from youtube_transcript_api import YouTubeTranscriptApi
+    import re as regex
+    
+    # Проверка токенов
+    remaining = await db.get_available_tokens(msg.from_user.id)
+    if remaining < MIN_TOKENS:
+        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb())
+        return
+    
+    # Извлечение video_id из ссылки
+    video_id = None
+    patterns = [
+        r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})',
+        r'youtube\.com\/embed\/([a-zA-Z0-9_-]{11})',
+        r'^([a-zA-Z0-9_-]{11})$'
+    ]
+    
+    for pattern in patterns:
+        match = regex.search(pattern, msg.text)
+        if match:
+            video_id = match.group(1)
+            break
+    
+    if not video_id:
+        await msg.answer("❌ Неверная ссылка!\n\nПримеры:\n• youtube.com/watch?v=VIDEO_ID\n• youtu.be/VIDEO_ID", reply_markup=reply.back_kb())
+        return
+    
+    status = await msg.answer("⏳ Извлекаю субтитры...")
+    
+    try:
+        # Получаем субтитры
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        
+        # Пытаемся получить русские или английские субтитры
+        transcript = None
+        try:
+            transcript = transcript_list.find_transcript(['ru', 'en'])
+        except:
+            transcript = transcript_list.find_generated_transcript(['ru', 'en'])
+        
+        if not transcript:
+            await status.edit_text("❌ У этого видео нет субтитров", reply_markup=reply.back_kb())
+            return
+        
+        # Получаем текст
+        captions = transcript.fetch()
+        full_text = " ".join([entry['text'] for entry in captions])
+        
+        # Ограничиваем длину (макс 50к символов)
+        if len(full_text) > 50000:
+            full_text = full_text[:50000] + "..."
+        
+        await status.edit_text(f"✅ Субтитры получены ({len(full_text)} символов)\n⏳ Анализирую...")
+        
+        # Анализ через Gemini Flash (дешёвая модель)
+        analysis_prompt = f"""Проанализируй это видео по субтитрам и составь структурированный конспект:
+
+{full_text}
+
+Требования:
+- Главная тема
+- Ключевые моменты (по пунктам)
+- Важные детали
+- Выводы
+
+Формат: структурированно, с эмодзи, понятно."""
+        
+        gemini_model = "google/gemini-2.0-flash-exp:free"
+        resp, tok = await ask([{"role": "user", "content": analysis_prompt}], gemini_model)
+        
+        await status.delete()
+        
+        resp_clean = clean_html_for_telegram(resp)
+        
+        # Списываем токены
+        await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
+        await db.increment_requests(msg.from_user.id)
+        
+        # Сохраняем в last_messages
+        last_messages[msg.from_user.id] = {"text": resp_clean, "course": "Анализ видео", "step": 1}
+        
+        # Отправляем результат
+        if len(resp_clean) >= 3000:
+            preview = make_preview(resp_clean, 800)
+            text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
+        else:
+            text_to_send = resp_clean
+        
+        await msg.answer(
+            f"📚 <b>Анализ видео</b>\n\n{text_to_send}",
+            reply_markup=inline.titus_msg_kb(msg.from_user.id, has_telegraph=True)
+        )
+        
+        await state.set_state(TitusSt.menu)
+        await msg.answer("✅ Анализ завершён!", reply_markup=reply.study_kb())
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "Subtitles are disabled" in error_msg or "transcript" in error_msg.lower():
+            await status.edit_text("❌ У этого видео нет доступных субтитров", reply_markup=reply.back_kb())
+        else:
+            await status.edit_text(f"❌ Ошибка: {error_msg[:200]}", reply_markup=reply.back_kb())
 
 
 @router.message(TitusSt.menu, F.text == "🔍 Помощь")
@@ -713,10 +895,83 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Продолжи обучение с шага {current_step}. Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Продолжи с шага {current_step}"}]
     
-    resp, tok = await ask(msgs, model)
-    timer_running = False
-    timer_task.cancel()
-    await status.delete()
+    # STREAMING для продолжения
+    full_response = ""
+    sentence_buffer = ""
+    displayed_text = ""
+    last_update = time.time()
+    typing_phase = 0
+    stream_msg = None
+    
+    try:
+        async for chunk in ask_stream(msgs, model, max_tokens=4000):
+            if not chunk:
+                continue
+            
+            full_response += chunk
+            sentence_buffer += chunk
+            now = time.time()
+            
+            if typing_phase == 0 and len(full_response) > 20:
+                typing_phase = 1
+                timer_running = False
+                timer_task.cancel()
+                try:
+                    await status.edit_text("✍️ Печатаю...")
+                except:
+                    pass
+            
+            if typing_phase == 1 and len(full_response) > 100:
+                typing_phase = 2
+                try:
+                    await status.delete()
+                except:
+                    pass
+                stream_msg = await cb.message.answer("_Печатаю..._", parse_mode=None)
+            
+            if typing_phase == 2 and stream_msg:
+                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                    displayed_text += sentence_buffer
+                    sentence_buffer = ""
+                    
+                    if now - last_update >= 0.5:
+                        formatted = clean_html_for_telegram(displayed_text)
+                        try:
+                            await stream_msg.edit_text(formatted + " ▌")
+                            last_update = now
+                            await asyncio.sleep(0.3)
+                        except:
+                            pass
+        
+        displayed_text += sentence_buffer
+        resp = full_response.strip()
+        tok = calculate_tokens(msgs, resp)
+        
+        if stream_msg:
+            try:
+                await stream_msg.delete()
+            except:
+                pass
+        if status and typing_phase < 2:
+            try:
+                await status.delete()
+            except:
+                pass
+    except Exception as e:
+        print(f"Stream error in course_continue: {e}")
+        timer_running = False
+        timer_task.cancel()
+        if stream_msg:
+            try:
+                await stream_msg.delete()
+            except:
+                pass
+        if status:
+            try:
+                await status.delete()
+            except:
+                pass
+        raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_html_for_telegram(resp_clean)
@@ -790,11 +1045,68 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Разбери подробно темы, которые были сложными: {topics_text}"}]
     
+    # STREAMING для повторения
+    full_response = ""
+    sentence_buffer = ""
+    displayed_text = ""
+    last_update = time.time()
+    typing_phase = 0
+    stream_msg = None
+    
     try:
-        resp, tok = await ask(msgs, model)
-        timer_running = False
-        timer_task.cancel()
-        await status.delete()
+        async for chunk in ask_stream(msgs, model, max_tokens=4000):
+            if not chunk:
+                continue
+            
+            full_response += chunk
+            sentence_buffer += chunk
+            now = time.time()
+            
+            if typing_phase == 0 and len(full_response) > 20:
+                typing_phase = 1
+                timer_running = False
+                timer_task.cancel()
+                try:
+                    await status.edit_text("✍️ Печатаю...")
+                except:
+                    pass
+            
+            if typing_phase == 1 and len(full_response) > 100:
+                typing_phase = 2
+                try:
+                    await status.delete()
+                except:
+                    pass
+                stream_msg = await cb.message.answer("_Печатаю..._", parse_mode=None)
+            
+            if typing_phase == 2 and stream_msg:
+                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                    displayed_text += sentence_buffer
+                    sentence_buffer = ""
+                    
+                    if now - last_update >= 0.5:
+                        formatted = clean_html_for_telegram(displayed_text)
+                        try:
+                            await stream_msg.edit_text(formatted + " ▌")
+                            last_update = now
+                            await asyncio.sleep(0.3)
+                        except:
+                            pass
+        
+        displayed_text += sentence_buffer
+        resp = full_response.strip()
+        tok = calculate_tokens(msgs, resp)
+        
+        if stream_msg:
+            try:
+                await stream_msg.delete()
+            except:
+                pass
+        if status and typing_phase < 2:
+            try:
+                await status.delete()
+            except:
+                pass
         
         resp_clean = clean_html_for_telegram(resp)
         
