@@ -32,6 +32,26 @@ async def migrate_token_usage_table():
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.executescript("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            bot TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, created_at DESC);
+        
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            model TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, timestamp);
+        
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY, username TEXT, first_name TEXT,
             tokens INTEGER DEFAULT 25000, total_used INTEGER DEFAULT 0,
@@ -1100,3 +1120,74 @@ async def get_all_bots_tokens(uid: int) -> Dict[str, int]:
         """, (uid,))
         rows = await c.fetchall()
         return {row['bot_name']: row['total'] for row in rows}
+
+
+# ================== ФУНКЦИИ ДЛЯ ДИАЛОГОВ ==================
+
+
+async def create_conversation(uid: int, bot: str) -> int:
+    """Создать новый диалог"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute(
+            "INSERT INTO conversations (user_id, bot) VALUES (?, ?)",
+            (uid, bot)
+        )
+        await db.commit()
+        return c.lastrowid
+
+
+async def save_conversation_message(conv_id: int, role: str, content: str, model: str = None):
+    """Сохранить сообщение в диалоге"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT INTO messages (conversation_id, role, content, model) VALUES (?, ?, ?, ?)",
+            (conv_id, role, content, model)
+        )
+        await db.execute(
+            "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (conv_id,)
+        )
+        await db.commit()
+
+
+async def get_conversation(conv_id: int) -> Optional[Dict]:
+    """Получить информацию о диалоге"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM conversations WHERE id=?", (conv_id,))
+        r = await c.fetchone()
+        return dict(r) if r else None
+
+
+async def get_conversation_messages(conv_id: int) -> List[Dict]:
+    """Получить все сообщения диалога"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT role, content, model, timestamp 
+            FROM messages 
+            WHERE conversation_id=? 
+            ORDER BY timestamp ASC
+        """, (conv_id,))
+        return [dict(r) for r in await c.fetchall()]
+
+
+async def get_user_conversations(uid: int, bot: str = None, limit: int = 50) -> List[Dict]:
+    """Получить диалоги пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if bot:
+            c = await db.execute("""
+                SELECT * FROM conversations 
+                WHERE user_id=? AND bot=? 
+                ORDER BY updated_at DESC 
+                LIMIT ?
+            """, (uid, bot, limit))
+        else:
+            c = await db.execute("""
+                SELECT * FROM conversations 
+                WHERE user_id=? 
+                ORDER BY updated_at DESC 
+                LIMIT ?
+            """, (uid, limit))
+        return [dict(r) for r in await c.fetchall()]
