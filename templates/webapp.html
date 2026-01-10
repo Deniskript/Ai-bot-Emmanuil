@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul Bot - Личный кабинет</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.5s;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .balance-amount {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 16px 0;
+        }
+
+        .balance-label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .subscription-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 12px;
+            margin-top: 12px;
+        }
+
+        .subscription-type {
+            font-size: 20px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .subscription-expires {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .stat-item {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 16px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            padding: 40px;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            background: #667eea20;
+            color: #667eea;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🙏 Soul Bot</h1>
+            <p>Личный кабинет</p>
+        </div>
+
+        <div id="loading" class="loading">
+            ⏳ Загрузка...
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- Баланс -->
+            <div class="card">
+                <div class="card-title">💰 Баланс токенов</div>
+                <div class="balance-amount" id="balance">0</div>
+                <div class="balance-label">Доступно токенов</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Подписка -->
+            <div class="card">
+                <div class="card-title">💎 Подписка</div>
+                <div class="subscription-info">
+                    <div>
+                        <div class="subscription-type" id="subType">Не активна</div>
+                        <div class="subscription-expires" id="subExpires"></div>
+                    </div>
+                    <div style="font-size: 48px;" id="subEmoji">🎁</div>
+                </div>
+                <button class="btn" onclick="openSubscription()">💎 Управление подпиской</button>
+            </div>
+
+            <!-- Статистика -->
+            <div class="card">
+                <div class="card-title">📊 Статистика</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalRequests">0</div>
+                        <div class="stat-label">Запросов</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalUsed">0</div>
+                        <div class="stat-label">Использовано</div>
+                    </div>
+                </div>
+                <div class="badges" id="badges"></div>
+            </div>
+
+            <!-- Действия -->
+            <div class="card">
+                <div class="card-title">⚡️ Быстрые действия</div>
+                <button class="btn btn-secondary" onclick="Telegram.WebApp.close()">
+                    ← Вернуться в бот
+                </button>
+            </div>
+        </div>
+
+        <div id="error" style="display: none;" class="error"></div>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Получаем user_id из Telegram
+        const initData = tg.initDataUnsafe;
+        const userId = initData.user ? initData.user.id : null;
+
+        console.log('Telegram WebApp initialized');
+        console.log('User ID:', userId);
+
+        async function loadUserData() {
+            if (!userId) {
+                showError('❌ Не удалось получить ID пользователя');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/user/${userId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Ошибка загрузки данных');
+                }
+
+                const data = await response.json();
+                console.log('User data:', data);
+                
+                // Показываем данные
+                displayUserData(data);
+                
+                // Скрываем загрузку, показываем контент
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('❌ Ошибка загрузки: ' + error.message);
+            }
+        }
+
+        function displayUserData(data) {
+            // Баланс
+            const balance = data.tokens || 0;
+            document.getElementById('balance').textContent = formatNumber(balance);
+            
+            // Прогресс (пример: из 1M токенов)
+            const progress = Math.min((balance / 1000000) * 100, 100);
+            document.getElementById('progress').style.width = progress + '%';
+
+            // Подписка
+            if (data.subscription && data.subscription.is_active) {
+                const sub = data.subscription;
+                document.getElementById('subType').textContent = sub.type === 'mini' ? '🌟 Mini' : '💎 Standard';
+                document.getElementById('subExpires').textContent = sub.expires_at ? 
+                    'До ' + formatDate(sub.expires_at) : 'Активна';
+                document.getElementById('subEmoji').textContent = sub.type === 'standard' ? '👑' : '🌟';
+            } else {
+                document.getElementById('subType').textContent = 'Не активна';
+                document.getElementById('subExpires').textContent = 'Используете бонусные токены';
+                document.getElementById('subEmoji').textContent = '🎁';
+            }
+
+            // Статистика
+            document.getElementById('totalRequests').textContent = formatNumber(data.total_requests || 0);
+            document.getElementById('totalUsed').textContent = formatNumber(data.total_used || 0) + ' tk';
+
+            // Бейджи
+            const badges = document.getElementById('badges');
+            badges.innerHTML = '';
+            
+            if (data.total_requests > 100) {
+                badges.innerHTML += '<div class="badge">🔥 Активный</div>';
+            }
+            if (data.total_requests > 500) {
+                badges.innerHTML += '<div class="badge">⭐️ Эксперт</div>';
+            }
+            if (data.subscription && data.subscription.is_active) {
+                badges.innerHTML += '<div class="badge">💎 Подписчик</div>';
+            }
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            }
+            if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('ru-RU', { 
+                day: 'numeric', 
+                month: 'short', 
+                year: 'numeric' 
+            });
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+
+        function openSubscription() {
+            // Отправляем команду боту для открытия подписки
+            tg.sendData('open_subscription');
+            tg.close();
+        }
+
+        // Загружаем данные при старте
+        loadUserData();
+    </script>
+</body>
+</html>

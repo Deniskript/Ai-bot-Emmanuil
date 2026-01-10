@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul Bot - Оплата</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .plan-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s, box-shadow 0.3s;
+            animation: slideUp 0.5s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .plan-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.3);
+        }
+
+        .plan-card.selected {
+            border: 3px solid #667eea;
+            transform: scale(1.02);
+        }
+
+        .plan-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .plan-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .plan-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .plan-price {
+            font-size: 36px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+        }
+
+        .plan-period {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+
+        .plan-features {
+            list-style: none;
+            text-align: left;
+            margin-bottom: 25px;
+        }
+
+        .plan-features li {
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .plan-features li:last-child {
+            border-bottom: none;
+        }
+
+        .feature-icon {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .info-box {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.6s;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .info-box p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .plans-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Подписка</h1>
+            <p>Выберите подходящий тариф</p>
+        </div>
+
+        <div class="plans-grid">
+            <!-- Mini Plan -->
+            <div class="plan-card" id="plan-mini" onclick="selectPlan('mini')">
+                <div class="plan-icon">🌟</div>
+                <div class="plan-name">Mini</div>
+                <div class="plan-price">490₽</div>
+                <div class="plan-period">в месяц</div>
+                <ul class="plan-features">
+                    <li><span class="feature-icon">✓</span> 400K токенов</li>
+                    <li><span class="feature-icon">✓</span> Claude Sonnet 4</li>
+                    <li><span class="feature-icon">✓</span> Все боты</li>
+                    <li><span class="feature-icon">✓</span> Приоритет</li>
+                </ul>
+            </div>
+
+            <!-- Standard Plan -->
+            <div class="plan-card" id="plan-standard" onclick="selectPlan('standard')">
+                <div class="plan-badge">Популярный</div>
+                <div class="plan-icon">👑</div>
+                <div class="plan-name">Standard</div>
+                <div class="plan-price">990₽</div>
+                <div class="plan-period">в месяц</div>
+                <ul class="plan-features">
+                    <li><span class="feature-icon">✓</span> 900K токенов</li>
+                    <li><span class="feature-icon">✓</span> Claude Sonnet 4</li>
+                    <li><span class="feature-icon">✓</span> Все боты</li>
+                    <li><span class="feature-icon">✓</span> Высший приоритет</li>
+                    <li><span class="feature-icon">✓</span> Поддержка 24/7</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>ℹ️ Информация</h3>
+            <p>
+                • Подписка активируется автоматически<br>
+                • Токены обновляются каждый месяц<br>
+                • Неиспользованные токены не переносятся<br>
+                • Отмена в любое время
+            </p>
+        </div>
+
+        <button class="btn" id="payButton" onclick="proceedToPayment()" disabled>
+            Выберите тариф
+        </button>
+
+        <button class="btn btn-secondary" onclick="Telegram.WebApp.close()">
+            ← Назад в бот
+        </button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        let selectedPlan = null;
+
+        function selectPlan(plan) {
+            selectedPlan = plan;
+            
+            // Убираем выделение со всех карточек
+            document.querySelectorAll('.plan-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Выделяем выбранную
+            document.getElementById('plan-' + plan).classList.add('selected');
+            
+            // Активируем кнопку
+            const button = document.getElementById('payButton');
+            button.disabled = false;
+            
+            if (plan === 'mini') {
+                button.textContent = '💳 Оплатить 490₽';
+            } else {
+                button.textContent = '💳 Оплатить 990₽';
+            }
+        }
+
+        function proceedToPayment() {
+            if (!selectedPlan) {
+                alert('Выберите тариф');
+                return;
+            }
+
+            // Показываем уведомление
+            tg.showAlert('🚀 Оплата скоро будет доступна!\n\nСейчас ведутся технические работы по интеграции платежной системы.');
+            
+            // Можно отправить данные боту
+            // tg.sendData(JSON.stringify({
+            //     action: 'subscribe',
+            //     plan: selectedPlan
+            // }));
+        }
+
+        // Автовыбор Standard
+        window.addEventListener('load', () => {
+            selectPlan('standard');
+        });
+    </script>
+</body>
+</html>

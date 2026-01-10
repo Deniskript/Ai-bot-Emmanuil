@@ -1,13 +1,14 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 # ============================================
 # === ОБЩИЕ КЛАВИАТУРЫ ===
 # ============================================
 
 def main_kb():
+    """Главное меню с Mini App кнопками"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🫧 Soul AI"), KeyboardButton(text="📱 Кабинет")],
-        [KeyboardButton(text="💠 Подписка"), KeyboardButton(text="🔍 Помощь")]
+        [KeyboardButton(text="🫧 Soul AI"), KeyboardButton(text="💼 Кабинет", web_app=WebAppInfo(url="https://soul-bot.ru/webapp"))],
+        [KeyboardButton(text="💳 Оплата", web_app=WebAppInfo(url="https://soul-bot.ru/payment")), KeyboardButton(text="❓ Помощь")]
     ], resize_keyboard=True)
 
 def bots_menu_kb():

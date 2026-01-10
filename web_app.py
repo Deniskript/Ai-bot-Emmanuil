@@ -2,9 +2,9 @@
 """
 Веб-приложение для отображения диалогов
 """
-from flask import Flask, render_template_string, abort
+from flask import Flask, render_template_string, render_template, abort, jsonify
 import asyncio
-from database.db import get_conversation, get_conversation_messages, DATABASE_PATH
+from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, DATABASE_PATH
 import aiosqlite
 import html
 import re
@@ -431,6 +431,69 @@ def index():
     </body>
     </html>
     """
+
+
+@app.route('/webapp')
+def webapp():
+    """Telegram Mini App - Личный кабинет"""
+    try:
+        return render_template('webapp.html')
+    except Exception as e:
+        print(f"Error loading webapp: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/payment')
+def payment():
+    """Telegram Mini App - Оплата подписки"""
+    try:
+        return render_template('payment.html')
+    except Exception as e:
+        print(f"Error loading payment: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/api/user/<int:user_id>')
+def api_user(user_id):
+    """API для получения данных пользователя"""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Получаем данные пользователя
+        user = loop.run_until_complete(get_user(user_id))
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Получаем подписку
+        subscription = loop.run_until_complete(get_subscription(user_id))
+        
+        # Формируем ответ
+        response = {
+            'user_id': user['user_id'],
+            'username': user.get('username'),
+            'first_name': user.get('first_name'),
+            'tokens': user.get('tokens', 0),
+            'total_used': user.get('total_used', 0),
+            'total_requests': user.get('total_requests', 0),
+            'subscription': None
+        }
+        
+        # Добавляем информацию о подписке если есть
+        if subscription:
+            response['subscription'] = {
+                'type': subscription.get('type'),
+                'is_active': bool(subscription.get('is_active')),
+                'expires_at': subscription.get('expires_at'),
+                'tokens_limit': subscription.get('tokens_limit', 0),
+                'tokens_used': subscription.get('tokens_used', 0)
+            }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"Error in api_user: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
