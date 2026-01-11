@@ -30,11 +30,11 @@ class ViralAnalysisSt(StatesGroup):
     wait_link = State()
 
 
-# Цены (маржа уже включена в calculate_tokens)
+# Цены (маржа уже включена)
 PRICES = {
-    "text_advice": 50,  # Минимальная цена за текстовый совет
-    "video_analysis": 5000,  # За анализ видео (vision)
-    "link_analysis": 5000  # За анализ по ссылке
+    "text_advice": 50,  # Минимальная цена за текстовый совет (рассчитывается автоматически с маржой 2.5x)
+    "video_analysis": 300,  # За анализ видео (Vision API ~ 120 токенов × 2.5 = 300)
+    "link_analysis": 300  # За анализ по ссылке (Vision API ~ 120 токенов × 2.5 = 300)
 }
 
 

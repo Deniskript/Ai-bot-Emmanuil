@@ -6,8 +6,8 @@
 - Маржу 50-60%
 """
 
-# Множитель маржи (1.8 = ~50-55% маржи)
-TOKEN_MARGIN = 1.8
+# Множитель маржи (2.5 = ~150% маржи)
+TOKEN_MARGIN = 2.5
 
 
 def count_tokens_estimate(text: str) -> int:

@@ -128,10 +128,14 @@ async def meditation_duration_selected(callback: CallbackQuery, state: FSMContex
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, _ = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
+        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
         
         # Сохраняем медитацию
         await db.save_meditation_log(callback.from_user.id, duration, med_type)
+        
+        # Списываем токены с маржой 2.5x
+        await db.use_tokens_smart(callback.from_user.id, tokens_used, bot_name='mental')
+        await db.increment_requests(callback.from_user.id)
         
         await processing.edit_text(
             f"🧘‍♀️ <b>Медитация {duration} мин</b>\n\n"
@@ -286,7 +290,12 @@ async def get_mood_tip(mood: int, tags: list) -> str:
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, _ = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=200)
+        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=200)
+        
+        # Списываем токены с маржой 2.5x (минимальный запрос)
+        await db.use_tokens_smart(user_id, tokens_used, bot_name='mental')
+        await db.increment_requests(user_id)
+        
         return response.strip()
     except Exception as e:
         print(f"[ERROR] Error in get_mood_tip: {e}")
@@ -350,7 +359,11 @@ async def anxiety_help(msg: Message, state: FSMContext):
         }
         
         messages = [{"role": "user", "content": prompts[technique]}]
-        response, _ = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=800)
+        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=800)
+        
+        # Списываем токены с маржой 2.5x
+        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='mental')
+        await db.increment_requests(msg.from_user.id)
         
         await processing.edit_text(
             f"💆 <b>{name}</b>\n\n"
@@ -393,7 +406,11 @@ async def daily_affirmation(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, _ = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=300)
+        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=300)
+        
+        # Списываем токены с маржой 2.5x
+        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='mental')
+        await db.increment_requests(msg.from_user.id)
         
         await processing.edit_text(
             f"<b>Аффирмация дня</b>\n\n"

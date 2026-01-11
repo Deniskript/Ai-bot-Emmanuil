@@ -454,7 +454,11 @@ async def finance_tips(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, _ = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
+        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
+        
+        # Списываем токены с маржой 2.5x
+        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='finance')
+        await db.increment_requests(msg.from_user.id)
         
         await processing.delete()
         await msg.answer(md_to_html(response), parse_mode="HTML")
