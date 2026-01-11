@@ -2,14 +2,14 @@
 """
 Веб-приложение для отображения диалогов
 """
-from flask import Flask, render_template_string, render_template, abort, jsonify
+from flask import Flask, render_template_string, render_template, abort, jsonify, request
 import asyncio
 from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, DATABASE_PATH
 import aiosqlite
 import html
 import re
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 
 # HTML темп лейт для отображения чата
 CHAT_TEMPLATE = """
@@ -463,6 +463,16 @@ def help_page():
         return f"Error: {e}", 500
 
 
+@app.route('/images/settings')
+def images_settings():
+    """Telegram Mini App - Настройки генерации изображений"""
+    try:
+        return render_template('images_settings.html')
+    except Exception as e:
+        print(f"Error loading images settings: {e}")
+        return f"Error: {e}", 500
+
+
 @app.route('/api/user/<int:user_id>')
 def api_user(user_id):
     """API для получения данных пользователя"""
@@ -530,7 +540,10 @@ def robokassa_result():
         # Обрабатываем оплату
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(process_successful_payment(int(inv_id)))
+        try:
+            loop.run_until_complete(process_successful_payment(int(inv_id), robokassa_id=int(inv_id)))
+        finally:
+            loop.close()
         
         return f'OK{inv_id}'
         
@@ -542,5 +555,4 @@ def robokassa_result():
 
 
 if __name__ == '__main__':
-    from flask import request
     app.run(host='0.0.0.0', port=5000, debug=False)

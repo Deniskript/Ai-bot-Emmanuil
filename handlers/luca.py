@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
@@ -7,7 +7,7 @@ from keyboards import reply, inline
 from utils.openrouter import ask, ask_stream
 from utils.tokens import calculate_tokens
 from utils.memory import update_memory, build_memory_context
-from utils.voice import download_voice, transcribe_voice
+from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
@@ -18,6 +18,7 @@ import asyncio
 import base64
 import time
 import re
+import os
 
 
 def md_to_html(text):
@@ -32,10 +33,24 @@ class LucaSt(StatesGroup):
     menu = State()
     chat = State()
     char = State()
+    voice_choose = State()  # Выбор голоса
+    voice_chat = State()    # Голосовой чат
 
 
 active_requests = {}
 last_messages = {}
+
+# Максимальное количество записей в кэше (для предотвращения утечек памяти)
+MAX_CACHE_SIZE = 1000
+
+def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
+    """Очистка кэша при превышении лимита (удаляем самые старые записи)"""
+    if len(cache_dict) > max_size:
+        # Удаляем 20% самых старых записей (если есть способ определить возраст)
+        # Для простоты удаляем случайные записи
+        keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
+        for key in keys_to_remove:
+            cache_dict.pop(key, None)
 
 
 # ========== УЛУЧШЕННЫЙ СТРИМИНГ ==========
@@ -69,7 +84,7 @@ def format_streaming_text(text: str) -> list:
 
 # ========== МЕНЮ ==========
 
-@router.message(F.text == "💭 Диалог")
+@router.message(F.text.in_(["💭 Диалог", "💬 Диалог"]))
 async def luca_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('luca')
     if not cfg['enabled']:
@@ -153,6 +168,33 @@ async def char_mind(msg: Message, state: FSMContext):
     )
 
 
+@router.message(LucaSt.char, F.text == "🎤 Голос")
+async def char_voice(msg: Message, state: FSMContext):
+    """Вход в голосовой режим"""
+    # Проверяем есть ли уже сохранённый голос
+    voice_gender = await db.get_voice_gender(msg.from_user.id, 'luca')
+    
+    if voice_gender:
+        # Голос уже выбран, сразу в чат
+        await state.set_state(LucaSt.voice_chat)
+        gender_name = "👨 Мужской" if voice_gender == "male" else "👩 Женский"
+        await msg.answer(
+            f"🎤 <b>Голосовой режим активирован!</b>\n\n"
+            f"🔊 Голос: {gender_name}\n\n"
+            f"💬 Отправь голосовое сообщение или напиши текст — я отвечу голосом!",
+            reply_markup=reply.voice_chat_kb()
+        )
+    else:
+        # Первый вход - выбор голоса
+        await state.set_state(LucaSt.voice_choose)
+        await msg.answer(
+            "🎤 <b>Голосовой режим</b>\n\n"
+            "Я буду отвечать тебе голосовыми сообщениями!\n\n"
+            "👉 Выбери голос для общения:",
+            reply_markup=inline.voice_gender_kb()
+        )
+
+
 @router.message(LucaSt.char, F.text == "◀️ Назад к Диалогу")
 async def char_back(msg: Message, state: FSMContext):
     await state.set_state(LucaSt.menu)
@@ -163,6 +205,90 @@ async def char_back(msg: Message, state: FSMContext):
         f"🫧 <b>Soul AI</b>\n\n🪞 Режим: {char_name}",
         reply_markup=reply.dialog_kb(msg.from_user.id)
     )
+
+
+# ========== ГОЛОСОВОЙ РЕЖИМ ==========
+
+# Мапинг голосов
+VOICE_MAP = {
+    "male": "onyx",    # Мужской голос
+    "female": "nova"   # Женский голос
+}
+
+@router.callback_query(F.data.startswith("voice:gender:"))
+async def voice_gender_selected(cb: CallbackQuery, state: FSMContext):
+    """Обработка выбора голоса"""
+    gender = cb.data.split(":")[2]  # male или female
+    
+    # Сохраняем выбор в БД
+    await db.set_voice_gender(cb.from_user.id, gender, 'luca')
+    
+    # Переходим в режим чата
+    await state.set_state(LucaSt.voice_chat)
+    
+    gender_name = "👨 Мужской" if gender == "male" else "👩 Женский"
+    await cb.message.edit_text(
+        f"✅ <b>Голос выбран: {gender_name}</b>\n\n"
+        f"🎤 Голосовой режим активирован!\n\n"
+        f"💬 Отправь голосовое сообщение или напиши текст — я отвечу голосом!"
+    )
+    
+    await cb.message.answer(
+        "🎧 <b>Готов слушать!</b>",
+        reply_markup=reply.voice_chat_kb()
+    )
+
+
+@router.message(LucaSt.voice_chat, F.text == "🛑 Завершить")
+async def voice_stop(msg: Message, state: FSMContext):
+    """Выход из голосового режима"""
+    await state.set_state(LucaSt.char)
+    await msg.answer(
+        "👋 Голосовой режим завершён!\n\n"
+        "Возвращайся когда захочешь поговорить! 🎤",
+        reply_markup=reply.dialog_char_kb()
+    )
+
+
+@router.message(LucaSt.voice_chat, F.text == "🗑 Очистить")
+async def voice_clear(msg: Message):
+    """Очистка истории в голосовом режиме"""
+    await db.clear_msgs(msg.from_user.id, 'luca')
+    await msg.answer("🗑 История очищена! Продолжаем:")
+
+
+@router.message(LucaSt.voice_chat, F.text == "🔄 Сменить голос")
+async def voice_change_gender(msg: Message, state: FSMContext):
+    """Смена голоса"""
+    await state.set_state(LucaSt.voice_choose)
+    current_gender = await db.get_voice_gender(msg.from_user.id, 'luca')
+    current_name = "👨 Мужской" if current_gender == "male" else "👩 Женский"
+    
+    await msg.answer(
+        f"🔊 Текущий голос: {current_name}\n\n"
+        f"Выбери новый голос:",
+        reply_markup=inline.voice_gender_kb()
+    )
+
+
+@router.message(LucaSt.voice_chat, F.text == "⌛️ Отменить запрос")
+async def voice_cancel(msg: Message):
+    """Отмена запроса в голосовом режиме"""
+    user_id = msg.from_user.id
+    if user_id in active_requests:
+        active_requests[user_id]['cancelled'] = True
+        try:
+            if active_requests[user_id].get('status_msg'):
+                await active_requests[user_id]['status_msg'].delete()
+        except:
+            pass
+        try:
+            await msg.delete()
+        except:
+            pass
+        await msg.answer("❌ Запрос отменён", reply_markup=reply.voice_chat_kb())
+    else:
+        await msg.answer("Нет активного запроса", reply_markup=reply.voice_chat_kb())
 
 
 # ========== ЧАТ ==========
@@ -423,6 +549,7 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
     
     # Сохраняем для Telegraph
     last_messages[user_id] = {"text": resp, "char": char_name}
+    cleanup_cache(last_messages)  # Предотвращаем утечку памяти
     
     resp_html = md_to_html(resp)
     
@@ -478,3 +605,218 @@ async def luca_chat_photo(msg: Message, state: FSMContext):
         await st.edit_text(f"❌ {e}")
         return
     await process_luca_message(msg, state, msg.caption or "Что на изображении?", b64)
+
+
+# ========== ГОЛОСОВОЙ ЧАТ - ОБРАБОТКА СООБЩЕНИЙ ==========
+
+async def process_voice_message(msg: Message, state: FSMContext, text: str):
+    """
+    Обработка сообщения в голосовом режиме
+    1. Проверки (антифлуд, токены)
+    2. Получение ответа от AI
+    3. Озвучка через TTS
+    4. Отправка голосового сообщения
+    """
+    user_id = msg.from_user.id
+    
+    # Антифлуд
+    allowed, error_msg = await ai_flood.check(user_id)
+    if not allowed:
+        await msg.answer(error_msg)
+        return
+    
+    # Проверка токенов
+    remaining = await db.get_available_tokens(user_id)
+    if remaining < MIN_TOKENS:
+        await msg.answer(
+            "❌ Токены закончились!\n\n"
+            "💎 Пополните в разделе 💎 Подписка",
+            reply_markup=reply.main_kb(user_id)
+        )
+        return
+    
+    # Статус запроса с кнопкой отмены
+    request_state = {'cancelled': False, 'status_msg': None}
+    active_requests[user_id] = request_state
+    
+    # Меняем клавиатуру на "Отменить запрос"
+    kb_msg = await msg.answer("⌛️", reply_markup=reply.voice_chat_loading_kb())
+    try:
+        await kb_msg.delete()
+    except:
+        pass
+    
+    status_msg = await msg.answer("🎧 Слушаю...")
+    request_state['status_msg'] = status_msg
+    
+    try:
+        # Получаем голос пользователя
+        voice_gender = await db.get_voice_gender(user_id, 'luca')
+        if not voice_gender:
+            voice_gender = "female"  # default
+            await db.set_voice_gender(user_id, voice_gender, 'luca')
+        
+        # Модель AI
+        model = await db.get_user_model(user_id)
+        
+        # Память
+        mem = await db.get_memory(user_id, 'luca')
+        memory_context = build_memory_context(mem)
+        
+        # История (последние 20 сообщений)
+        hist = await db.get_msgs(user_id, 'luca', 20)
+        
+        # Получаем настройки характера
+        s = await db.get_user_bot(user_id, 'luca')
+        char_key = s.get('character', 'soul')
+        char_prompt = CHARS.get(char_key, CHARS['soul'])
+        
+        # Системный промпт с эмоциональностью
+        system_prompt = f"""{LUCA_BASE}
+
+{char_prompt}
+{memory_context}
+
+ВАЖНО: НЕ начинай ответ с приветствия если пользователь не здоровается. Отвечай по существу.
+Отвечай живо и эмоционально, как в разговоре."""
+        
+        # Формируем сообщения для API
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(hist)
+        messages.append({"role": "user", "content": text})
+        
+        # Проверка на отмену
+        if request_state['cancelled']:
+            active_requests.pop(user_id, None)
+            return
+        
+        # Статус: думаю
+        await status_msg.edit_text("🤔 Думаю...")
+        
+        # Запрос к AI
+        resp, tokens_used = await ask(messages, model)
+        
+        # Проверка на отмену
+        if request_state['cancelled']:
+            active_requests.pop(user_id, None)
+            return
+        
+        if not resp:
+            await status_msg.edit_text("❌ Не удалось получить ответ")
+            active_requests.pop(user_id, None)
+            return
+        
+        # Очищаем ответ от эмодзи и markdown
+        resp_clean = resp.replace("**", "").replace("*", "")
+        # Удаляем эмодзи (упрощённо)
+        resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\']+', '', resp_clean, flags=re.UNICODE)
+        
+        # Списываем токены
+        await db.use_tokens_smart(user_id, tokens_used, 'luca')
+        await db.increment_requests(user_id)
+        
+        # Сохраняем в историю
+        await db.add_msg(user_id, 'luca', 'user', text)
+        await db.add_msg(user_id, 'luca', 'assistant', resp_clean)
+        
+        # Обновляем память в фоне
+        asyncio.create_task(update_memory(user_id, 'luca', text, resp_clean))
+        
+        # Проверка на отмену
+        if request_state['cancelled']:
+            active_requests.pop(user_id, None)
+            return
+        
+        # Статус: озвучиваю
+        await status_msg.edit_text("🎤 Озвучиваю...")
+        
+        # Преобразуем в речь
+        voice_tts = VOICE_MAP.get(voice_gender, "nova")
+        audio_path = await text_to_speech(resp_clean, voice=voice_tts)
+        
+        if not audio_path:
+            await status_msg.edit_text("❌ Ошибка озвучки")
+            # Отправляем текстом на всякий случай
+            await msg.answer(f"📝 {resp_clean[:500]}")
+            active_requests.pop(user_id, None)
+            return
+        
+        # Проверка на отмену перед отправкой
+        if request_state['cancelled']:
+            try:
+                os.remove(audio_path)
+            except:
+                pass
+            active_requests.pop(user_id, None)
+            return
+        
+        # Удаляем статус
+        try:
+            await status_msg.delete()
+        except:
+            pass
+        
+        # Отправляем голосовое сообщение с обычной клавиатурой
+        voice_file = FSInputFile(audio_path)
+        await msg.answer_voice(voice_file, reply_markup=reply.voice_chat_kb())
+        
+        # Удаляем временный файл
+        try:
+            os.remove(audio_path)
+        except:
+            pass
+        
+        active_requests.pop(user_id, None)
+        cleanup_cache(active_requests)  # Предотвращаем утечку памяти
+            
+    except Exception as e:
+        print(f"Voice processing error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
+        except:
+            await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
+        active_requests.pop(user_id, None)
+
+
+@router.message(LucaSt.voice_chat, F.voice)
+async def voice_chat_voice(msg: Message, state: FSMContext):
+    """Обработка голосового сообщения от пользователя"""
+    if msg.text in ["🛑 Завершить", "🗑 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
+        return
+    
+    status = await msg.answer("🎧 Распознаю...")
+    
+    try:
+        # Скачиваем и распознаём голос
+        file_path = await download_voice(bot, msg.voice.file_id)
+        if not file_path:
+            await status.edit_text("❌ Не удалось скачать голосовое")
+            return
+        
+        text = await transcribe_voice(file_path)
+        if not text:
+            await status.edit_text("❌ Не удалось распознать речь")
+            return
+        
+        await status.delete()
+        
+        # Показываем что распознали
+        await msg.answer(f"📝 Ты сказал:\n<i>{text}</i>")
+        
+        # Обрабатываем как текст
+        await process_voice_message(msg, state, text)
+        
+    except Exception as e:
+        print(f"Voice recognition error: {e}")
+        await status.edit_text(f"❌ Ошибка: {str(e)[:100]}")
+
+
+@router.message(LucaSt.voice_chat, F.text)
+async def voice_chat_text(msg: Message, state: FSMContext):
+    """Обработка текстового сообщения (бот отвечает голосом)"""
+    if msg.text in ["🛑 Завершить", "🗑 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
+        return
+    
+    await process_voice_message(msg, state, msg.text)

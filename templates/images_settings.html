@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul Bot - Настройки изображений</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.5s;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-box {
+            background: #f0f8ff;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-box-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .info-box-text {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        select {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .save-status {
+            margin-top: 12px;
+            padding: 12px;
+            background: #d4edda;
+            color: #155724;
+            border-radius: 8px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .save-status.show {
+            display: block;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 16px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Настройки изображений</h1>
+            <p>Выберите модель для генерации</p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">🎨 Режимы обработки фото</div>
+            
+            <div class="info-box">
+                <div class="info-box-title">📷 Создание фото (8,000 токенов)</div>
+                <div class="info-box-text">
+                    Генерация изображений по текстовому описанию. Создайте любое изображение, описав его словами.
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-box-title">🎨 4K Upscale (33,000 токенов)</div>
+                <div class="info-box-text">
+                    Улучшение качества до 4K разрешения. Увеличивает детализацию, резкость и чёткость изображения.
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-box-title">✏️ Редактор (15,000 токенов)</div>
+                <div class="info-box-text">
+                    Редактирование изображений по команде: удаление фона, добавление объектов, изменение сцены.
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">💎 Модели AI и цены</div>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+                <thead>
+                    <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 12px; text-align: left;">Модель</th>
+                        <th style="padding: 12px; text-align: right;">Цена</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #e9ecef;">
+                        <td style="padding: 12px;">
+                            <strong>📷 Создание</strong><br>
+                            <small style="color: #666;">Базовая генерация</small>
+                        </td>
+                        <td style="padding: 12px; text-align: right; font-weight: 600;">8,000</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e9ecef;">
+                        <td style="padding: 12px;">
+                            <strong>✏️ Редактор</strong><br>
+                            <small style="color: #666;">Изменение фото</small>
+                        </td>
+                        <td style="padding: 12px; text-align: right; font-weight: 600;">15,000</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px;">
+                            <strong>🎨 4K Upscale</strong><br>
+                            <small style="color: #666;">Улучшение до 4K</small>
+                        </td>
+                        <td style="padding: 12px; text-align: right; font-weight: 600;">33,000</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📋 Информация</div>
+            <div class="info-box-text">
+                <p style="margin-bottom: 12px;">
+                    <strong>Доступные функции:</strong>
+                </p>
+                <ul style="padding-left: 20px; line-height: 1.8;">
+                    <li>📷 <strong>Создание</strong> - генерация по описанию</li>
+                    <li>🎨 <strong>4K Upscale</strong> - улучшение качества</li>
+                    <li>✏️ <strong>Редактор</strong> - изменение фото</li>
+                    <li>🔄 <strong>Удаление фона</strong> - автоматическое</li>
+                    <li>✨ <strong>Улучшение лица</strong> - детализация</li>
+                    <li>🎭 <strong>Стилизация</strong> - художественные эффекты</li>
+                </ul>
+                <p style="margin-top: 12px; font-size: 13px; color: #666;">
+                    💡 Подписка даёт скидку 50% на все операции!
+                </p>
+            </div>
+        </div>
+
+        <button class="btn btn-secondary" onclick="Telegram.WebApp.close()">
+            ← Вернуться в бот
+        </button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        
+        // Получаем user_id
+        let userId = tg.initDataUnsafe?.user?.id;
+        if (!userId && tg.initData) {
+            try {
+                const params = new URLSearchParams(tg.initData);
+                const userStr = params.get('user');
+                if (userStr) {
+                    const user = JSON.parse(userStr);
+                    userId = user.id;
+                }
+            } catch (e) {
+                console.error("Parse error:", e);
+            }
+        }
+        if (!userId) {
+            const urlParams = new URLSearchParams(window.location.search);
+            userId = urlParams.get('user_id');
+        }
+
+        // Сохранение настроек
+        function saveImageSettings() {
+            const model = document.getElementById('imageModel').value;
+            
+            // Сохраняем в localStorage
+            if (userId) {
+                localStorage.setItem('imageModel_' + userId, model);
+            } else {
+                localStorage.setItem('imageModel_default', model);
+            }
+            
+            // Показываем уведомление
+            const status = document.getElementById('saveStatus');
+            status.classList.add('show');
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 2000);
+            
+            console.log('Image model saved:', model);
+        }
+
+        // Загружаем сохранённые настройки
+        function loadImageSettings() {
+            if (userId) {
+                const savedModel = localStorage.getItem('imageModel_' + userId);
+                if (savedModel) {
+                    document.getElementById('imageModel').value = savedModel;
+                    console.log('Loaded saved image model:', savedModel);
+                }
+            } else {
+                const savedModel = localStorage.getItem('imageModel_default');
+                if (savedModel) {
+                    document.getElementById('imageModel').value = savedModel;
+                }
+            }
+        }
+
+        // Загружаем настройки при старте
+        loadImageSettings();
+    </script>
+</body>
+</html>

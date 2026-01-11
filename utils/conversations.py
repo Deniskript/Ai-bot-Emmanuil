@@ -6,7 +6,7 @@ from database.db import (
     save_conversation_message,
     get_conversation
 )
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
 # Текущие активные диалоги пользователей {user_id: conversation_id}
 active_conversations = {}
@@ -38,26 +38,26 @@ async def save_message(user_id: int, role: str, content: str, bot: str, model: s
 
 def get_chat_button(conv_id: int, response_length: int) -> InlineKeyboardMarkup:
     """
-    Создать кнопку для просмотра диалога
+    Создать кнопку для просмотра диалога через Telegram Mini App
     
     Args:
         conv_id: ID диалога
         response_length: Длина ответа в символах
     
     Returns:
-        InlineKeyboardMarkup с кнопкой для просмотра
+        InlineKeyboardMarkup с кнопкой для просмотра через WebApp
     """
     # Определяем текст кнопки в зависимости от длины ответа
     if response_length < 3000:
-        button_text = "💬 Просмотреть весь диалог"
+        button_text = "📜 Посмотреть весь диалог"
     else:
-        button_text = "💬 Читать полностью"
+        button_text = "📜 Читать полностью"
     
-    # Создаем кнопку со ссылкой на сайт
+    # Создаем кнопку с WebApp (открывается внутри Telegram)
     url = f"https://soul-bot.ru/chat/{conv_id}"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=button_text, url=url)]
+        [InlineKeyboardButton(text=button_text, web_app=WebAppInfo(url=url))]
     ])
     
     return keyboard

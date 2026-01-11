@@ -2,6 +2,27 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # === ОСНОВНЫЕ ===
 
+
+# === ЗДОРОВЬЕ ===
+
+def save_calories_kb():
+    """Сохранить в журнал?"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Записать в журнал", callback_data="save_calories")],
+        [InlineKeyboardButton(text="❌ Не записывать", callback_data="skip_calories")]
+    ])
+
+def goal_select_kb():
+    """Выбор цели питания"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔻 Похудеть", callback_data="goal_lose")],
+        [InlineKeyboardButton(text="⚖️ Поддержать вес", callback_data="goal_maintain")],
+        [InlineKeyboardButton(text="🔺 Набрать массу", callback_data="goal_gain")]
+    ])
+
+
+# === ОСНОВНЫЕ ===
+
 def agree_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Принимаю", callback_data="agree_yes")],
@@ -110,6 +131,13 @@ def skip_kb(callback: str):
         [InlineKeyboardButton(text="⏭ Пропустить", callback_data=callback)]
     ])
 
+def voice_gender_kb():
+    """Выбор голоса для голосового режима"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👨 Мужской", callback_data="voice:gender:male")],
+        [InlineKeyboardButton(text="👩 Женский", callback_data="voice:gender:female")]
+    ])
+
 # === АДМИНКА ===
 
 def admin_kb():
@@ -149,6 +177,7 @@ def user_manage_kb(uid: int, is_blocked: bool = False):
     return InlineKeyboardMarkup(inline_keyboard=[
         [block_btn],
         [InlineKeyboardButton(text="💎 Выдать подписку", callback_data=f"adm:givesub:{uid}")],
+        [InlineKeyboardButton(text="💰 Выдать токены", callback_data=f"adm:givetokens:{uid}")],
         [InlineKeyboardButton(text="🧠 Память", callback_data=f"mem:user:{uid}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
     ])
@@ -330,3 +359,175 @@ def course_continue_kb(course_id: int, current_step: int, has_weak_topics: bool 
         callback_data=f"course:continue:{course_id}:{current_step}"
     )])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+# ============================================
+# === ТРЕКЕР ЦЕЛЕЙ ===
+# ============================================
+
+def goal_frequency_kb():
+    """Выбор частоты цели"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 Каждый день", callback_data="freq_daily")],
+        [InlineKeyboardButton(text="📆 Раз в неделю", callback_data="freq_weekly")],
+        [InlineKeyboardButton(text="🔢 Своя частота", callback_data="freq_custom")],
+    ])
+
+
+def goal_confirm_kb(goal_id: int):
+    """Подтверждение выполнения цели"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Да, выполнил!", callback_data=f"goal_done_{goal_id}"),
+            InlineKeyboardButton(text="❌ Пропустил", callback_data=f"goal_skip_{goal_id}")
+        ]
+    ])
+
+
+def goal_actions_kb(goal_id: int):
+    """Действия с целью"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Отметить выполнение", callback_data=f"checkin_{goal_id}")],
+        [InlineKeyboardButton(text="📊 Прогресс", callback_data=f"progress_{goal_id}")],
+        [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"delete_goal_{goal_id}")]
+    ])
+
+
+# ============================================
+# === РЕЖИМ ДНЯ (РУТИНЫ) ===
+# ============================================
+
+def checklist_kb(items: list, checked: list, routine_type: str):
+    """Чеклист с кнопками"""
+    buttons = []
+    for i, item in enumerate(items):
+        emoji = "✅" if item in checked else "⬜"
+        buttons.append([InlineKeyboardButton(
+            text=f"{emoji} {item}",
+            callback_data=f"check_{routine_type}_{i}"
+        )])
+    
+    buttons.append([InlineKeyboardButton(
+        text="💾 Сохранить",
+        callback_data=f"save_{routine_type}"
+    )])
+    
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def mood_kb():
+    """Выбор настроения"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="😫 1", callback_data="mood_1"),
+            InlineKeyboardButton(text="😕 2", callback_data="mood_2"),
+            InlineKeyboardButton(text="😐 3", callback_data="mood_3"),
+            InlineKeyboardButton(text="🙂 4", callback_data="mood_4"),
+            InlineKeyboardButton(text="😄 5", callback_data="mood_5"),
+        ]
+    ])
+
+
+def setup_routine_kb():
+    """Настройка рутины"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="☀️ Утренняя рутина", callback_data="setup_morning")],
+        [InlineKeyboardButton(text="🌙 Вечерняя рутина", callback_data="setup_evening")],
+    ])
+
+
+# ============================================
+# === МЕНТАЛЬНОЕ ЗДОРОВЬЕ ===
+# ============================================
+
+def meditation_duration_kb():
+    """Выбор длительности медитации"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏱ 2 минуты", callback_data="med_2")],
+        [InlineKeyboardButton(text="⏱ 5 минут", callback_data="med_5")],
+        [InlineKeyboardButton(text="⏱ 10 минут", callback_data="med_10")],
+    ])
+
+
+def meditation_type_kb():
+    """Тип медитации"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="😌 Успокоение", callback_data="type_calm")],
+        [InlineKeyboardButton(text="🎯 Фокус", callback_data="type_focus")],
+        [InlineKeyboardButton(text="😴 Для сна", callback_data="type_sleep")],
+    ])
+
+
+def mood_scale_kb():
+    """Шкала настроения"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="😫", callback_data="mood_m_1"),
+            InlineKeyboardButton(text="😕", callback_data="mood_m_2"),
+            InlineKeyboardButton(text="😐", callback_data="mood_m_3"),
+            InlineKeyboardButton(text="🙂", callback_data="mood_m_4"),
+            InlineKeyboardButton(text="😄", callback_data="mood_m_5"),
+        ]
+    ])
+
+
+def energy_scale_kb():
+    """Шкала энергии"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🔋", callback_data="energy_1"),
+            InlineKeyboardButton(text="🔋🔋", callback_data="energy_2"),
+            InlineKeyboardButton(text="🔋🔋🔋", callback_data="energy_3"),
+            InlineKeyboardButton(text="🔋🔋🔋🔋", callback_data="energy_4"),
+            InlineKeyboardButton(text="⚡", callback_data="energy_5"),
+        ]
+    ])
+
+
+def mood_tags_kb(selected: list = None):
+    """Теги настроения"""
+    MOOD_TAGS = ["😴 Сон", "💼 Работа", "🏃 Спорт", "👥 Общение", "🍔 Еда", "📱 Соцсети", "😰 Стресс"]
+    selected = selected or []
+    buttons = []
+    
+    for i in range(0, len(MOOD_TAGS), 2):
+        row = []
+        for tag in MOOD_TAGS[i:i+2]:
+            emoji = "✅ " if tag in selected else ""
+            row.append(InlineKeyboardButton(
+                text=f"{emoji}{tag}",
+                callback_data=f"mtag_{MOOD_TAGS.index(tag)}"
+            ))
+        buttons.append(row)
+    
+    buttons.append([InlineKeyboardButton(text="💾 Сохранить", callback_data="save_mood")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+# ============================================
+# === ФИНАНСЫ ===
+# ============================================
+
+def category_kb():
+    """Выбор категории расходов"""
+    from database.db import EXPENSE_CATEGORIES
+    buttons = []
+    categories = list(EXPENSE_CATEGORIES.items())
+    
+    for i in range(0, len(categories), 2):
+        row = []
+        for key, name in categories[i:i+2]:
+            row.append(InlineKeyboardButton(text=name, callback_data=f"cat_{key}"))
+        buttons.append(row)
+    
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def expenses_period_kb():
+    """Выбор периода для просмотра"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 Сегодня", callback_data="exp_today")],
+        [InlineKeyboardButton(text="📅 Неделя", callback_data="exp_week")],
+        [InlineKeyboardButton(text="📅 Месяц", callback_data="exp_month")],
+    ])

@@ -35,7 +35,17 @@ MOODS = {'good': MOOD_GOOD, 'tired': MOOD_TIRED, 'pain': MOOD_PAIN}
 active_requests = {}
 last_messages = {}
 
-@router.message(F.text == "🛋️ Психолог")
+# Максимальное количество записей в кэше (для предотвращения утечек памяти)
+MAX_CACHE_SIZE = 1000
+
+def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
+    """Очистка кэша при превышении лимита"""
+    if len(cache_dict) > max_size:
+        keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
+        for key in keys_to_remove:
+            cache_dict.pop(key, None)
+
+@router.message(F.text.in_(["🛋️ Психолог", "🧘 Психолог"]))
 async def silas_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('silas')
     if not cfg['enabled']:
@@ -350,6 +360,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
         
         last_messages[user_id] = {"text": resp}
+        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
     finally:
         active_requests.pop(user_id, None)

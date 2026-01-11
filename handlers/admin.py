@@ -27,6 +27,10 @@ class MemEdit(StatesGroup):
 class GiveSub(StatesGroup):
     user_id = State()
 
+class GiveTokens(StatesGroup):
+    user_id = State()
+    amount = State()
+
 def is_adm(uid):
     return uid in ADMIN_IDS
 
@@ -253,6 +257,72 @@ async def unblock_user(cb: CallbackQuery):
     await cb.answer("✅ Разблокирован")
     await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
 
+# === ВЫДАЧА ТОКЕНОВ ===
+
+@router.callback_query(F.data.startswith("adm:givetokens:"))
+async def give_tokens_start(cb: CallbackQuery, state: FSMContext):
+    if not is_adm(cb.from_user.id):
+        return
+    uid = int(cb.data.split(":")[2])
+    await state.update_data(give_tokens_uid=uid)
+    await cb.message.edit_text(
+        f"💰 <b>Выдать токены</b>\n\n"
+        f"👤 ID: <code>{uid}</code>\n\n"
+        f"Введите количество токенов для выдачи:",
+        reply_markup=inline.back_kb("adm:back"))
+    await state.set_state(GiveTokens.amount)
+
+@router.message(GiveTokens.amount)
+async def give_tokens_amount(msg: Message, state: FSMContext):
+    if not is_adm(msg.from_user.id):
+        return
+    try:
+        amount = int(msg.text.strip())
+        if amount <= 0:
+            await msg.answer("❌ Введите положительное число")
+            return
+        
+        data = await state.get_data()
+        uid = data.get('give_tokens_uid')
+        
+        if not uid:
+            await msg.answer("❌ Ошибка: не найден ID пользователя")
+            await state.clear()
+            return
+        
+        # Выдаём токены
+        await db.add_tokens(uid, amount)
+        
+        # Получаем текущий баланс
+        user = await db.get_user(uid)
+        new_balance = user['tokens'] if user else 0
+        
+        # Уведомляем пользователя
+        try:
+            await bot.send_message(
+                uid,
+                f"🎉 <b>Вам выдано токенов!</b>\n\n"
+                f"💰 Количество: <b>{fmt(amount)}</b> токенов\n"
+                f"💳 Новый баланс: <b>{fmt(new_balance)}</b> токенов\n\n"
+                f"Спасибо за использование бота! 🙏"
+            )
+        except:
+            pass
+        
+        await msg.answer(
+            f"✅ <b>Токены выданы!</b>\n\n"
+            f"👤 ID: <code>{uid}</code>\n"
+            f"💰 Выдано: <b>{fmt(amount)}</b> токенов\n"
+            f"💳 Новый баланс: <b>{fmt(new_balance)}</b> токенов",
+            reply_markup=inline.back_kb("adm:back"))
+        
+        await state.clear()
+    except ValueError:
+        await msg.answer("❌ Введите число")
+    except Exception as e:
+        await msg.answer(f"❌ Ошибка: {e}")
+        await state.clear()
+
 # === ПОДПИСКИ ===
 
 @router.callback_query(F.data == "adm:sub")
@@ -305,46 +375,62 @@ async def sub_give_from_user(cb: CallbackQuery):
 async def give_sub_select(cb: CallbackQuery):
     if not is_adm(cb.from_user.id):
         return
-    parts = cb.data.split(":")
-    sub_type = parts[1]
-    days = int(parts[2])
-    uid = int(parts[3])
-    
-    await db.give_subscription(uid, days, sub_type)
-    
-    type_name = "🔵 Mini (Sonnet)" if sub_type == "mini" else "🟣 Standard (Opus)"
-    await cb.answer(f"✅ Подписка выдана!")
-    
-    # Начислить реферальный бонус
-    referrer_id = await db.get_referrer_id(uid)
-    if referrer_id:
-        bonus = 100000 if sub_type == 'mini' else 200000
-        await db.add_tokens(referrer_id, bonus)
-        await db.add_referral_reward(referrer_id, uid, bonus, sub_type)
+    try:
+        parts = cb.data.split(":")
+        sub_type = parts[1]
+        days = int(parts[2])
+        uid = int(parts[3])
+        
+        # Выдаём подписку
+        await db.give_subscription(uid, days, sub_type)
+        
+        # Проверяем что подписка создана
+        sub = await db.get_subscription(uid)
+        if not sub or not sub.get('is_active'):
+            await cb.answer("❌ Ошибка при создании подписки", show_alert=True)
+            return
+        
+        type_name = "🔵 Mini (Sonnet)" if sub_type == "mini" else "🟣 Standard (Opus)"
+        tokens_left = sub['tokens_limit'] - sub['tokens_used']
+        
+        await cb.answer(f"✅ Подписка выдана!")
+        
+        # Начислить реферальный бонус
+        referrer_id = await db.get_referrer_id(uid)
+        if referrer_id:
+            bonus = 100000 if sub_type == 'mini' else 200000
+            await db.add_tokens(referrer_id, bonus)
+            await db.add_referral_reward(referrer_id, uid, bonus, sub_type)
+            try:
+                await bot.send_message(
+                    referrer_id,
+                    f"🎉 <b>Реферальная награда!</b>\n\n"
+                    f"Ваш друг оформил {type_name}!\n"
+                    f"💰 Вам начислено: <b>{fmt(bonus)}</b> токенов!"
+                )
+            except:
+                pass
+        
         try:
-            await bot.send_message(
-                referrer_id,
-                f"🎉 <b>Реферальная награда!</b>\n\n"
-                f"Ваш друг оформил {type_name}!\n"
-                f"💰 Вам начислено: <b>{bonus:,}</b> токенов!"
-            )
+            await bot.send_message(uid, 
+                f"🎉 <b>Вам выдана подписка!</b>\n\n"
+                f"💎 Тариф: {type_name}\n"
+                f"🔢 Токенов: <b>{fmt(tokens_left)}</b>\n"
+                f"📅 Срок: {days} дней")
         except:
             pass
-    
-    try:
-        await bot.send_message(uid, 
-            f"🎉 <b>Вам выдана подписка!</b>\n\n"
+        
+        await cb.message.edit_text(
+            f"✅ <b>Подписка выдана!</b>\n\n"
+            f"👤 ID: <code>{uid}</code>\n"
             f"💎 Тариф: {type_name}\n"
-            f"📅 Срок: {days} дней")
-    except:
-        pass
-    
-    await cb.message.edit_text(
-        f"✅ <b>Подписка выдана!</b>\n\n"
-        f"👤 ID: <code>{uid}</code>\n"
-        f"💎 Тариф: {type_name}\n"
-        f"📅 Срок: {days} дней",
-        reply_markup=inline.back_kb("adm:sub"))
+            f"🔢 Токенов: <b>{fmt(tokens_left)}</b>\n"
+            f"📅 Срок: {days} дней",
+            reply_markup=inline.back_kb("adm:sub"))
+    except Exception as e:
+        await cb.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
+        import traceback
+        traceback.print_exc()
 
 @router.callback_query(F.data.startswith("sub:list:"))
 async def sub_list(cb: CallbackQuery):

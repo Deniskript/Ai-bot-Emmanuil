@@ -23,6 +23,16 @@ from loader import bot
 
 last_messages = {}
 
+# Максимальное количество записей в кэше (для предотвращения утечек памяти)
+MAX_CACHE_SIZE = 1000
+
+def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
+    """Очистка кэша при превышении лимита"""
+    if len(cache_dict) > max_size:
+        keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
+        for key in keys_to_remove:
+            cache_dict.pop(key, None)
+
 
 def build_course_context(course_mem, current_step=1, student_name=None):
     return build_smart_context(course_mem, current_step, student_name)
@@ -45,7 +55,7 @@ class TitusSt(StatesGroup):
 active_requests = {}
 
 
-@router.message(F.text == "📓 Обучение")
+@router.message(F.text.in_(["📓 Обучение", "📚 Обучение"]))
 async def titus_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('titus')
     if not cfg['enabled']:
@@ -200,6 +210,7 @@ async def create_course(msg: Message, state: FSMContext):
     await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp_clean)
     
     last_messages[msg.from_user.id] = {"text": resp_clean, "course": cname, "step": 1}
+    cleanup_cache(last_messages)  # Предотвращаем утечку памяти
     
     if len(resp_clean) >= 3000:
         preview = make_preview(resp_clean, 800)
@@ -440,6 +451,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         
         # Сохраняем в last_messages
         last_messages[msg.from_user.id] = {"text": resp_clean, "course": "Анализ видео", "step": 1}
+        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
         # Отправляем результат
         if len(resp_clean) >= 3000:
@@ -763,6 +775,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus', model)
         
         last_messages[user_id] = {"text": resp_clean, "course": cname, "step": current_step}
+        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         resp = resp_clean
                         
     finally:
@@ -989,6 +1002,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
     
     last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
+    cleanup_cache(last_messages)  # Предотвращаем утечку памяти
     
     if len(resp_clean) >= 3000:
         preview = make_preview(resp_clean, 800)
@@ -1123,6 +1137,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
         await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
         
         last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
+        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
         if len(resp_clean) >= 3000:
             preview = make_preview(resp_clean, 800)

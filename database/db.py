@@ -1,6 +1,6 @@
 import aiosqlite
 import json
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, List
 import os
 from config import DATABASE_PATH, NEW_USER_BONUS, MODEL as config_MODEL
@@ -60,6 +60,21 @@ async def migrate_referral_system():
         await db.commit()
 
 
+async def migrate_voice_mode():
+    """Миграция для голосового режима"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем есть ли колонка voice_gender
+        cursor = await db.execute("PRAGMA table_info(user_bots)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        
+        if 'voice_gender' not in column_names:
+            print("🔄 Миграция: добавление голосового режима...")
+            await db.execute("ALTER TABLE user_bots ADD COLUMN voice_gender TEXT DEFAULT NULL")
+            await db.commit()
+            print("✅ Голосовой режим добавлен!")
+
+
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.executescript("""
@@ -94,6 +109,7 @@ async def init_db():
         CREATE TABLE IF NOT EXISTS user_bots (
             user_id INTEGER, bot TEXT, character TEXT DEFAULT 'душевный',
             mood TEXT, custom_mood TEXT, msg_counter INTEGER DEFAULT 0,
+            voice_gender TEXT DEFAULT NULL,
             PRIMARY KEY(user_id, bot)
         );
         CREATE TABLE IF NOT EXISTS bot_memory (
@@ -154,6 +170,7 @@ async def init_db():
     # Запускаем миграции для существующих БД
     await migrate_token_usage_table()
     await migrate_referral_system()
+    await migrate_voice_mode()
 
 
 async def get_user(uid: int) -> Optional[Dict]:
@@ -243,12 +260,34 @@ async def get_user_bot(uid: int, bot: str) -> Dict:
         if r: return dict(r)
         await db.execute("INSERT INTO user_bots (user_id,bot) VALUES (?,?)", (uid, bot))
         await db.commit()
-        return {'user_id':uid,'bot':bot,'character':'душевный','mood':None,'custom_mood':None,'msg_counter':0}
+        return {'user_id':uid,'bot':bot,'character':'душевный','mood':None,'custom_mood':None,'msg_counter':0,'voice_gender':None}
 
 
 async def set_char(uid: int, char: str):
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("UPDATE user_bots SET character=? WHERE user_id=? AND bot='luca'", (char, uid))
+        await db.commit()
+
+
+async def get_voice_gender(uid: int, bot: str = 'voice') -> str:
+    """Получить выбранный голос пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("SELECT voice_gender FROM user_bots WHERE user_id=? AND bot=?", (uid, bot))
+        r = await c.fetchone()
+        return r[0] if r and r[0] else None
+
+
+async def set_voice_gender(uid: int, gender: str, bot: str = 'voice'):
+    """Установить выбранный голос"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем существует ли запись
+        c = await db.execute("SELECT 1 FROM user_bots WHERE user_id=? AND bot=?", (uid, bot))
+        exists = await c.fetchone()
+        
+        if exists:
+            await db.execute("UPDATE user_bots SET voice_gender=? WHERE user_id=? AND bot=?", (gender, uid, bot))
+        else:
+            await db.execute("INSERT INTO user_bots (user_id, bot, voice_gender) VALUES (?, ?, ?)", (uid, bot, gender))
         await db.commit()
 
 
@@ -772,6 +811,47 @@ async def init_subscription_tables():
         
         INSERT OR IGNORE INTO bot_settings VALUES ('model_mini', 'anthropic/claude-sonnet-4');
         INSERT OR IGNORE INTO bot_settings VALUES ('model_standard', 'anthropic/claude-opus-4');
+        """)
+        await db.commit()
+
+
+async def init_health_tables():
+    """Инициализация таблиц для раздела Здоровье"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.executescript("""
+        CREATE TABLE IF NOT EXISTS calories_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date DATE DEFAULT (date('now')),
+            time TIME DEFAULT (time('now')),
+            food_name TEXT,
+            portion TEXT,
+            calories INTEGER DEFAULT 0,
+            protein REAL DEFAULT 0,
+            fat REAL DEFAULT 0,
+            carbs REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_calories_log_user_date ON calories_log(user_id, date DESC);
+        
+        CREATE TABLE IF NOT EXISTS user_nutrition_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
+            goal TEXT,
+            daily_calories INTEGER DEFAULT 2000,
+            daily_protein INTEGER DEFAULT 80,
+            daily_fat INTEGER DEFAULT 60,
+            daily_carbs INTEGER DEFAULT 200,
+            weight REAL,
+            height INTEGER,
+            age INTEGER,
+            gender TEXT,
+            activity TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_nutrition_goals_user ON user_nutrition_goals(user_id);
         """)
         await db.commit()
 
@@ -1309,3 +1389,924 @@ async def get_user_referrals(uid: int, limit: int = 50) -> List[Dict]:
             LIMIT ?
         """, (uid, limit))
         return [dict(row) for row in await c.fetchall()]
+
+
+# ============================================
+# === ЗДОРОВЬЕ И КАЛОРИИ ===
+# ============================================
+
+async def save_calories_log(user_id: int, food_name: str, portion: str, 
+                            calories: int, protein: float, fat: float, carbs: float):
+    """Сохранить запись о еде в журнал"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO calories_log (user_id, food_name, portion, calories, protein, fat, carbs)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, food_name, portion, calories, protein, fat, carbs))
+        await db.commit()
+
+
+async def get_today_calories(user_id: int) -> Dict:
+    """Получить статистику калорий за сегодня"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT 
+                COALESCE(SUM(calories), 0) as calories,
+                COALESCE(SUM(protein), 0) as protein,
+                COALESCE(SUM(fat), 0) as fat,
+                COALESCE(SUM(carbs), 0) as carbs
+            FROM calories_log
+            WHERE user_id=? AND date=date('now')
+        """, (user_id,))
+        row = await c.fetchone()
+        return dict(row) if row else {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
+
+
+async def get_calories_logs(user_id: int, days: int = 0) -> List[Dict]:
+    """Получить логи за указанный день (0=сегодня, 1=вчера)"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM calories_log
+            WHERE user_id=? AND date=date('now', ?)
+            ORDER BY time DESC
+        """, (user_id, f'-{days} days' if days > 0 else ''))
+        return [dict(row) for row in await c.fetchall()]
+
+
+async def get_weekly_calories(user_id: int) -> List[Dict]:
+    """Получить статистику за неделю"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT 
+                date,
+                SUM(calories) as calories,
+                SUM(protein) as protein,
+                SUM(fat) as fat,
+                SUM(carbs) as carbs
+            FROM calories_log
+            WHERE user_id=? AND date >= date('now', '-7 days')
+            GROUP BY date
+            ORDER BY date DESC
+        """, (user_id,))
+        return [dict(row) for row in await c.fetchall()]
+
+
+async def get_monthly_calories(user_id: int) -> List[Dict]:
+    """Получить статистику за месяц"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT 
+                date,
+                SUM(calories) as calories,
+                SUM(protein) as protein,
+                SUM(fat) as fat,
+                SUM(carbs) as carbs
+            FROM calories_log
+            WHERE user_id=? AND date >= date('now', '-30 days')
+            GROUP BY date
+            ORDER BY date DESC
+        """, (user_id,))
+        return [dict(row) for row in await c.fetchall()]
+
+
+async def save_nutrition_goal(user_id: int, goal: str, daily_calories: int,
+                              daily_protein: int, daily_fat: int, daily_carbs: int,
+                              weight: float, height: int, age: int, gender: str, activity: str):
+    """Сохранить цель питания пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT OR REPLACE INTO user_nutrition_goals 
+            (user_id, goal, daily_calories, daily_protein, daily_fat, daily_carbs, 
+             weight, height, age, gender, activity, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (user_id, goal, daily_calories, daily_protein, daily_fat, daily_carbs,
+              weight, height, age, gender, activity))
+        await db.commit()
+
+
+async def get_nutrition_goal(user_id: int) -> Optional[Dict]:
+    """Получить цель питания пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM user_nutrition_goals WHERE user_id=?
+        """, (user_id,))
+        row = await c.fetchone()
+        return dict(row) if row else None
+
+
+# ============================================
+# === ТРЕКЕР ЦЕЛЕЙ ===
+# ============================================
+
+async def init_goals_tables():
+    """Инициализация таблиц для трекера целей"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.executescript("""
+        CREATE TABLE IF NOT EXISTS user_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            frequency TEXT NOT NULL,
+            target_count INTEGER DEFAULT 1,
+            period_days INTEGER DEFAULT 7,
+            reminder_time TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_goals_user ON user_goals(user_id, is_active);
+        
+        CREATE TABLE IF NOT EXISTS goal_checkins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            date DATE NOT NULL,
+            is_done INTEGER DEFAULT 1,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (goal_id) REFERENCES user_goals(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_goal_checkins_goal ON goal_checkins(goal_id, date);
+        CREATE INDEX IF NOT EXISTS idx_goal_checkins_user ON goal_checkins(user_id, date);
+        
+        CREATE TABLE IF NOT EXISTS user_streaks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            goal_id INTEGER NOT NULL,
+            current_streak INTEGER DEFAULT 0,
+            best_streak INTEGER DEFAULT 0,
+            last_checkin DATE,
+            FOREIGN KEY (user_id) REFERENCES users(user_id),
+            FOREIGN KEY (goal_id) REFERENCES user_goals(id) ON DELETE CASCADE,
+            UNIQUE(user_id, goal_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_streaks_user ON user_streaks(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_streaks_goal ON user_streaks(goal_id);
+        """)
+        await db.commit()
+
+
+async def get_active_goals(user_id: int) -> List[Dict]:
+    """Получает активные цели пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM user_goals
+            WHERE user_id = ? AND is_active = 1
+            ORDER BY created_at DESC
+        """, (user_id,))
+        return [dict(row) for row in await c.fetchall()]
+
+
+async def get_goal_by_id(goal_id: int) -> Optional[Dict]:
+    """Получает цель по ID"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("SELECT * FROM user_goals WHERE id = ?", (goal_id,))
+        row = await c.fetchone()
+        return dict(row) if row else None
+
+
+async def create_goal(user_id: int, title: str, frequency: str, target_count: int, 
+                      period_days: int, reminder_time: Optional[str] = None) -> int:
+    """Создаёт новую цель"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("""
+            INSERT INTO user_goals (user_id, title, frequency, target_count, period_days, reminder_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, title, frequency, target_count, period_days, reminder_time))
+        await db.commit()
+        return c.lastrowid
+
+
+async def create_streak(user_id: int, goal_id: int):
+    """Создаёт запись streak для цели"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT OR IGNORE INTO user_streaks (user_id, goal_id, current_streak, best_streak)
+            VALUES (?, ?, 0, 0)
+        """, (user_id, goal_id))
+        await db.commit()
+
+
+async def get_goal_streak(goal_id: int, user_id: int) -> Dict:
+    """Получает streak для цели"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM user_streaks
+            WHERE goal_id = ? AND user_id = ?
+        """, (goal_id, user_id))
+        row = await c.fetchone()
+        if row:
+            return dict(row)
+        # Если нет - создаём
+        await create_streak(user_id, goal_id)
+        return {'current_streak': 0, 'best_streak': 0, 'last_checkin': None}
+
+
+async def get_checkin_today(goal_id: int, user_id: int) -> Optional[Dict]:
+    """Проверяет есть ли отметка за сегодня"""
+    from datetime import date
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM goal_checkins
+            WHERE goal_id = ? AND user_id = ? AND date = ?
+        """, (goal_id, user_id, date.today().isoformat()))
+        row = await c.fetchone()
+        return dict(row) if row else None
+
+
+async def save_checkin(goal_id: int, user_id: int, is_done: bool = True, note: Optional[str] = None):
+    """Сохраняет отметку выполнения"""
+    from datetime import date
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO goal_checkins (goal_id, user_id, date, is_done, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (goal_id, user_id, date.today().isoformat(), 1 if is_done else 0, note))
+        await db.commit()
+
+
+async def update_streak(goal_id: int, user_id: int, current_streak: int, best_streak: int):
+    """Обновляет streak"""
+    from datetime import date
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            UPDATE user_streaks
+            SET current_streak = ?, best_streak = ?, last_checkin = ?
+            WHERE goal_id = ? AND user_id = ?
+        """, (current_streak, best_streak, date.today().isoformat(), goal_id, user_id))
+        await db.commit()
+
+
+async def get_goal_progress(goal_id: int, target: int, period: int) -> Dict:
+    """Получает прогресс цели за текущий период"""
+    from datetime import date, timedelta
+    start_date = (date.today() - timedelta(days=period)).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT COUNT(*) as done FROM goal_checkins
+            WHERE goal_id = ? AND date >= ? AND is_done = 1
+        """, (goal_id, start_date))
+        row = await c.fetchone()
+        done = row['done'] if row else 0
+        
+        return {
+            'done': done,
+            'target': target,
+            'percent': int(done / target * 100) if target > 0 else 0
+        }
+
+
+async def get_total_streak(user_id: int) -> int:
+    """Получает общий streak пользователя (сумма всех активных streak)"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT COALESCE(SUM(current_streak), 0) as total
+            FROM user_streaks
+            WHERE user_id = ?
+        """, (user_id,))
+        row = await c.fetchone()
+        return row['total'] if row else 0
+
+
+async def delete_goal(goal_id: int):
+    """Деактивирует цель (не удаляет из БД)"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("UPDATE user_goals SET is_active = 0 WHERE id = ?", (goal_id,))
+        await db.commit()
+
+
+async def get_monthly_stats(user_id: int) -> Dict:
+    """Получает статистику за 30 дней"""
+    from datetime import date, timedelta
+    
+    start_date = (date.today() - timedelta(days=30)).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        
+        # Всего выполнено
+        c = await db.execute("""
+            SELECT COUNT(*) as done FROM goal_checkins
+            WHERE user_id = ? AND date >= ? AND is_done = 1
+        """, (user_id, start_date))
+        done = (await c.fetchone())['done']
+        
+        # Всего пропущено
+        c = await db.execute("""
+            SELECT COUNT(*) as skipped FROM goal_checkins
+            WHERE user_id = ? AND date >= ? AND is_done = 0
+        """, (user_id, start_date))
+        skipped = (await c.fetchone())['skipped']
+        
+        total = done + skipped
+        percent = int(done / total * 100) if total > 0 else 0
+        
+        # Статистика по неделям
+        weeks = []
+        for i in range(4):
+            week_start = (date.today() - timedelta(days=(i+1)*7)).isoformat()
+            week_end = (date.today() - timedelta(days=i*7)).isoformat()
+            
+            c = await db.execute("""
+                SELECT 
+                    COUNT(CASE WHEN is_done = 1 THEN 1 END) as week_done,
+                    COUNT(*) as week_total
+                FROM goal_checkins
+                WHERE user_id = ? AND date >= ? AND date < ?
+            """, (user_id, week_start, week_end))
+            row = await c.fetchone()
+            
+            week_total = row['week_total'] if row else 0
+            week_done = row['week_done'] if row else 0
+            week_percent = int(week_done / week_total * 100) if week_total > 0 else 0
+            
+            weeks.append({
+                'label': f'Неделя {4-i}',
+                'percent': week_percent,
+                'done': week_done,
+                'total': week_total
+            })
+        
+        weeks.reverse()
+        
+        return {
+            'done': done,
+            'skipped': skipped,
+            'total': total,
+            'percent': percent,
+            'weeks': weeks
+        }
+
+
+# ============================================
+# === РЕЖИМ ДНЯ (РУТИНЫ) ===
+# ============================================
+
+async def init_routine_tables():
+    """Инициализация таблиц для режима дня"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.executescript("""
+        CREATE TABLE IF NOT EXISTS user_routines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            routine_type TEXT NOT NULL,
+            items TEXT NOT NULL,
+            reminder_time TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id),
+            UNIQUE(user_id, routine_type)
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_routines_user ON user_routines(user_id, routine_type);
+        
+        CREATE TABLE IF NOT EXISTS routine_checkins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            routine_type TEXT NOT NULL,
+            date DATE NOT NULL,
+            completed_items TEXT NOT NULL,
+            total_items INTEGER NOT NULL,
+            completion_percent INTEGER NOT NULL,
+            reflection TEXT,
+            mood INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_routine_checkins_user ON routine_checkins(user_id, routine_type, date);
+        """)
+        await db.commit()
+
+
+async def get_user_routine(user_id: int, routine_type: str) -> Optional[Dict]:
+    """Получить рутину пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM user_routines
+            WHERE user_id = ? AND routine_type = ?
+        """, (user_id, routine_type))
+        row = await c.fetchone()
+        if row:
+            result = dict(row)
+            # Декодируем JSON
+            import json
+            result['items'] = json.loads(result['items'])
+            return result
+        return None
+
+
+async def save_user_routine(user_id: int, routine_type: str, items: List[str], reminder_time: Optional[str] = None):
+    """Сохранить рутину пользователя"""
+    import json
+    items_json = json.dumps(items, ensure_ascii=False)
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO user_routines (user_id, routine_type, items, reminder_time)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, routine_type) 
+            DO UPDATE SET items=excluded.items, reminder_time=excluded.reminder_time
+        """, (user_id, routine_type, items_json, reminder_time))
+        await db.commit()
+
+
+async def get_today_routine_checkin(user_id: int, routine_type: str) -> Optional[Dict]:
+    """Получить отметку рутины за сегодня"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM routine_checkins
+            WHERE user_id = ? AND routine_type = ? AND date = ?
+        """, (user_id, routine_type, date.today().isoformat()))
+        row = await c.fetchone()
+        if row:
+            result = dict(row)
+            # Декодируем JSON
+            import json
+            result['completed_items'] = json.loads(result['completed_items'])
+            return result
+        return None
+
+
+async def save_routine_checkin(user_id: int, routine_type: str, completed_items: List[str], 
+                               total_items: int, completion_percent: int, 
+                               reflection: Optional[str] = None, mood: Optional[int] = None):
+    """Сохранить отметку рутины"""
+    import json
+    completed_json = json.dumps(completed_items, ensure_ascii=False)
+    today = date.today().isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем есть ли уже запись
+        c = await db.execute("""
+            SELECT id FROM routine_checkins
+            WHERE user_id = ? AND routine_type = ? AND date = ?
+        """, (user_id, routine_type, today))
+        existing = await c.fetchone()
+        
+        if existing:
+            # Обновляем
+            await db.execute("""
+                UPDATE routine_checkins
+                SET completed_items = ?, total_items = ?, completion_percent = ?, 
+                    reflection = ?, mood = ?
+                WHERE user_id = ? AND routine_type = ? AND date = ?
+            """, (completed_json, total_items, completion_percent, reflection, mood, 
+                  user_id, routine_type, today))
+        else:
+            # Создаём новую
+            await db.execute("""
+                INSERT INTO routine_checkins 
+                (user_id, routine_type, date, completed_items, total_items, 
+                 completion_percent, reflection, mood)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, routine_type, today, completed_json, total_items, 
+                  completion_percent, reflection, mood))
+        
+        await db.commit()
+
+
+async def get_routine_stats(user_id: int, days: int = 7) -> Dict:
+    """Получить статистику рутин за N дней"""
+    from datetime import date, timedelta
+    start_date = (date.today() - timedelta(days=days)).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM routine_checkins
+            WHERE user_id = ? AND date >= ?
+            ORDER BY date
+        """, (user_id, start_date))
+        checkins = [dict(row) for row in await c.fetchall()]
+    
+    # Группируем по типу и дате
+    morning_stats = []
+    evening_stats = []
+    
+    for i in range(days):
+        day = date.today() - timedelta(days=days-1-i)
+        day_str = day.strftime("%d.%m")
+        day_iso = day.isoformat()
+        
+        morning = next((c for c in checkins if c['date'] == day_iso and c['routine_type'] == "morning"), None)
+        evening = next((c for c in checkins if c['date'] == day_iso and c['routine_type'] == "evening"), None)
+        
+        morning_stats.append({
+            "date": day_str,
+            "percent": morning['completion_percent'] if morning else 0
+        })
+        evening_stats.append({
+            "date": day_str,
+            "percent": evening['completion_percent'] if evening else 0,
+            "mood": evening['mood'] if evening else 0
+        })
+    
+    avg_percent = sum(m['percent'] for m in morning_stats) / len(morning_stats) if morning_stats else 0
+    moods = [e['mood'] for e in evening_stats if e['mood'] and e['mood'] > 0]
+    avg_mood = sum(moods) / len(moods) if moods else 0
+    
+    return {
+        "morning": morning_stats,
+        "evening": evening_stats,
+        "avg_percent": int(avg_percent),
+        "avg_mood": avg_mood
+    }
+
+
+# ============================================
+# === МЕНТАЛЬНОЕ ЗДОРОВЬЕ ===
+# ============================================
+
+async def init_mental_tables():
+    """Инициализация таблиц для ментального здоровья"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.executescript("""
+        CREATE TABLE IF NOT EXISTS mood_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date DATE NOT NULL,
+            mood INTEGER NOT NULL,
+            energy INTEGER NOT NULL,
+            note TEXT,
+            tags TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_mood_logs_user ON mood_logs(user_id, date);
+        
+        CREATE TABLE IF NOT EXISTS meditation_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date DATE NOT NULL,
+            duration INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_meditation_logs_user ON meditation_logs(user_id, date);
+        """)
+        await db.commit()
+
+
+async def get_today_mood(user_id: int) -> Optional[Dict]:
+    """Получить настроение за сегодня"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM mood_logs
+            WHERE user_id = ? AND date = ?
+        """, (user_id, date.today().isoformat()))
+        row = await c.fetchone()
+        if row:
+            result = dict(row)
+            # Декодируем JSON теги
+            import json
+            if result.get('tags'):
+                result['tags'] = json.loads(result['tags'])
+            return result
+        return None
+
+
+async def save_mood_log(user_id: int, mood: int, energy: int, tags: List[str], note: str = None):
+    """Сохранить запись настроения"""
+    import json
+    tags_json = json.dumps(tags, ensure_ascii=False) if tags else "[]"
+    today = date.today().isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем есть ли уже запись
+        c = await db.execute("""
+            SELECT id FROM mood_logs
+            WHERE user_id = ? AND date = ?
+        """, (user_id, today))
+        existing = await c.fetchone()
+        
+        if existing:
+            # Обновляем
+            await db.execute("""
+                UPDATE mood_logs
+                SET mood = ?, energy = ?, tags = ?, note = ?
+                WHERE user_id = ? AND date = ?
+            """, (mood, energy, tags_json, note, user_id, today))
+        else:
+            # Создаём новую
+            await db.execute("""
+                INSERT INTO mood_logs (user_id, date, mood, energy, tags, note)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (user_id, today, mood, energy, tags_json, note))
+        
+        await db.commit()
+
+
+async def save_meditation_log(user_id: int, duration: int, med_type: str):
+    """Сохранить запись медитации"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO meditation_logs (user_id, date, duration, type)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, date.today().isoformat(), duration, med_type))
+        await db.commit()
+
+
+async def get_meditation_streak(user_id: int) -> int:
+    """Получить streak медитаций"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT DISTINCT date FROM meditation_logs
+            WHERE user_id = ?
+            ORDER BY date DESC
+        """, (user_id,))
+        dates = [row['date'] for row in await c.fetchall()]
+    
+    if not dates:
+        return 0
+    
+    streak = 0
+    expected = date.today().isoformat()
+    
+    for d in dates:
+        if d == expected:
+            streak += 1
+            expected = (date.fromisoformat(d) - timedelta(days=1)).isoformat()
+        elif d < expected:
+            break
+    
+    return streak
+
+
+async def get_mood_stats(user_id: int, days: int = 14) -> Dict:
+    """Получить статистику настроения за N дней"""
+    start_date = (date.today() - timedelta(days=days)).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM mood_logs
+            WHERE user_id = ? AND date >= ?
+            ORDER BY date
+        """, (user_id, start_date))
+        logs = [dict(row) for row in await c.fetchall()]
+    
+    if not logs:
+        return {"logs": [], "avg_mood": 0, "avg_energy": 0, "top_tag": None}
+    
+    # Собираем статистику
+    mood_sum = sum(l['mood'] for l in logs)
+    energy_sum = sum(l['energy'] for l in logs)
+    
+    # Считаем теги
+    import json
+    from collections import Counter
+    all_tags = []
+    for l in logs:
+        if l.get('tags'):
+            tags = json.loads(l['tags'])
+            all_tags.extend(tags)
+    
+    tag_counts = Counter(all_tags)
+    top_tag = tag_counts.most_common(1)[0][0] if tag_counts else None
+    
+    return {
+        "logs": [{"date": date.fromisoformat(l['date']).strftime("%d.%m"), "mood": l['mood']} for l in logs],
+        "avg_mood": mood_sum / len(logs),
+        "avg_energy": energy_sum / len(logs),
+        "top_tag": top_tag
+    }
+
+
+# ============================================
+# === ФИНАНСЫ ===
+# ============================================
+
+# Категории расходов
+EXPENSE_CATEGORIES = {
+    "food": "🍔 Еда",
+    "transport": "🚗 Транспорт",
+    "entertainment": "🎬 Развлечения",
+    "shopping": "🛍 Покупки",
+    "health": "💊 Здоровье",
+    "bills": "🏠 Счета и ЖКХ",
+    "education": "📚 Образование",
+    "other": "📦 Другое"
+}
+
+
+async def init_finance_tables():
+    """Инициализация таблиц для финансов"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Создаем таблицу транзакций
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            currency TEXT DEFAULT 'RUB',
+            category TEXT NOT NULL,
+            description TEXT NOT NULL,
+            date TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
+        # Создаем индекс
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id)
+        """)
+        
+        # Создаем таблицу бюджетов
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS user_budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE,
+            monthly_limit REAL NOT NULL,
+            category_limits TEXT,
+            currency TEXT DEFAULT 'RUB',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
+        await db.commit()
+
+
+async def save_transaction(user_id: int, trans_type: str, amount: float, category: str, description: str):
+    """Сохранить транзакцию"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO transactions (user_id, type, amount, category, description, date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, trans_type, amount, category, description, date.today().isoformat()))
+        await db.commit()
+
+
+async def get_month_expenses(user_id: int) -> Dict:
+    """Получить расходы за текущий месяц"""
+    start_date = date.today().replace(day=1).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM transactions
+            WHERE user_id = ? AND type = 'expense' AND date >= ?
+        """, (user_id, start_date))
+        row = await c.fetchone()
+        return {"total": row['total'] if row else 0}
+
+
+async def get_month_total(user_id: int) -> float:
+    """Получить общую сумму расходов за месяц"""
+    stats = await get_month_expenses(user_id)
+    return stats["total"]
+
+
+async def get_expenses_by_period(user_id: int, start_date: date) -> List[Dict]:
+    """Получить расходы за период"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM transactions
+            WHERE user_id = ? AND type = 'expense' AND date >= ?
+            ORDER BY date DESC
+        """, (user_id, start_date.isoformat()))
+        return [dict(row) for row in await c.fetchall()]
+
+
+async def get_user_budget(user_id: int) -> Optional[Dict]:
+    """Получить бюджет пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM user_budgets WHERE user_id = ?
+        """, (user_id,))
+        row = await c.fetchone()
+        return dict(row) if row else None
+
+
+async def save_user_budget(user_id: int, monthly_limit: float):
+    """Сохранить бюджет пользователя"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Проверяем существует ли бюджет
+        c = await db.execute("SELECT id FROM user_budgets WHERE user_id = ?", (user_id,))
+        existing = await c.fetchone()
+        
+        if existing:
+            await db.execute("""
+                UPDATE user_budgets
+                SET monthly_limit = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """, (monthly_limit, user_id))
+        else:
+            await db.execute("""
+                INSERT INTO user_budgets (user_id, monthly_limit)
+                VALUES (?, ?)
+            """, (user_id, monthly_limit))
+        
+        await db.commit()
+
+
+async def get_top_categories(user_id: int, limit: int = 5) -> List[tuple]:
+    """Получить топ категорий по расходам"""
+    start_date = date.today().replace(day=1).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT category, SUM(amount) as total
+            FROM transactions
+            WHERE user_id = ? AND type = 'expense' AND date >= ?
+            GROUP BY category
+            ORDER BY total DESC
+            LIMIT ?
+        """, (user_id, start_date, limit))
+        return [(row['category'], row['total']) for row in await c.fetchall()]
+
+
+async def get_average_expense(user_id: int) -> float:
+    """Получить средний чек"""
+    start_date = date.today().replace(day=1).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("""
+            SELECT AVG(amount) as avg_amount
+            FROM transactions
+            WHERE user_id = ? AND type = 'expense' AND date >= ?
+        """, (user_id, start_date))
+        row = await c.fetchone()
+        return row[0] if row and row[0] else 0
+
+
+async def get_max_expense(user_id: int) -> Optional[Dict]:
+    """Получить максимальную трату"""
+    start_date = date.today().replace(day=1).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT * FROM transactions
+            WHERE user_id = ? AND type = 'expense' AND date >= ?
+            ORDER BY amount DESC
+            LIMIT 1
+        """, (user_id, start_date))
+        row = await c.fetchone()
+        return dict(row) if row else None
+
+
+async def get_last_month_total(user_id: int) -> float:
+    """Получить расходы за прошлый месяц"""
+    today = date.today()
+    # Первый день прошлого месяца
+    last_month_end = today.replace(day=1) - timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        c = await db.execute("""
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM transactions
+            WHERE user_id = ? AND type = 'expense' 
+            AND date >= ? AND date <= ?
+        """, (user_id, last_month_start.isoformat(), last_month_end.isoformat()))
+        row = await c.fetchone()
+        return row[0] if row else 0
+
+
+async def get_month_expenses_detailed(user_id: int) -> Dict:
+    """Получить детальную статистику расходов за месяц"""
+    start_date = date.today().replace(day=1).isoformat()
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        c = await db.execute("""
+            SELECT category, SUM(amount) as total, COUNT(*) as count
+            FROM transactions
+            WHERE user_id = ? AND type = 'expense' AND date >= ?
+            GROUP BY category
+            ORDER BY total DESC
+        """, (user_id, start_date))
+        
+        result = {}
+        for row in await c.fetchall():
+            cat_name = EXPENSE_CATEGORIES.get(row['category'], row['category'])
+            result[cat_name] = {
+                'total': row['total'],
+                'count': row['count']
+            }
+        
+        return result

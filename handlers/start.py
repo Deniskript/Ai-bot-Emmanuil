@@ -213,7 +213,7 @@ async def reg_gender(cb: CallbackQuery, state: FSMContext):
         f"Попробуйте бесплатно"
     )
     
-    await cb.message.answer("Выберите раздел:", reply_markup=reply.main_kb(msg.from_user.id))
+    await cb.message.answer("Выберите раздел:", reply_markup=reply.main_kb(cb.from_user.id))
 
 # === МЕНЮ БОТОВ ===
 @router.message(F.text == "🫧 Soul AI")

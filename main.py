@@ -5,7 +5,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeCha
 from loader import bot, dp
 from database.db import init_db, init_subscription_tables
 from database import db as database
-from handlers import start, emmanuil, luca, silas, titus, admin, subscription, images
+from handlers import start, emmanuil, luca, silas, titus, admin, subscription, images, viral_analysis, lifestyle, health, goals, routine, mental, finance
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -41,17 +41,29 @@ async def main():
         await database.init_texts_tables()
         await init_subscription_tables()
         await database.init_course_memory_table()
+        await database.init_health_tables()
+        await database.init_goals_tables()
+        await database.init_routine_tables()
+        await database.init_mental_tables()
+        await database.init_finance_tables()
         
         # Установка команд бота
         await set_bot_commands()
         
         # Подключение роутеров
         dp.include_router(images.router)  # Moved up for state priority
+        dp.include_router(viral_analysis.router)  # Viral content analysis
+        dp.include_router(health.router)  # Health & Calories
+        dp.include_router(goals.router)  # Goals Tracker
+        dp.include_router(routine.router)  # Daily Routine
+        dp.include_router(mental.router)  # Mental Health
+        dp.include_router(finance.router)  # Finance Tracker
+        dp.include_router(lifestyle.router)  # Lifestyle
         dp.include_router(admin.router)
         dp.include_router(subscription.router)
         dp.include_router(start.router)
         dp.include_router(emmanuil.router)
-        dp.include_router(luca.router)
+        dp.include_router(luca.router)  # Includes voice mode
         dp.include_router(silas.router)
         dp.include_router(titus.router)
         
