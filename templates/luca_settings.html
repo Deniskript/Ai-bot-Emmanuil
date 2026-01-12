@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Настройки диалога</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 24px;
+            animation: fadeIn 0.5s;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.4s;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: #888;
+            margin-top: 12px;
+            line-height: 1.5;
+        }
+
+        /* Кнопки выбора режима */
+        .choice-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .choice-btn {
+            padding: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .choice-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .choice-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .choice-btn .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .choice-btn .label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .choice-btn.active .label {
+            color: #667eea;
+        }
+
+        /* Toggle switch */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toggle-label {
+            font-size: 15px;
+            color: #333;
+        }
+
+        .toggle {
+            position: relative;
+            width: 52px;
+            height: 28px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Секция настроек голоса */
+        .voice-settings {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+            display: none;
+        }
+
+        .voice-settings.visible {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        .voice-settings-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        /* Заглушка клонирования */
+        .coming-soon-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffd700 0%, #ffb800 100%);
+            color: #333;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+            font-weight: 600;
+        }
+
+        .clone-section {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px dashed #ddd;
+            text-align: center;
+        }
+
+        .clone-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .clone-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .clone-description {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* Кнопки действий */
+        .save-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .save-btn:active {
+            transform: translateY(0);
+        }
+
+        .save-btn.success {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        }
+
+        .save-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .back-btn {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Toast уведомление */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✨ Настройки диалога</h1>
+            <p>Персонализируй своего AI-помощника</p>
+        </div>
+
+        <!-- Режим общения -->
+        <div class="card">
+            <div class="card-title">☯️ Режим общения</div>
+            <div class="choice-buttons">
+                <div class="choice-btn active" id="btn-soul" onclick="selectCharacter('soul')">
+                    <div class="icon">🕊</div>
+                    <div class="label">Душа</div>
+                </div>
+                <div class="choice-btn" id="btn-mind" onclick="selectCharacter('mind')">
+                    <div class="icon">💡</div>
+                    <div class="label">Разум</div>
+                </div>
+            </div>
+            <div class="card-description" id="character-desc">
+                🕊 Мягкий, понимающий. Для разговоров о чувствах и переживаниях.
+            </div>
+        </div>
+
+        <!-- Голосовые ответы -->
+        <div class="card">
+            <div class="card-title">🔊 Голосовые ответы</div>
+            <div class="toggle-row">
+                <span class="toggle-label">AI отвечает голосом</span>
+                <label class="toggle">
+                    <input type="checkbox" id="voice-toggle" onchange="toggleVoice()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            
+            <div class="voice-settings" id="voice-settings">
+                <div class="voice-settings-title">Выбери голос:</div>
+                <div class="choice-buttons">
+                    <div class="choice-btn" id="btn-male" onclick="selectVoice('male')">
+                        <div class="icon">👨</div>
+                        <div class="label">Мужской</div>
+                    </div>
+                    <div class="choice-btn active" id="btn-female" onclick="selectVoice('female')">
+                        <div class="icon">👩</div>
+                        <div class="label">Женский</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Клонирование голоса (скоро) -->
+        <div class="card">
+            <div class="card-title">
+                🎤 Клонирование голоса
+                <span class="coming-soon-badge">СКОРО</span>
+            </div>
+            <div class="clone-section">
+                <div class="clone-icon">🎙</div>
+                <div class="clone-title">AI будет говорить твоим голосом</div>
+                <div class="clone-description">Запиши 30 секунд речи и получи свой уникальный голос</div>
+            </div>
+        </div>
+
+        <!-- Кнопка сохранения -->
+        <button class="save-btn" id="save-btn" onclick="saveSettings()">
+            💾 Сохранить настройки
+        </button>
+
+        <button class="back-btn" onclick="Telegram.WebApp.close()">
+            ← Вернуться в бот
+        </button>
+    </div>
+
+    <!-- Toast уведомление -->
+    <div class="toast" id="toast">Настройки сохранены!</div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+        
+        // Текущие настройки
+        let settings = {
+            character: 'soul',
+            voice_enabled: false,
+            voice_gender: 'female'
+        };
+        
+        // Описания режимов
+        const descriptions = {
+            'soul': '🕊 Мягкий, понимающий. Для разговоров о чувствах и переживаниях.',
+            'mind': '💡 Чёткий, деловой. Для задач, решений и планирования.'
+        };
+        
+        // Загрузка настроек при открытии
+        async function loadSettings() {
+            if (!userId) return;
+            
+            try {
+                const response = await fetch(`/luca/settings/load?user_id=${userId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    settings = data.settings;
+                    applySettings();
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+            }
+        }
+        
+        // Применить настройки к UI
+        function applySettings() {
+            // Режим
+            selectCharacter(settings.character);
+            
+            // Голос
+            document.getElementById('voice-toggle').checked = settings.voice_enabled;
+            if (settings.voice_enabled) {
+                document.getElementById('voice-settings').classList.add('visible');
+            }
+            selectVoice(settings.voice_gender);
+        }
+        
+        // Выбор режима
+        function selectCharacter(value) {
+            settings.character = value;
+            
+            document.getElementById('btn-soul').classList.remove('active');
+            document.getElementById('btn-mind').classList.remove('active');
+            document.getElementById('btn-' + value).classList.add('active');
+            document.getElementById('character-desc').textContent = descriptions[value];
+        }
+        
+        // Вкл/выкл голоса
+        function toggleVoice() {
+            settings.voice_enabled = document.getElementById('voice-toggle').checked;
+            const voiceSettings = document.getElementById('voice-settings');
+            
+            if (settings.voice_enabled) {
+                voiceSettings.classList.add('visible');
+            } else {
+                voiceSettings.classList.remove('visible');
+            }
+        }
+        
+        // Выбор голоса
+        function selectVoice(value) {
+            settings.voice_gender = value;
+            
+            document.getElementById('btn-male').classList.remove('active');
+            document.getElementById('btn-female').classList.remove('active');
+            document.getElementById('btn-' + value).classList.add('active');
+        }
+        
+        // Сохранение настроек
+        async function saveSettings() {
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Сохраняю...';
+            
+            try {
+                const response = await fetch('/luca/settings/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        ...settings
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    btn.textContent = '✓ Сохранено!';
+                    btn.classList.add('success');
+                    showToast('Настройки сохранены!');
+                } else {
+                    throw new Error(data.error);
+                }
+                
+                setTimeout(() => {
+                    btn.textContent = '💾 Сохранить настройки';
+                    btn.classList.remove('success');
+                    btn.disabled = false;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Save error:', error);
+                btn.textContent = '❌ Ошибка';
+                showToast('Ошибка сохранения');
+                btn.disabled = false;
+            }
+        }
+        
+        // Toast уведомление
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+        
+        // Загружаем настройки при старте
+        loadSettings();
+    </script>
+</body>
+</html>

@@ -46,7 +46,7 @@ async def transcribe_voice(file_path: str) -> str:
             os.remove(file_path)
 
 
-async def text_to_speech(text: str, voice: str = "nova") -> str:
+async def text_to_speech(text: str, voice: str = "shimmer") -> str:
     """
     Преобразует текст в речь через OpenAI TTS API
     

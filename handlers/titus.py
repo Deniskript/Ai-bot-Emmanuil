@@ -705,7 +705,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                         
                         if now - last_update >= 0.5:
                             from utils.telegraph import clean_html_for_telegram
-from utils.errors import check_tokens_and_notify
+                            from utils.errors import check_tokens_and_notify
                             formatted = clean_html_for_telegram(displayed_text)
                             try:
                                 await stream_msg.edit_text(formatted + " ▌")

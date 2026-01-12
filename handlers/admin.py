@@ -641,7 +641,7 @@ async def memory_bot(cb: CallbackQuery):
     bot_name = parts[3]
     
     facts = await db.get_memory(uid, bot_name)
-    bot_names = {'luca': '💭 Диалог', 'silas': '🛋️ Психолог', 'titus': '📓 Обучение'}
+    bot_names = {'luca': '💭 Диалог', 'silas': '🛋️ Психолог', 'titus': '📓 Обучение', 'voice': '🎤 Голос'}
     
     await cb.message.edit_text(
         f"🧠 <b>{bot_names.get(bot_name, bot_name)}</b>\n"
@@ -690,7 +690,7 @@ async def memory_delete_fact(cb: CallbackQuery):
     await cb.answer("🗑 Факт удалён")
     
     facts = await db.get_memory(uid, bot_name)
-    bot_names = {'luca': '💭 Диалог', 'silas': '🛋️ Психолог', 'titus': '📓 Обучение'}
+    bot_names = {'luca': '💭 Диалог', 'silas': '🛋️ Психолог', 'titus': '📓 Обучение', 'voice': '🎤 Голос'}
     await cb.message.edit_text(
         f"🧠 <b>{bot_names.get(bot_name, bot_name)}</b>\n"
         f"👤 ID: <code>{uid}</code>\n\n"

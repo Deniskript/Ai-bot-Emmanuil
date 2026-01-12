@@ -8,8 +8,23 @@ from database.db import get_conversation, get_conversation_messages, get_user, g
 import aiosqlite
 import html
 import re
+import redis
 
 app = Flask(__name__, template_folder='templates')
+
+# Redis клиент для хранения настроек
+try:
+    redis_client = redis.Redis(
+        host='localhost',
+        port=6379,
+        db=0,
+        decode_responses=True
+    )
+    redis_client.ping()
+    print("✅ Redis connected")
+except Exception as e:
+    print(f"⚠️ Redis connection failed: {e}")
+    redis_client = None
 
 # HTML темп лейт для отображения чата
 CHAT_TEMPLATE = """
@@ -461,6 +476,74 @@ def help_page():
     except Exception as e:
         print(f"Error loading help: {e}")
         return f"Error: {e}", 500
+
+
+@app.route('/luca/settings')
+def luca_settings():
+    """Telegram Mini App - Настройки Luca"""
+    user_id = request.args.get('user_id', '')
+    return render_template('luca_settings.html', user_id=user_id)
+
+
+@app.route('/luca/settings/save', methods=['POST'])
+def luca_settings_save():
+    """API для сохранения настроек Luca в Redis"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        settings_key = f"luca:settings:{user_id}"
+        
+        if redis_client:
+            redis_client.hset(settings_key, mapping={
+                'character': data.get('character', 'soul'),
+                'voice_enabled': '1' if data.get('voice_enabled') else '0',
+                'voice_gender': data.get('voice_gender', 'female')
+            })
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Redis not available'}), 500
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/luca/settings/load', methods=['GET'])
+def luca_settings_load():
+    """API для загрузки настроек Luca из Redis"""
+    try:
+        user_id = request.args.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        settings_key = f"luca:settings:{user_id}"
+        
+        if redis_client:
+            data = redis_client.hgetall(settings_key)
+            
+            if data:
+                settings = {
+                    'character': data.get('character', 'soul'),
+                    'voice_enabled': data.get('voice_enabled', '0') == '1',
+                    'voice_gender': data.get('voice_gender', 'female')
+                }
+            else:
+                settings = {
+                    'character': 'soul',
+                    'voice_enabled': False,
+                    'voice_gender': 'female'
+                }
+            
+            return jsonify({'success': True, 'settings': settings})
+        else:
+            return jsonify({'success': False, 'error': 'Redis not available'}), 500
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/images/settings')

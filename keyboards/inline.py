@@ -131,12 +131,10 @@ def skip_kb(callback: str):
         [InlineKeyboardButton(text="⏭ Пропустить", callback_data=callback)]
     ])
 
-def voice_gender_kb():
-    """Выбор голоса для голосового режима"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👨 Мужской", callback_data="voice:gender:male")],
-        [InlineKeyboardButton(text="👩 Женский", callback_data="voice:gender:female")]
-    ])
+# ============================================
+# === LUKA VOICE - ПЕРЕНЕСЕНО В handlers/luka/keyboards.py ===
+# ============================================
+# Функция voice_gender_kb теперь находится в автономном модуле handlers/luka/
 
 # === АДМИНКА ===
 
@@ -297,7 +295,7 @@ def memory_users_kb(users: list, page: int, total_pages: int):
 
 def memory_user_bots_kb(uid: int, bots: dict):
     kb = []
-    bot_names = {'luca': '💭 Диалог', 'silas': '🛋️ Психолог', 'titus': '📓 Обучение'}
+    bot_names = {'luca': '💭 Диалог', 'silas': '🛋️ Психолог', 'titus': '📓 Обучение', 'voice': '🎤 Голос'}
     for bot, facts in bots.items():
         name = bot_names.get(bot, bot)
         kb.append([InlineKeyboardButton(

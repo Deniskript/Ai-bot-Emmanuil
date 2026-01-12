@@ -27,8 +27,8 @@ class VoiceSt(StatesGroup):
 
 # Мапинг голосов
 VOICE_MAP = {
-    "male": "onyx",    # Мужской голос
-    "female": "nova"   # Женский голос
+    "male": "onyx",      # Мужской голос
+    "female": "shimmer"  # Женский голос (мягкий, тёплый)
 }
 
 

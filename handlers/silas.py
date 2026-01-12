@@ -277,7 +277,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         else:
             from utils.openrouter import ask_stream
             from utils.tokens import calculate_tokens
-from utils.errors import check_tokens_and_notify
+            from utils.errors import check_tokens_and_notify
             import time
             
             full_response = ""

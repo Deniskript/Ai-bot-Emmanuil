@@ -28,29 +28,11 @@ def back_kb():
 # === ДИАЛОГ (Soul AI) ===
 # ============================================
 
-def dialog_kb(user_id: int):
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="☁️ Начать"), KeyboardButton(text="🔄 Режим")],
-        [KeyboardButton(text="🗑 Очистить"), KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))],
-        [KeyboardButton(text="◀️ Назад")]
-    ], resize_keyboard=True)
-
-def dialog_chat_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🗑 Очистить")]
-    ], resize_keyboard=True)
-
-def dialog_chat_loading_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="⌛️ Отменить запрос")]
-    ], resize_keyboard=True)
-
-def dialog_char_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🕊 Душа"), KeyboardButton(text="💡 Разум")],
-        [KeyboardButton(text="🎤 Голос")],
-        [KeyboardButton(text="◀️ Назад к Диалогу")]
-    ], resize_keyboard=True)
+# ============================================
+# === LUKA (Soul AI) - ПЕРЕНЕСЕНО В handlers/luka/keyboards.py ===
+# ============================================
+# Функции dialog_kb, dialog_chat_kb, dialog_chat_loading_kb, dialog_char_kb
+# теперь находятся в автономном модуле handlers/luka/
 
 # ============================================
 # === ПСИХОЛОГ (Silas) ===
@@ -253,26 +235,17 @@ def photo_kb(user_id: int):
 # === ГОЛОСОВОЙ РЕЖИМ ===
 # ============================================
 
-def voice_chat_kb():
-    """Клавиатура для голосового режима"""
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🗑 Очистить")],
-        [KeyboardButton(text="🔄 Сменить голос")]
-    ], resize_keyboard=True)
-
-def voice_chat_loading_kb():
-    """Клавиатура при обработке запроса в голосовом режиме"""
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="⌛️ Отменить запрос")]
-    ], resize_keyboard=True)
+# ============================================
+# === ГОЛОСОВОЙ РЕЖИМ - ПЕРЕНЕСЕНО В handlers/luka/keyboards.py ===
+# ============================================
+# Функции voice_chat_kb и voice_chat_loading_kb
+# теперь находятся в автономном модуле handlers/luka/
 
 # ============================================
 # === АЛИАСЫ ДЛЯ СОВМЕСТИМОСТИ ===
 # ============================================
 
-luca_kb = dialog_kb
-luca_chat_kb = dialog_chat_kb
-luca_char_kb = dialog_char_kb
+# Luka теперь автономный модуль - алиасы удалены
 silas_kb = psycho_kb
 silas_chat_kb = psycho_chat_kb
 silas_dur_kb = psycho_dur_kb

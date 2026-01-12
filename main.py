@@ -3,9 +3,9 @@ import logging
 import sys
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 from loader import bot, dp
-from database.db import init_db, init_subscription_tables
-from database import db as database
-from handlers import start, emmanuil, luca, silas, titus, admin, subscription, images, viral_analysis, lifestyle, health, goals, routine, mental, finance
+from database import postgres_db  # PostgreSQL database
+from handlers import start, emmanuil, silas, titus, admin, subscription, images, viral_analysis, lifestyle, health, goals, routine, mental, finance
+from handlers import luca  # Автономный модуль Luca
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -36,16 +36,11 @@ async def set_bot_commands():
 
 async def main():
     try:
-        # Инициализация БД
-        await init_db()
-        await database.init_texts_tables()
-        await init_subscription_tables()
-        await database.init_course_memory_table()
-        await database.init_health_tables()
-        await database.init_goals_tables()
-        await database.init_routine_tables()
-        await database.init_mental_tables()
-        await database.init_finance_tables()
+        # Инициализация PostgreSQL
+        print("🔵 Инициализация PostgreSQL...")
+        await postgres_db.init_pool()
+        await postgres_db.init_db()
+        print("✅ PostgreSQL инициализирован")
         
         # Установка команд бота
         await set_bot_commands()
@@ -63,12 +58,12 @@ async def main():
         dp.include_router(subscription.router)
         dp.include_router(start.router)
         dp.include_router(emmanuil.router)
-        dp.include_router(luca.router)  # Includes voice mode
+        dp.include_router(luca.router)  # Автономный модуль Luca (Soul AI)
         dp.include_router(silas.router)
         dp.include_router(titus.router)
         
         await bot.delete_webhook(drop_pending_updates=True)
-        print("🤖 Soul AI запущен!")
+        print("🤖 Soul AI запущен с PostgreSQL!")
         await dp.start_polling(bot)
     except KeyboardInterrupt:
         print("\n⚠️ Получен сигнал остановки...")
@@ -81,6 +76,7 @@ async def main():
         print("🔄 Закрытие соединений...")
         from utils.openrouter import close_client
         await close_client()
+        await postgres_db.close_pool()  # Закрываем PostgreSQL pool
         await bot.session.close()
         print("✅ Бот остановлен")
 
