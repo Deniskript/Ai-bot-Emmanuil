@@ -396,7 +396,7 @@ async def cmd_restart(msg: Message, state: FSMContext):
     
     tokens = await db.get_available_tokens(msg.from_user.id)
     await msg.answer(
-        f"🔄 Бот перезапущен!\n\n💎 Ваши токены: {tokens}\n\nВыберите собеседника:",
+        f"🔄 Бот перезапущен!\n\n💎 Ваши токены: {fmt(tokens)}\n\nВыберите собеседника:",
         reply_markup=reply.main_kb(msg.from_user.id)
     )
 
