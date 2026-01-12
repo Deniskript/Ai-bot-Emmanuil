@@ -992,9 +992,17 @@ async def use_tokens_smart(uid: int, amount: int, bot_name: str = None) -> bool:
     """
     Списать токены:
     - Если есть активная подписка -> из подписки
-    - Если нет подписки -> из users.tokens (бонусные, разрешаем минус)
+    - Если нет подписки -> из users.tokens (бонусные)
+    - Разрешаем уход в минус, но БЛОКИРУЕМ дальнейшее использование при отрицательном балансе
     - Записываем статистику по ботам
     """
+    # Проверяем доступный баланс ПЕРЕД списанием
+    available = await get_available_tokens(uid)
+    
+    # Если баланс уже отрицательный - БЛОКИРУЕМ
+    if available < 0:
+        return False
+    
     sub = await get_subscription(uid)
     
     # Записываем использование токенов по ботам
@@ -1024,6 +1032,29 @@ async def has_active_subscription(uid: int) -> bool:
     if not sub or not sub['is_active']:
         return False
     return await check_subscription_active(uid)
+
+
+async def is_gift_subscription(uid: int) -> bool:
+    """
+    Проверяет, является ли подписка подарочной/админской
+    Подарочная подписка = длительность > 365 дней
+    """
+    sub = await get_subscription(uid)
+    if not sub or not sub['is_active']:
+        return False
+    
+    # Проверяем длительность подписки
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor = await db.execute(
+            "SELECT julianday(expires_at) - julianday(started_at) as duration FROM subscriptions WHERE user_id = ?",
+            (uid,)
+        )
+        row = await cursor.fetchone()
+        if row and row[0]:
+            # Если подписка на 365+ дней - это подарочная/админская
+            return row[0] >= 365
+    
+    return False
 
 
 # ================== ФУНКЦИИ ДЛЯ АДМИНКИ ==================
