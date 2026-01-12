@@ -4,7 +4,7 @@
 """
 from flask import Flask, render_template_string, render_template, abort, jsonify, request
 import asyncio
-from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, DATABASE_PATH
+from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens, DATABASE_PATH
 import aiosqlite
 import html
 import re
@@ -488,12 +488,15 @@ def api_user(user_id):
         # Получаем подписку
         subscription = loop.run_until_complete(get_subscription(user_id))
         
+        # Получаем доступные токены (из подписки или бонусные)
+        tokens = loop.run_until_complete(get_available_tokens(user_id))
+        
         # Формируем ответ
         response = {
             'user_id': user['user_id'],
             'username': user.get('username'),
             'first_name': user.get('first_name'),
-            'tokens': user.get('tokens', 0),
+            'tokens': tokens,  # ✅ Правильный баланс с учетом подписки
             'total_used': user.get('total_used', 0),
             'total_requests': user.get('total_requests', 0),
             'subscription': None
