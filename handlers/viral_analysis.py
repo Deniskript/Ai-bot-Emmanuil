@@ -10,6 +10,7 @@ from utils.antiflood import ai_flood
 from utils.video_downloader import download_video_from_url, extract_key_frames, cleanup_temp_files
 from utils.markdown import md_to_html
 from utils.conversations import save_message, clean_response, get_chat_button
+from utils.errors import check_tokens_and_notify
 from prompts.viral_expert import VIRAL_EXPERT_PROMPT, VIRAL_TEXT_ADVICE_PROMPT
 from config import MIN_TOKENS, OPENROUTER_API_KEY
 from loader import bot

@@ -371,9 +371,8 @@ async def process_luca_message(msg: Message, state: FSMContext, text: str, image
         await msg.answer(error_msg)
         return
     
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Пополните в разделе 💎 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+    # Проверка токенов с красивым сообщением
+    if not await check_tokens_and_notify(user_id, MIN_TOKENS, msg):
         return
     
     # Модель
@@ -625,14 +624,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         await msg.answer(error_msg)
         return
     
-    # Проверка токенов
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < MIN_TOKENS:
-        await msg.answer(
-            "❌ Токены закончились!\n\n"
-            "💎 Пополните в разделе 💎 Подписка",
-            reply_markup=reply.main_kb(user_id)
-        )
+    # Проверка токенов с красивым сообщением
+    if not await check_tokens_and_notify(user_id, MIN_TOKENS, msg):
         return
     
     # Статус запроса с кнопкой отмены
