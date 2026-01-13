@@ -341,25 +341,14 @@
         <div class="card">
             <div class="card-title">🔊 Голосовые ответы</div>
             <div class="toggle-row">
-                <span class="toggle-label">AI отвечает голосом</span>
+                <span class="toggle-label">Soul отвечает голосом</span>
                 <label class="toggle">
                     <input type="checkbox" id="voice-toggle" onchange="toggleVoice()">
                     <span class="toggle-slider"></span>
                 </label>
             </div>
-            
-            <div class="voice-settings" id="voice-settings">
-                <div class="voice-settings-title">Выбери голос:</div>
-                <div class="choice-buttons">
-                    <div class="choice-btn" id="btn-male" onclick="selectVoice('male')">
-                        <div class="icon">👨</div>
-                        <div class="label">Мужской</div>
-                    </div>
-                    <div class="choice-btn active" id="btn-female" onclick="selectVoice('female')">
-                        <div class="icon">👩</div>
-                        <div class="label">Женский</div>
-                    </div>
-                </div>
+            <div class="voice-hint" id="voice-hint" style="display: none; margin-top: 10px; font-size: 13px; color: #888;">
+                ✨ Soul будет отвечать приятным голосом
             </div>
         </div>
 
@@ -401,7 +390,7 @@
         let settings = {
             character: 'soul',
             voice_enabled: false,
-            voice_gender: 'female'
+            voice_gender: 'male'  // Всегда мужской
         };
         
         // Описания режимов
@@ -434,10 +423,10 @@
             
             // Голос
             document.getElementById('voice-toggle').checked = settings.voice_enabled;
-            if (settings.voice_enabled) {
-                document.getElementById('voice-settings').classList.add('visible');
+            const hint = document.getElementById('voice-hint');
+            if (hint) {
+                hint.style.display = settings.voice_enabled ? 'block' : 'none';
             }
-            selectVoice(settings.voice_gender);
         }
         
         // Выбор режима
@@ -453,23 +442,12 @@
         // Вкл/выкл голоса
         function toggleVoice() {
             settings.voice_enabled = document.getElementById('voice-toggle').checked;
-            const voiceSettings = document.getElementById('voice-settings');
-            
-            if (settings.voice_enabled) {
-                voiceSettings.classList.add('visible');
-            } else {
-                voiceSettings.classList.remove('visible');
+            const hint = document.getElementById('voice-hint');
+            if (hint) {
+                hint.style.display = settings.voice_enabled ? 'block' : 'none';
             }
         }
         
-        // Выбор голоса
-        function selectVoice(value) {
-            settings.voice_gender = value;
-            
-            document.getElementById('btn-male').classList.remove('active');
-            document.getElementById('btn-female').classList.remove('active');
-            document.getElementById('btn-' + value).classList.add('active');
-        }
         
         // Сохранение настроек
         async function saveSettings() {

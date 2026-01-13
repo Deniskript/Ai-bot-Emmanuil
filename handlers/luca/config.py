@@ -25,12 +25,10 @@ FALLBACK_MODEL = "gpt-4o-mini"  # Резервная модель
 # ========== ГОЛОСОВОЙ РЕЖИМ ==========
 VOICE_ENABLED = True  # Включить голосовой режим
 VOICE_MAP = {
-    "male": "onyx",    # Мужской голос OpenAI TTS
-    "female": "nova"   # Женский голос OpenAI TTS
+    "male": "onyx",    # Мужской голос OpenAI TTS (используется всегда)
 }
 VOICE_GENDER_NAMES = {
     "male": "👨 Мужской",
-    "female": "👩 Женский"
 }
 
 # ========== КЭШИРОВАНИЕ ==========

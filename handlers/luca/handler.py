@@ -83,21 +83,21 @@ def get_user_settings(user_id: int) -> dict:
         if redis_client:
             settings_key = f"luca:settings:{user_id}"
             data = redis_client.hgetall(settings_key)
-            
+
             if data:
                 return {
                     'character': data.get('character', 'soul'),
                     'voice_enabled': data.get('voice_enabled', '0') == '1',
-                    'voice_gender': data.get('voice_gender', 'female')
+                    'voice_gender': 'male'  # Всегда мужской
                 }
     except Exception as e:
         print(f"Redis error in get_user_settings: {e}")
-    
+
     # Дефолтные настройки
     return {
         'character': 'soul',
         'voice_enabled': False,
-        'voice_gender': 'female'
+        'voice_gender': 'male'  # Всегда мужской
     }
 
 
@@ -145,13 +145,16 @@ async def luka_enter(msg: Message, state: FSMContext):
     s = await db.get_user_bot(msg.from_user.id, 'luca')
     char_key = s.get('character', 'soul')
     char_name = CHAR_NAMES.get(char_key, '🕊 Душа')
-    await msg.answer(
-        texts.MENU_TEXT.format(char_name=char_name),
+    
+    # Отправляем баннер вместо текста
+    banner = FSInputFile("assets/banner_dialog.png")
+    await msg.answer_photo(
+        photo=banner,
         reply_markup=kb.dialog_kb(msg.from_user.id)
     )
 
 
-@router.message(LukaSt.menu, F.text == "☁️ Начать")
+@router.message(LukaSt.menu, F.text == "✨ Начать")
 async def luka_start_chat(msg: Message, state: FSMContext):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await db.reset_msg_counter(msg.from_user.id, 'luca')
@@ -174,7 +177,7 @@ async def luka_char_menu(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.menu, F.text == "🗑 Очистить")
+@router.message(LukaSt.menu, F.text == "🧹 Очистить")
 async def luka_clear(msg: Message):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await msg.answer(texts.HISTORY_CLEARED)
@@ -279,7 +282,7 @@ async def voice_stop(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.voice_chat, F.text == "🗑 Очистить")
+@router.message(LukaSt.voice_chat, F.text == "🧹 Очистить")
 async def voice_clear(msg: Message):
     """Очистка истории в голосовом режиме"""
     await db.clear_msgs(msg.from_user.id, 'luca')
@@ -333,7 +336,7 @@ async def luka_stop(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.chat, F.text == "🗑 Очистить")
+@router.message(LukaSt.chat, F.text == "🧹 Очистить")
 async def luka_chat_clear(msg: Message):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await msg.answer(texts.HISTORY_CLEARED + " Продолжай:")
@@ -595,7 +598,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
 
     if user_settings['voice_enabled']:
         # === ГОЛОСОВОЙ ОТВЕТ ===
-        voice_tts = VOICE_MAP.get(user_settings['voice_gender'], "nova")
+        voice_tts = VOICE_MAP.get(user_settings['voice_gender'], "onyx")
         
         # Очищаем текст от markdown для TTS
         resp_clean = resp.replace("**", "").replace("*", "").replace("#", "")
@@ -631,7 +634,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
 
 @router.message(LukaSt.chat, F.text)
 async def luka_chat_text(msg: Message, state: FSMContext):
-    if msg.text in ["🛑 Завершить", "🗑 Очистить", "⏹ Стоп", "⌛️ Отменить запрос"]:
+    if msg.text in ["🛑 Завершить", "🧹 Очистить", "⏹ Стоп", "⌛️ Отменить запрос"]:
         return
     await process_luka_message(msg, state, msg.text)
 
@@ -783,7 +786,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         await status_msg.edit_text(texts.STATUS_VOICING)
         
         # Преобразуем в речь
-        voice_tts = VOICE_MAP.get(voice_gender, "nova")
+        voice_tts = VOICE_MAP.get(voice_gender, "onyx")
         audio_path = await text_to_speech(resp_clean, voice=voice_tts)
         
         if not audio_path:
@@ -835,7 +838,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
 @router.message(LukaSt.voice_chat, F.voice)
 async def voice_chat_voice(msg: Message, state: FSMContext):
     """Обработка голосового сообщения от пользователя"""
-    if msg.text in ["🛑 Завершить", "🗑 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
+    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
         return
     
     status = await msg.answer(texts.STATUS_RECOGNIZING)
@@ -868,7 +871,7 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
 @router.message(LukaSt.voice_chat, F.text)
 async def voice_chat_text(msg: Message, state: FSMContext):
     """Обработка текстового сообщения (бот отвечает голосом)"""
-    if msg.text in ["🛑 Завершить", "🗑 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
+    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
         return
     
     await process_voice_message(msg, state, msg.text)

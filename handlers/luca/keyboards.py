@@ -15,8 +15,8 @@ from aiogram.types import (
 def dialog_kb(user_id: int):
     """Главное меню диалога"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="☁️ Начать"), KeyboardButton(text="✨ Настроить", web_app=WebAppInfo(url=f"https://soul-bot.ru/luca/settings?user_id={user_id}"))],
-        [KeyboardButton(text="🗑 Очистить"), KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))],
+        [KeyboardButton(text="✨ Начать"), KeyboardButton(text="🎨 Настроить", web_app=WebAppInfo(url=f"https://soul-bot.ru/luca/settings?user_id={user_id}"))],
+        [KeyboardButton(text="🧹 Очистить"), KeyboardButton(text="📖 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}&tab=dialog"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
@@ -24,7 +24,7 @@ def dialog_kb(user_id: int):
 def dialog_chat_kb():
     """Клавиатура в активном чате"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🗑 Очистить")]
+        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🧹 Очистить")]
     ], resize_keyboard=True)
 
 
@@ -47,7 +47,7 @@ def dialog_char_kb():
 def voice_chat_kb():
     """Клавиатура для голосового режима"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🗑 Очистить")],
+        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🧹 Очистить")],
         [KeyboardButton(text="🔄 Сменить голос")]
     ], resize_keyboard=True)
 

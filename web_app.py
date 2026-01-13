@@ -501,7 +501,7 @@ def luca_settings_save():
             redis_client.hset(settings_key, mapping={
                 'character': data.get('character', 'soul'),
                 'voice_enabled': '1' if data.get('voice_enabled') else '0',
-                'voice_gender': data.get('voice_gender', 'female')
+                'voice_gender': 'male'  # Всегда мужской голос
             })
             return jsonify({'success': True})
         else:
@@ -529,13 +529,13 @@ def luca_settings_load():
                 settings = {
                     'character': data.get('character', 'soul'),
                     'voice_enabled': data.get('voice_enabled', '0') == '1',
-                    'voice_gender': data.get('voice_gender', 'female')
+                    'voice_gender': 'male'  # Всегда мужской
                 }
             else:
                 settings = {
                     'character': 'soul',
                     'voice_enabled': False,
-                    'voice_gender': 'female'
+                    'voice_gender': 'male'  # Всегда мужской
                 }
             
             return jsonify({'success': True, 'settings': settings})

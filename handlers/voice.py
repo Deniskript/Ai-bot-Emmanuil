@@ -211,7 +211,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         await status_msg.edit_text("🎤 Озвучиваю...")
         
         # Преобразуем в речь
-        voice_tts = VOICE_MAP.get(voice_gender, "nova")
+        voice_tts = VOICE_MAP.get(voice_gender, "onyx")
         audio_path = await text_to_speech(resp_clean, voice=voice_tts)
         
         if not audio_path:
