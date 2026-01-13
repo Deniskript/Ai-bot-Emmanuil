@@ -1,6 +1,6 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram.filters import CommandStart, Command
+from aiogram.types import Message, CallbackQuery, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import StateFilter
@@ -45,8 +45,90 @@ async def get_text(key, default=""):
     return t if t else default
 DEFAULT_AGREEMENT = "📜 Соглашение"
 @router.message(CommandStart())
-async def start(msg: Message, state: FSMContext):
+async def start(msg: Message, state: FSMContext, command: CommandObject = None):
     await state.clear()
+    
+    # ВАЖНО: Проверяем deep link для парных сессий ПЕРВЫМ ДЕЛОМ
+    # до всех остальных проверок (пользователь, соглашение и т.д.)
+    
+    # Получаем аргументы команды (для deep link)
+    args = None
+    if command and command.args:
+        args = command.args.strip()
+    elif msg.text:
+        parts = msg.text.split()
+        if len(parts) > 1:
+            args = parts[1]  # После /start
+    
+    if args and args.startswith('pair_'):
+        # Это deep link для парной сессии
+        pair_code = args.replace('pair_', '').upper().strip()
+        
+        print(f"🔵 [Deep Link] Обнаружен pair_ код: {pair_code}, user_id: {msg.from_user.id}")
+        
+        # Проверяем существование сессии
+        session = None
+        try:
+            from database.postgres_db import get_pair_session
+            session = await get_pair_session(pair_code)
+            
+            if not session:
+                await msg.answer(
+                    "❌ <b>Сессия не найдена</b>\n\n"
+                    "Возможно, ссылка устарела или сессия была отменена."
+                )
+                return
+            
+            if session.get('status') == 'ended':
+                await msg.answer(
+                    "❌ <b>Сессия завершена</b>\n\n"
+                    "Эта парная сессия уже завершена."
+                )
+                return
+            
+        except Exception as e:
+            print(f"⚠️ [Deep Link] Ошибка проверки сессии: {e}")
+            import traceback
+            traceback.print_exc()
+            # Продолжаем даже если проверка не удалась
+        
+        # Создаём кнопку с Web App для присоединения
+        join_url = f"https://soul-bot.ru/silas/pair/join?code={pair_code}&user_id={msg.from_user.id}"
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="👥 Присоединиться к сессии",
+                web_app=WebAppInfo(url=join_url)
+            )]
+        ])
+        
+        # Получаем информацию о сессии для красивого сообщения
+        session_info = ""
+        try:
+            if session:
+                topic_names = {
+                    'partner': '💑 Отношения с партнёром',
+                    'family': '👨‍👩‍👧 Семейный конфликт',
+                    'friend': '👥 С другом/коллегой',
+                    'work': '💼 Рабочий конфликт',
+                    'other': '🎯 Другое'
+                }
+                topic = topic_names.get(session.get('topic', ''), 'Не указана')
+                session_info = f"\n📋 Тема: {topic}\n"
+        except:
+            pass
+        
+        await msg.answer(
+            "🔗 <b>Вас пригласили на парную терапию!</b>\n\n"
+            f"Код сессии: <code>{pair_code}</code>{session_info}\n"
+            "Нажмите кнопку ниже, чтобы присоединиться к сессии:",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        print(f"✅ [Deep Link] Отправлено сообщение с кнопкой для user_id: {msg.from_user.id}")
+        return
+    
+    # Если не deep link для парной сессии - продолжаем обычную логику
     u = await db.get_user(msg.from_user.id)
     
     # Проверяем реферальную ссылку

@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Парная сессия — Soul</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .header-status {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-dot.online {
+            background: #4CAF50;
+        }
+
+        .status-dot.offline {
+            background: #ccc;
+        }
+
+        .status-dot.connecting {
+            background: #FFC107;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-btn {
+            background: none;
+            border: none;
+            font-size: 14px;
+            color: #667eea;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-soul {
+            align-self: flex-start;
+            background: white;
+            color: #333;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-mine {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-partner {
+            align-self: flex-start;
+            background: #E8F5E9;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-header {
+            font-size: 12px;
+            margin-bottom: 4px;
+            opacity: 0.7;
+        }
+
+        .message-soul .message-header {
+            color: #667eea;
+        }
+
+        .message-partner .message-header {
+            color: #4CAF50;
+        }
+
+        .typing-indicator {
+            align-self: flex-start;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 16px;
+            display: none;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .typing-indicator.visible {
+            display: flex;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-6px); }
+        }
+
+        .input-container {
+            background: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-field {
+            flex: 1;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            padding: 12px 16px;
+            font-size: 15px;
+            outline: none;
+            resize: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .input-field:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .connection-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .connection-overlay.hidden {
+            display: none;
+        }
+
+        .connection-box {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 300px;
+        }
+
+        .connection-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .connection-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .connection-text {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        .connection-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .participants-info {
+            display: flex;
+            gap: 8px;
+        }
+
+        .participant-badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .participant-badge.online {
+            background: #E8F5E9;
+            color: #4CAF50;
+        }
+
+        .participant-badge.me {
+            background: #E3F2FD;
+            color: #2196F3;
+        }
+
+        .system-message {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.9);
+            color: #666;
+            font-size: 13px;
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <div>
+                <div class="header-title">👥 Парная сессия</div>
+                <div class="header-status">
+                    <span class="status-dot connecting" id="status-dot"></span>
+                    <span id="status-text">Подключение...</span>
+                </div>
+            </div>
+        </div>
+        <div class="participants-info">
+            <span class="participant-badge me" id="badge-me">Вы</span>
+            <span class="participant-badge" id="badge-partner">Партнёр</span>
+        </div>
+        <button class="header-btn" onclick="endSession()">Выход</button>
+    </div>
+
+    <div class="chat-container" id="chat">
+        <!-- Сообщения будут добавляться здесь -->
+    </div>
+
+    <div class="typing-indicator" id="typing">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <span style="margin-left: 8px; font-size: 13px; color: #666;">Soul печатает...</span>
+    </div>
+
+    <div class="input-container">
+        <textarea 
+            class="input-field" 
+            id="message-input" 
+            placeholder="Напишите сообщение..."
+            rows="1"
+        ></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">
+            ➤
+        </button>
+    </div>
+
+    <div class="connection-overlay" id="overlay">
+        <div class="connection-box">
+            <div class="connection-icon" id="overlay-icon">🔄</div>
+            <div class="connection-title" id="overlay-title">Подключение...</div>
+            <div class="connection-text" id="overlay-text">Устанавливаем соединение с сервером</div>
+            <button class="connection-btn" id="overlay-btn" onclick="retryConnection()" style="display: none;">
+                Попробовать снова
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+        const sessionCode = urlParams.get('code');
+
+        let ws = null;
+        let myParticipantNum = 0;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        // WebSocket URL
+        const WS_URL = 'wss://soul-bot.ru/ws';  // Через nginx proxy
+
+        function connectWebSocket() {
+            showOverlay('🔄', 'Подключение...', 'Устанавливаем соединение');
+            
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = function() {
+                    console.log('WebSocket connected');
+                    // Отправляем авторизацию
+                    ws.send(JSON.stringify({
+                        type: 'auth',
+                        user_id: userId,
+                        code: sessionCode
+                    }));
+                };
+                
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    handleMessage(data);
+                };
+                
+                ws.onclose = function(event) {
+                    console.log('WebSocket closed:', event.code);
+                    updateStatus('offline', 'Отключено');
+                    
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        setTimeout(connectWebSocket, 2000 * reconnectAttempts);
+                    } else {
+                        showOverlay('❌', 'Соединение потеряно', 'Не удалось подключиться', true);
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
+                
+            } catch (e) {
+                console.error('WebSocket connection error:', e);
+                showOverlay('❌', 'Ошибка подключения', e.message, true);
+            }
+        }
+
+        function handleMessage(data) {
+            console.log('Received:', data);
+            
+            switch (data.type) {
+                case 'connected':
+                    myParticipantNum = data.participant;
+                    reconnectAttempts = 0;
+                    updateStatus('online', `Вы — Участник ${myParticipantNum}`);
+                    document.getElementById('badge-me').textContent = `Участник ${myParticipantNum}`;
+                    
+                    if (data.participants_online === 2) {
+                        hideOverlay();
+                        updatePartnerStatus(true);
+                    } else {
+                        showOverlay('⏳', 'Ожидание партнёра...', 'Когда партнёр подключится, сессия начнётся');
+                    }
+                    break;
+                    
+                case 'participant_joined':
+                    hideOverlay();
+                    updatePartnerStatus(true);
+                    addSystemMessage('Партнёр присоединился к сессии');
+                    break;
+                    
+                case 'participant_left':
+                    updatePartnerStatus(false);
+                    addSystemMessage('Партнёр покинул сессию');
+                    break;
+                    
+                case 'message':
+                    hideTyping();
+                    if (data.from === 'soul') {
+                        addMessage('soul', data.content);
+                    } else if (data.participant === myParticipantNum) {
+                        // Моё сообщение уже отображено
+                    } else {
+                        addMessage('partner', data.content, data.participant);
+                    }
+                    break;
+                    
+                case 'typing':
+                    if (data.from === 'soul') {
+                        showTyping();
+                    }
+                    break;
+                    
+                case 'history':
+                    loadHistory(data.messages);
+                    hideOverlay();
+                    break;
+                    
+                case 'error':
+                    showOverlay('❌', 'Ошибка', data.message, true);
+                    break;
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const content = input.value.trim();
+            
+            if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+            
+            // Отправляем
+            ws.send(JSON.stringify({
+                type: 'message',
+                content: content
+            }));
+            
+            // Показываем своё сообщение сразу
+            addMessage('mine', content);
+            
+            // Очищаем поле
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        function addMessage(type, content, participantNum = null) {
+            const chat = document.getElementById('chat');
+            const msg = document.createElement('div');
+            msg.className = `message message-${type}`;
+            
+            let header = '';
+            if (type === 'soul') {
+                header = '<div class="message-header">🧘 Soul</div>';
+            } else if (type === 'partner') {
+                header = `<div class="message-header">👤 Участник ${participantNum}</div>`;
+            }
+            
+            msg.innerHTML = header + formatContent(content);
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function addSystemMessage(text) {
+            const chat = document.getElementById('chat');
+            const msg = document.createElement('div');
+            msg.className = 'system-message';
+            msg.textContent = text;
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function formatContent(text) {
+            // Простое форматирование
+            return text
+                .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function loadHistory(messages) {
+            messages.forEach(msg => {
+                if (msg.role === 'assistant') {
+                    addMessage('soul', msg.content);
+                } else if (msg.participant === myParticipantNum) {
+                    addMessage('mine', msg.content);
+                } else {
+                    addMessage('partner', msg.content, msg.participant);
+                }
+            });
+        }
+
+        function showTyping() {
+            document.getElementById('typing').classList.add('visible');
+            const chat = document.getElementById('chat');
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function hideTyping() {
+            document.getElementById('typing').classList.remove('visible');
+        }
+
+        function updateStatus(status, text) {
+            const dot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            dot.className = 'status-dot ' + status;
+            statusText.textContent = text;
+        }
+
+        function updatePartnerStatus(online) {
+            const badge = document.getElementById('badge-partner');
+            if (online) {
+                badge.classList.add('online');
+                badge.textContent = 'Партнёр онлайн';
+            } else {
+                badge.classList.remove('online');
+                badge.textContent = 'Партнёр офлайн';
+            }
+        }
+
+        function showOverlay(icon, title, text, showBtn = false) {
+            const overlay = document.getElementById('overlay');
+            document.getElementById('overlay-icon').textContent = icon;
+            document.getElementById('overlay-title').textContent = title;
+            document.getElementById('overlay-text').textContent = text;
+            document.getElementById('overlay-btn').style.display = showBtn ? 'inline-block' : 'none';
+            overlay.classList.remove('hidden');
+        }
+
+        function hideOverlay() {
+            document.getElementById('overlay').classList.add('hidden');
+        }
+
+        function retryConnection() {
+            reconnectAttempts = 0;
+            connectWebSocket();
+        }
+
+        function endSession() {
+            if (confirm('Вы уверены, что хотите покинуть сессию?')) {
+                if (ws) ws.close();
+                tg.close();
+            }
+        }
+
+        // Автоматическое изменение высоты textarea
+        const input = document.getElementById('message-input');
+        input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Отправка по Enter (Shift+Enter для новой строки)
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Ping для поддержания соединения
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 25000);
+
+        // Запуск
+        if (userId && sessionCode) {
+            connectWebSocket();
+        } else {
+            showOverlay('❌', 'Ошибка', 'Отсутствуют параметры сессии', true);
+        }
+    </script>
+</body>
+</html>

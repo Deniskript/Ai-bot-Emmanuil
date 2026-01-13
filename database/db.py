@@ -2341,3 +2341,44 @@ async def get_month_expenses_detailed(user_id: int) -> Dict:
             }
         
         return result
+
+
+# ============================================
+# === ПАРНЫЕ СЕССИИ SILAS (РЕЭКСПОРТ ИЗ POSTGRES_DB) ===
+# ============================================
+# Функции парных сессий находятся в postgres_db.py
+# Здесь добавлены алиасы для обратной совместимости
+
+# Импортируем функции из postgres_db
+try:
+    from .postgres_db import (
+        generate_pair_code,
+        create_pair_session,
+        join_pair_session,
+        get_pair_session,
+        get_user_pair_session,
+        end_pair_session,
+        cancel_pair_session
+    )
+except ImportError:
+    # Если postgres_db недоступен, создаём заглушки
+    def generate_pair_code() -> str:
+        raise NotImplementedError("PostgreSQL database required")
+    
+    async def create_pair_session(uid: int, topic: str, description: str = None) -> str:
+        raise NotImplementedError("PostgreSQL database required")
+    
+    async def join_pair_session(uid: int, code: str, description: str = None) -> dict:
+        raise NotImplementedError("PostgreSQL database required")
+    
+    async def get_pair_session(code: str) -> dict:
+        raise NotImplementedError("PostgreSQL database required")
+    
+    async def get_user_pair_session(uid: int) -> dict:
+        raise NotImplementedError("PostgreSQL database required")
+    
+    async def end_pair_session(code: str):
+        raise NotImplementedError("PostgreSQL database required")
+    
+    async def cancel_pair_session(code: str, uid: int) -> bool:
+        raise NotImplementedError("PostgreSQL database required")

@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Подготовка к сессии</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Принудительная очистка кэша при загрузке
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: #888;
+            margin-top: 12px;
+            line-height: 1.5;
+        }
+
+        .choice-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        .choice-btn {
+            padding: 16px 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .choice-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .choice-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .choice-btn .icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .choice-btn .label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .choice-btn.active .label {
+            color: #667eea;
+        }
+
+        .ready-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .ready-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .stats-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stats-emoji {
+            font-size: 24px;
+            width: 32px;
+        }
+
+        .stats-label {
+            font-size: 14px;
+            color: #666;
+            width: 60px;
+        }
+
+        .stats-bar-container {
+            flex: 1;
+            height: 12px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .stats-bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .stats-bar-good {
+            background: linear-gradient(90deg, #4CAF50, #66BB6A);
+        }
+
+        .stats-bar-tired {
+            background: linear-gradient(90deg, #FF9800, #FFB74D);
+        }
+
+        .stats-bar-hard {
+            background: linear-gradient(90deg, #f44336, #ef5350);
+        }
+
+        .stats-count {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            width: 30px;
+            text-align: right;
+        }
+
+        .stats-divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 20px 0;
+        }
+
+        .stats-total {
+            font-size: 15px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .stats-tendency {
+            font-size: 14px;
+            color: #667eea;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .mood-button {
+            background: white;
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mood-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .mood-icon {
+            font-size: 24px;
+            margin-right: 12px;
+        }
+
+        .mood-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .mood-arrow {
+            font-size: 24px;
+            color: #ccc;
+        }
+
+        .pair-features {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .pair-feature-item {
+            font-size: 14px;
+            color: #555;
+            padding-left: 8px;
+        }
+
+        .topic-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .topic-btn {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .topic-btn:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+
+        .topic-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .topic-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+
+        .topic-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .topic-btn.active .topic-label {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .pair-create-btn {
+            margin-top: 8px;
+            margin-bottom: 12px;
+        }
+
+        .pair-create-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .back-link {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            color: #667eea;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .back-link:hover {
+            opacity: 0.7;
+        }
+
+        .pair-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        .pair-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .pair-textarea::placeholder {
+            color: #aaa;
+        }
+
+        .textarea-counter {
+            text-align: right;
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .invite-link-box {
+            text-align: center;
+        }
+
+        .invite-link-label {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .invite-link-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #667eea;
+            background: #f5f5ff;
+            padding: 12px;
+            border-radius: 8px;
+            word-break: break-all;
+            margin-bottom: 12px;
+        }
+
+        .copy-btn {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .invite-divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 20px 0;
+        }
+
+        .invite-code-box {
+            text-align: center;
+        }
+
+        .invite-code {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+            letter-spacing: 4px;
+            margin-top: 8px;
+        }
+
+        .waiting-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .waiting-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .waiting-icon {
+            font-size: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .waiting-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .secondary-btn {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .secondary-btn:hover {
+            background: #f5f5ff;
+            box-shadow: none;
+        }
+
+        /* Мои сессии */
+        .sessions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .session-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .session-info {
+            flex: 1;
+        }
+
+        .session-topic {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .session-code {
+            font-size: 12px;
+            color: #888;
+            font-family: monospace;
+        }
+
+        .session-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .session-status.waiting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .session-status.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .session-status.ended {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .session-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .session-date {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .session-role {
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .delete-session-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .delete-session-btn:hover {
+            opacity: 1;
+        }
+
+        .danger-btn {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            color: white;
+        }
+
+        .danger-btn:hover {
+            background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+        }
+
+        .loading-sessions {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .loading-spinner {
+            font-size: 48px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: white;
+        }
+
+        .empty-sessions {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+        }
+
+        .empty-sessions-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.7;
+        }
+
+        .empty-sessions-text {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Toggle switch */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toggle-label {
+            font-size: 15px;
+            color: #333;
+        }
+
+        .toggle {
+            position: relative;
+            width: 52px;
+            height: 28px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .voice-hint {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #888;
+            display: none;
+        }
+
+        .voice-hint.visible {
+            display: block;
+        }
+
+        /* Клонирование голоса */
+        .coming-soon-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffd700 0%, #ffb800 100%);
+            color: #333;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+            font-weight: 600;
+        }
+
+        .clone-section {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px dashed #ddd;
+            text-align: center;
+        }
+
+        .clone-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .clone-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .clone-description {
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="main-screen">
+            <div class="header">
+                <h1>🧘 Подготовка к сессии</h1>
+                <p>Настрой сессию под себя</p>
+            </div>
+
+            <!-- Длительность сеанса -->
+            <div class="card">
+                <div class="card-title">⏱ Длительность сеанса</div>
+                <div class="choice-buttons">
+                    <div class="choice-btn" id="btn-15" onclick="selectDuration(15)">
+                        <div class="icon">⚡</div>
+                        <div class="label">15 мин</div>
+                    </div>
+                    <div class="choice-btn active" id="btn-30" onclick="selectDuration(30)">
+                        <div class="icon">⏰</div>
+                        <div class="label">30 мин</div>
+                    </div>
+                    <div class="choice-btn" id="btn-60" onclick="selectDuration(60)">
+                        <div class="icon">🧘</div>
+                        <div class="label">60 мин</div>
+                    </div>
+                </div>
+                <div class="card-description" id="duration-desc">
+                    ⏰ Познакомимся, установим контакт → Углубимся в тему → Разберём причины и найдём решения → Подведём итоги.
+                </div>
+            </div>
+
+            <!-- Кнопка Настроение -->
+            <div class="mood-button" onclick="showMoodScreen()">
+                <span class="mood-icon">📔</span>
+                <span class="mood-label">Настроение</span>
+                <span class="mood-arrow">›</span>
+            </div>
+
+            <!-- Кнопка Парная терапия -->
+            <div class="mood-button" onclick="showPairScreen()">
+                <span class="mood-icon">👥</span>
+                <span class="mood-label">Парная терапия</span>
+                <span class="mood-arrow">›</span>
+            </div>
+
+            <!-- Голосовые ответы -->
+            <div class="card">
+                <div class="card-title">🔊 Голосовые ответы</div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Soul отвечает голосом</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="voice-toggle" onchange="toggleVoice()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="voice-hint" id="voice-hint">
+                    ✨ Soul будет отвечать приятным голосом
+                </div>
+            </div>
+
+            <!-- Клонирование голоса -->
+            <div class="card">
+                <div class="card-title">
+                    🎤 Клонирование голоса
+                    <span class="coming-soon-badge">СКОРО</span>
+                </div>
+                <div class="clone-section">
+                    <div class="clone-icon">🎙</div>
+                    <div class="clone-title">AI будет говорить твоим голосом</div>
+                    <div class="clone-description">Запиши 30 секунд речи и получи свой уникальный голос</div>
+                </div>
+            </div>
+
+            <!-- Кнопка сохранения -->
+            <button class="ready-btn" onclick="saveDuration()">
+                💾 Сохранить настройки
+            </button>
+        </div>
+
+        <!-- Экран настроения -->
+        <div id="mood-screen" style="display: none;">
+            <div class="header">
+                <h1>📔 Настроение</h1>
+                <p>Как вы себя чувствуете?</p>
+            </div>
+
+            <!-- Карточка выбора настроения -->
+            <div class="card">
+                <div class="choice-buttons">
+                    <div class="choice-btn" id="mood-good" onclick="selectMood('good')">
+                        <div class="icon">😊</div>
+                        <div class="label">Хорошо</div>
+                    </div>
+                    <div class="choice-btn" id="mood-tired" onclick="selectMood('tired')">
+                        <div class="icon">😔</div>
+                        <div class="label">Устал</div>
+                    </div>
+                    <div class="choice-btn" id="mood-hard" onclick="selectMood('hard')">
+                        <div class="icon">😰</div>
+                        <div class="label">Тяжело</div>
+                    </div>
+                </div>
+                <div class="card-description">
+                    💜 Soul подстраивается под ваше настроение, чтобы лучше понять и поддержать вас
+                </div>
+            </div>
+
+            <!-- Кнопка дневника (заглушка) -->
+            <div class="mood-button" onclick="showDiaryScreen()">
+                <span class="mood-icon">📊</span>
+                <span class="mood-label">Дневник настроения</span>
+                <span class="mood-arrow">›</span>
+            </div>
+
+            <!-- Кнопка Готово -->
+            <button class="ready-btn" onclick="saveMoodAndReturn()">✓ Готово</button>
+        </div>
+
+        <!-- Экран дневника -->
+        <div id="diary-screen" style="display: none;">
+            <div class="header">
+                <h1>📊 Дневник настроения</h1>
+                <p id="diary-month">Январь 2025</p>
+            </div>
+
+            <div class="card">
+                <!-- Статистика по настроениям -->
+                <div class="stats-list">
+                    <div class="stats-row">
+                        <span class="stats-emoji">😊</span>
+                        <span class="stats-label">Хорошо</span>
+                        <div class="stats-bar-container">
+                            <div class="stats-bar stats-bar-good" id="bar-good"></div>
+                        </div>
+                        <span class="stats-count" id="count-good">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-emoji">😔</span>
+                        <span class="stats-label">Устал</span>
+                        <div class="stats-bar-container">
+                            <div class="stats-bar stats-bar-tired" id="bar-tired"></div>
+                        </div>
+                        <span class="stats-count" id="count-tired">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-emoji">😰</span>
+                        <span class="stats-label">Тяжело</span>
+                        <div class="stats-bar-container">
+                            <div class="stats-bar stats-bar-hard" id="bar-hard"></div>
+                        </div>
+                        <span class="stats-count" id="count-hard">0</span>
+                    </div>
+                </div>
+
+                <div class="stats-divider"></div>
+
+                <div class="stats-total">
+                    📝 Всего записей: <span id="total-count">0</span>
+                </div>
+
+                <div class="stats-tendency" id="tendency-text">
+                    📈 Начните отмечать настроение, чтобы увидеть статистику
+                </div>
+            </div>
+
+            <button class="ready-btn" onclick="backToMoodScreen()">← Назад</button>
+        </div>
+
+        <!-- Экран парной терапии -->
+        <div id="pair-screen" style="display: none;">
+            <div class="header">
+                <h1>👥 Парная терапия</h1>
+                <p>Сессия с партнёром, другом или близким</p>
+            </div>
+
+            <!-- Описание -->
+            <div class="card">
+                <div class="pair-features">
+                    <div class="pair-feature-item">💬 Помогает услышать друг друга</div>
+                    <div class="pair-feature-item">🔄 Переформулирует обвинения в просьбы</div>
+                    <div class="pair-feature-item">🤝 Направляет к решению</div>
+                    <div class="pair-feature-item">🔒 Полная конфиденциальность</div>
+                </div>
+            </div>
+
+            <!-- Выбор темы -->
+            <div class="card">
+                <div class="card-title">🎯 Тема сессии</div>
+                <div class="topic-buttons">
+                    <div class="topic-btn" id="topic-partner" onclick="selectTopic('partner')">
+                        <span class="topic-icon">💑</span>
+                        <span class="topic-label">Отношения с партнёром</span>
+                    </div>
+                    <div class="topic-btn" id="topic-family" onclick="selectTopic('family')">
+                        <span class="topic-icon">👨‍👩‍👧</span>
+                        <span class="topic-label">Семейный конфликт</span>
+                    </div>
+                    <div class="topic-btn" id="topic-friend" onclick="selectTopic('friend')">
+                        <span class="topic-icon">👥</span>
+                        <span class="topic-label">С другом/коллегой</span>
+                    </div>
+                    <div class="topic-btn" id="topic-work" onclick="selectTopic('work')">
+                        <span class="topic-icon">💼</span>
+                        <span class="topic-label">Рабочий конфликт</span>
+                    </div>
+                    <div class="topic-btn" id="topic-other" onclick="selectTopic('other')">
+                        <span class="topic-icon">🎯</span>
+                        <span class="topic-label">Другое</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Кнопка создать сессию -->
+            <button class="ready-btn pair-create-btn" onclick="createPairSession()" id="create-pair-btn" disabled>
+                🚀 Создать сессию
+            </button>
+
+            <!-- Кнопка мои сессии -->
+            <button class="ready-btn secondary-btn" onclick="showMySessionsScreen()" style="margin-top: 12px;">
+                📋 Мои сессии
+            </button>
+
+            <!-- Кнопка назад -->
+            <button class="back-link" onclick="showMainScreen()">← Назад</button>
+        </div>
+
+        <!-- Экран ввода описания -->
+        <div id="pair-describe-screen" style="display: none;">
+            <div class="header">
+                <h1>📝 Опишите ситуацию</h1>
+                <p>Это увидит только AI-психолог</p>
+            </div>
+
+            <div class="card">
+                <div class="card-description" style="margin-top: 0; margin-bottom: 16px;">
+                    Кратко расскажите что происходит. Это поможет AI лучше понять контекст и помочь вам.
+                </div>
+                <textarea 
+                    id="pair-description" 
+                    class="pair-textarea" 
+                    placeholder="Например: Постоянно ссоримся из-за финансов. Муж считает что я много трачу, я считаю что он не понимает моих потребностей..."
+                    maxlength="500"
+                ></textarea>
+                <div class="textarea-counter">
+                    <span id="char-count">0</span>/500
+                </div>
+            </div>
+
+            <button class="ready-btn" onclick="generateInviteLink()" id="generate-link-btn">
+                🔗 Создать ссылку для партнёра
+            </button>
+
+            <button class="back-link" onclick="backToPairScreen()">← Назад к выбору темы</button>
+        </div>
+
+        <!-- Экран с ссылкой-приглашением -->
+        <div id="pair-invite-screen" style="display: none;">
+            <div class="header">
+                <h1>✅ Сессия создана!</h1>
+                <p>Отправьте ссылку партнёру</p>
+            </div>
+
+            <div class="card">
+                <div class="invite-link-box">
+                    <div class="invite-link-label">Ссылка для партнёра:</div>
+                    <div class="invite-link-value" id="invite-link">https://t.me/iisoul_bot?start=pair_ABC123</div>
+                    <button class="copy-btn" onclick="copyInviteLink()">
+                        📋 Копировать
+                    </button>
+                </div>
+                
+                <div class="invite-divider"></div>
+                
+                <div class="invite-code-box">
+                    <div class="invite-link-label">Или код для ввода:</div>
+                    <div class="invite-code" id="invite-code">ABC123</div>
+                </div>
+            </div>
+
+            <div class="card waiting-card">
+                <div class="waiting-status">
+                    <span class="waiting-icon">⏳</span>
+                    <span class="waiting-text">Ожидаем подключения партнёра...</span>
+                </div>
+                <div class="card-description">
+                    Когда партнёр перейдёт по ссылке и присоединится, вы оба получите уведомление
+                </div>
+            </div>
+
+            <button class="ready-btn secondary-btn" onclick="showMainScreen()">
+                ← На главную
+            </button>
+        </div>
+
+        <!-- Экран "Мои сессии" -->
+        <div id="my-sessions-screen" style="display: none;">
+            <div class="header">
+                <h1>📋 Мои сессии</h1>
+                <p>Все ваши парные сессии</p>
+            </div>
+
+            <div id="sessions-list" class="sessions-list">
+                <!-- Список сессий будет загружен через JavaScript -->
+                <div class="loading-sessions">
+                    <div class="loading-spinner">🔄</div>
+                    <div class="loading-text">Загрузка сессий...</div>
+                </div>
+            </div>
+
+            <button class="ready-btn danger-btn" onclick="clearAllSessions()" id="clear-all-btn" style="margin-top: 16px;">
+                🗑 Очистить все сессии
+            </button>
+
+            <button class="back-link" onclick="backToPairScreenFromSessions()">← Назад</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">Сохранено!</div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // Обработка параметра startapp (приглашение на парную сессию)
+        const startParam = tg.initDataUnsafe?.start_param || '';
+        if (startParam.startsWith('pair_')) {
+            const pairCode = startParam.replace('pair_', '').toUpperCase();
+            // Перенаправляем на страницу присоединения
+            window.location.href = `/silas/pair/join?user_id=${tg.initDataUnsafe?.user?.id || ''}&code=${pairCode}`;
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+
+        let selectedDuration = 30;
+
+        const descriptions = {
+            15: '⚡ Расскажешь с чем пришёл → Разберёмся что происходит → Дам технику и подведём итог.',
+            30: '⏰ Познакомимся, установим контакт → Углубимся в тему → Разберём причины и найдём решения → Подведём итоги.',
+            60: '🧘 Спокойно поговорим как дела → Глубоко исследуем тему → Найдём инсайты и решения → Составим план действий.'
+        };
+
+        function selectDuration(minutes) {
+            selectedDuration = minutes;
+
+            document.querySelectorAll('.choice-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('btn-' + minutes).classList.add('active');
+            document.getElementById('duration-desc').textContent = descriptions[minutes];
+        }
+
+        async function saveDuration() {
+            try {
+                const response = await fetch('/silas/settings/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        duration: selectedDuration,
+                        voice_enabled: voiceEnabled,
+                        mood: selectedMood || '',
+                        custom_mood: ''
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Сохранено!');
+                    setTimeout(() => {
+                        tg.close();
+                    }, 1000);
+                } else {
+                    showToast('Ошибка сохранения');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Ошибка соединения');
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+
+        function showMoodScreen() {
+            document.getElementById('main-screen').style.display = 'none';
+            document.getElementById('mood-screen').style.display = 'block';
+        }
+
+        function showMainScreen() {
+            // Остановить polling если был
+            if (statusPollingInterval) {
+                clearInterval(statusPollingInterval);
+                statusPollingInterval = null;
+            }
+            
+            document.getElementById('mood-screen').style.display = 'none';
+            document.getElementById('diary-screen').style.display = 'none';
+            document.getElementById('pair-screen').style.display = 'none';
+            document.getElementById('pair-describe-screen').style.display = 'none';
+            document.getElementById('pair-invite-screen').style.display = 'none';
+            document.getElementById('my-sessions-screen').style.display = 'none';
+            document.getElementById('main-screen').style.display = 'block';
+            
+            // Сброс состояния парной сессии
+            selectedTopic = null;
+            document.querySelectorAll('.topic-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('create-pair-btn').disabled = true;
+            const descTextarea = document.getElementById('pair-description');
+            if (descTextarea) {
+                descTextarea.value = '';
+            }
+            const charCount = document.getElementById('char-count');
+            if (charCount) {
+                charCount.textContent = '0';
+            }
+        }
+
+        function showPairScreen() {
+            document.getElementById('main-screen').style.display = 'none';
+            document.getElementById('pair-screen').style.display = 'block';
+            document.getElementById('my-sessions-screen').style.display = 'none';
+        }
+
+        function showMySessionsScreen() {
+            document.getElementById('pair-screen').style.display = 'none';
+            document.getElementById('my-sessions-screen').style.display = 'block';
+            loadMySessions();
+        }
+
+        function backToPairScreenFromSessions() {
+            document.getElementById('my-sessions-screen').style.display = 'none';
+            document.getElementById('pair-screen').style.display = 'block';
+        }
+
+        let selectedTopic = null;
+
+        function selectTopic(topic) {
+            selectedTopic = topic;
+            
+            // Убрать active у всех кнопок тем
+            document.querySelectorAll('.topic-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Добавить active выбранной
+            document.getElementById('topic-' + topic).classList.add('active');
+            
+            // Активировать кнопку создания
+            document.getElementById('create-pair-btn').disabled = false;
+        }
+
+        let pairSessionCode = null;
+        let statusPollingInterval = null;
+
+        // Счётчик символов в textarea
+        document.addEventListener('DOMContentLoaded', function() {
+            const textarea = document.getElementById('pair-description');
+            if (textarea) {
+                textarea.addEventListener('input', function() {
+                    document.getElementById('char-count').textContent = this.value.length;
+                });
+            }
+        });
+
+        function createPairSession() {
+            if (!selectedTopic) {
+                showToast('Выберите тему сессии');
+                return;
+            }
+            
+            // Переход на экран описания
+            document.getElementById('pair-screen').style.display = 'none';
+            document.getElementById('pair-describe-screen').style.display = 'block';
+        }
+
+        function backToPairScreen() {
+            document.getElementById('pair-describe-screen').style.display = 'none';
+            document.getElementById('pair-screen').style.display = 'block';
+        }
+
+        async function generateInviteLink() {
+            const description = document.getElementById('pair-description').value.trim();
+            
+            if (description.length < 10) {
+                showToast('Опишите ситуацию подробнее');
+                return;
+            }
+            
+            // Показываем загрузку
+            const btn = document.getElementById('generate-link-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Создаём...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/silas/pair/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        topic: selectedTopic,
+                        description: description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    pairSessionCode = data.code;
+                    
+                    // Обновляем ссылку и код на экране
+                    const inviteLink = `https://t.me/iisoul_bot?start=pair_${pairSessionCode}`;
+                    document.getElementById('invite-link').textContent = inviteLink;
+                    document.getElementById('invite-code').textContent = pairSessionCode;
+                    
+                    // Переход на экран с ссылкой
+                    document.getElementById('pair-describe-screen').style.display = 'none';
+                    document.getElementById('pair-invite-screen').style.display = 'block';
+                    
+                    // Сохраняем код для возможного перехода
+                    window.currentSessionCode = pairSessionCode;
+                    
+                    // Запускаем проверку статуса
+                    startStatusPolling();
+                } else {
+                    showToast(data.error || 'Ошибка создания сессии');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Ошибка соединения');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function startStatusPolling() {
+            // Проверяем каждые 3 секунды
+            statusPollingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/silas/pair/status?code=${pairSessionCode}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.session) {
+                        if (data.session.status === 'active' && data.session.user2_id) {
+                            // Партнёр присоединился!
+                            clearInterval(statusPollingInterval);
+                            showToast('🎉 Партнёр присоединился!');
+                            
+                            // Обновляем UI
+                            document.querySelector('.waiting-text').textContent = '✅ Партнёр подключился!';
+                            document.querySelector('.waiting-icon').textContent = '🎉';
+                            document.querySelector('.waiting-icon').style.animation = 'none';
+                            
+                            // Через 2 сек переходим на страницу сессии
+                            setTimeout(() => {
+                                window.location.href = `/silas/pair/session?user_id=${userId}&code=${pairSessionCode}`;
+                            }, 2000);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            }, 3000);
+        }
+
+        async function cancelPairSession() {
+            if (!pairSessionCode) return;
+            
+            try {
+                const response = await fetch('/silas/pair/cancel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        code: pairSessionCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Сессия отменена');
+                    if (statusPollingInterval) {
+                        clearInterval(statusPollingInterval);
+                    }
+                    pairSessionCode = null;
+                    showMainScreen();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function copyInviteLink() {
+            const link = document.getElementById('invite-link').textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(link).then(() => {
+                    showToast('Ссылка скопирована!');
+                });
+            } else {
+                // Fallback для старых браузеров
+                const textArea = document.createElement('textarea');
+                textArea.value = link;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showToast('Ссылка скопирована!');
+            }
+        }
+
+        let selectedMood = null;
+
+        function selectMood(mood) {
+            // Нормализация: в БД используется 'pain' вместо 'hard'
+            if (mood === 'hard') {
+                mood = 'pain';
+            }
+            selectedMood = mood;
+
+            // Убрать active у всех кнопок настроения
+            document.querySelectorAll('#mood-screen .choice-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Добавить active выбранной (используем оригинальный ID для UI)
+            const uiMood = mood === 'pain' ? 'hard' : mood;
+            document.getElementById('mood-' + uiMood).classList.add('active');
+        }
+
+        function saveMoodAndReturn() {
+            if (selectedMood) {
+                showToast('Настроение сохранено!');
+            }
+            showMainScreen();
+        }
+
+        // Тестовые данные статистики (потом будет с сервера)
+        const moodStats = {
+            good: 12,
+            tired: 6,
+            hard: 3
+        };
+
+        function showDiaryScreen() {
+            document.getElementById('mood-screen').style.display = 'none';
+            document.getElementById('diary-screen').style.display = 'block';
+            updateDiaryStats();
+        }
+
+        function updateDiaryStats() {
+            const total = moodStats.good + moodStats.tired + moodStats.hard;
+            const maxVal = Math.max(moodStats.good, moodStats.tired, moodStats.hard, 1);
+            
+            // Обновить ширину прогресс-баров
+            document.getElementById('bar-good').style.width = (moodStats.good / maxVal * 100) + '%';
+            document.getElementById('bar-tired').style.width = (moodStats.tired / maxVal * 100) + '%';
+            document.getElementById('bar-hard').style.width = (moodStats.hard / maxVal * 100) + '%';
+            
+            // Обновить числа
+            document.getElementById('count-good').textContent = moodStats.good;
+            document.getElementById('count-tired').textContent = moodStats.tired;
+            document.getElementById('count-hard').textContent = moodStats.hard;
+            document.getElementById('total-count').textContent = total;
+            
+            // Обновить название месяца
+            const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                            'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            const now = new Date();
+            document.getElementById('diary-month').textContent = months[now.getMonth()] + ' ' + now.getFullYear();
+            
+            // Определить тенденцию
+            const tendencyEl = document.getElementById('tendency-text');
+            if (total === 0) {
+                tendencyEl.textContent = '📈 Начните отмечать настроение, чтобы увидеть статистику';
+            } else if (moodStats.good >= moodStats.tired && moodStats.good >= moodStats.hard) {
+                tendencyEl.textContent = '📈 Тенденция: Преобладает хорошее настроение! 💚';
+            } else if (moodStats.tired >= moodStats.good && moodStats.tired >= moodStats.hard) {
+                tendencyEl.textContent = '📈 Тенденция: Вы часто устаёте. Берегите себя 🧡';
+            } else {
+                tendencyEl.textContent = '📈 Тенденция: Сейчас непростой период. Я рядом 💜';
+            }
+        }
+
+        function backToMoodScreen() {
+            document.getElementById('diary-screen').style.display = 'none';
+            document.getElementById('mood-screen').style.display = 'block';
+        }
+
+        let voiceEnabled = false;
+
+        function toggleVoice() {
+            voiceEnabled = document.getElementById('voice-toggle').checked;
+            const hint = document.getElementById('voice-hint');
+            if (voiceEnabled) {
+                hint.classList.add('visible');
+            } else {
+                hint.classList.remove('visible');
+            }
+        }
+
+        // Загрузка сохранённых настроек при открытии
+        async function loadSettings() {
+            if (!userId) return;
+            
+            try {
+                const response = await fetch(`/silas/settings/load?user_id=${userId}`);
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    // Длительность
+                    if (data.settings.duration) {
+                        selectDuration(data.settings.duration);
+                    }
+                    
+                    // Голос
+                    if (data.settings.voice_enabled) {
+                        document.getElementById('voice-toggle').checked = true;
+                        voiceEnabled = true;
+                        document.getElementById('voice-hint').classList.add('visible');
+                    }
+                    
+                    // Настроение
+                    if (data.settings.mood) {
+                        selectMood(data.settings.mood);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        // Вызываем загрузку при старте
+        loadSettings();
+
+        // ========== МОИ СЕССИИ ==========
+        const topicNames = {
+            'partner': '💑 Отношения с партнёром',
+            'family': '👨‍👩‍👧 Семейный конфликт',
+            'friend': '👥 С другом/коллегой',
+            'work': '💼 Рабочий конфликт',
+            'other': '🎯 Другое'
+        };
+
+        async function loadMySessions() {
+            if (!userId) {
+                showToast('Ошибка: user_id не найден');
+                return;
+            }
+
+            const sessionsList = document.getElementById('sessions-list');
+            sessionsList.innerHTML = `
+                <div class="loading-sessions">
+                    <div class="loading-spinner">🔄</div>
+                    <div class="loading-text">Загрузка сессий...</div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/pair-sessions/${userId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderSessionsList(data.sessions);
+                } else {
+                    sessionsList.innerHTML = `
+                        <div class="empty-sessions">
+                            <div class="empty-sessions-icon">😔</div>
+                            <div class="empty-sessions-text">Ошибка загрузки сессий</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                sessionsList.innerHTML = `
+                    <div class="empty-sessions">
+                        <div class="empty-sessions-icon">❌</div>
+                        <div class="empty-sessions-text">Ошибка соединения</div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderSessionsList(sessions) {
+            const sessionsList = document.getElementById('sessions-list');
+
+            if (!sessions || sessions.length === 0) {
+                sessionsList.innerHTML = `
+                    <div class="empty-sessions">
+                        <div class="empty-sessions-icon">📭</div>
+                        <div class="empty-sessions-text">У вас пока нет парных сессий</div>
+                    </div>
+                `;
+                document.getElementById('clear-all-btn').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('clear-all-btn').style.display = 'block';
+
+            sessionsList.innerHTML = sessions.map(session => {
+                const statusClass = session.status || 'ended';
+                const statusEmoji = {
+                    'waiting': '🟡',
+                    'active': '🟢',
+                    'ended': '⚪'
+                }[statusClass] || '⚪';
+
+                const roleText = session.role === 'creator' ? 'Создатель' : 'Участник';
+
+                return `
+                    <div class="session-card">
+                        <button class="delete-session-btn" onclick="deleteSession(${session.id})" title="Удалить сессию">
+                            🗑️
+                        </button>
+                        <div class="session-header">
+                            <div class="session-info">
+                                <div class="session-topic">${topicNames[session.topic] || session.topic || 'Не указана'}</div>
+                                <div class="session-code">Код: ${session.code || '—'}</div>
+                            </div>
+                            <span class="session-status ${statusClass}">
+                                ${statusEmoji} ${session.status_display || 'Неизвестно'}
+                            </span>
+                        </div>
+                        <div class="session-details">
+                            <span class="session-date">📅 ${session.created_at || '—'}</span>
+                            <span class="session-role">${roleText}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function deleteSession(sessionId) {
+            if (!confirm('Удалить эту сессию?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/pair-sessions/${sessionId}?user_id=${userId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Сессия удалена');
+                    loadMySessions(); // Обновить список
+                } else {
+                    showToast(data.error || 'Ошибка удаления');
+                }
+            } catch (error) {
+                console.error('Error deleting session:', error);
+                showToast('Ошибка соединения');
+            }
+        }
+
+        async function clearAllSessions() {
+            if (!confirm('Удалить ВСЕ ваши парные сессии? Это действие нельзя отменить.')) {
+                return;
+            }
+
+            const btn = document.getElementById('clear-all-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Удаляем...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/pair-sessions/clear/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(`Удалено сессий: ${data.deleted_count || 0}`);
+                    loadMySessions(); // Обновить список
+                } else {
+                    showToast(data.error || 'Ошибка удаления');
+                }
+            } catch (error) {
+                console.error('Error clearing sessions:', error);
+                showToast('Ошибка соединения');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

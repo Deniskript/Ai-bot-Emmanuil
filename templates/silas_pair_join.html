@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Присоединиться к сессии — Soul</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .pair-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        .pair-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .pair-textarea::placeholder {
+            color: #aaa;
+        }
+
+        .textarea-counter {
+            text-align: right;
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .ready-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .ready-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .ready-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .back-btn {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            color: white;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+
+        .error-card {
+            background: #fff5f5;
+            border: 1px solid #ffcdd2;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .error-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #c62828;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .error-text {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-spinner {
+            font-size: 48px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            font-size: 14px;
+            color: white;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Загрузка -->
+        <div id="loading-screen">
+            <div class="loading">
+                <div class="loading-spinner">🔄</div>
+                <div class="loading-text">Загрузка информации о сессии...</div>
+            </div>
+        </div>
+
+        <!-- Ошибка -->
+        <div id="error-screen" style="display: none;">
+            <div class="header">
+                <h1>👥 Парная сессия</h1>
+            </div>
+            <div class="card error-card">
+                <div class="error-icon">😔</div>
+                <div class="error-title" id="error-title">Сессия не найдена</div>
+                <div class="error-text" id="error-text">Возможно, ссылка устарела или сессия была отменена</div>
+            </div>
+            <button class="back-btn" onclick="tg.close()">Закрыть</button>
+        </div>
+
+        <!-- Форма присоединения -->
+        <div id="join-screen" style="display: none;">
+            <div class="header">
+                <h1>👥 Приглашение на сессию</h1>
+                <p>Вас приглашают на парную терапию</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📋 Информация о сессии</div>
+                <div class="info-row">
+                    <span class="info-label">Тема:</span>
+                    <span class="info-value" id="session-topic">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Код сессии:</span>
+                    <span class="info-value" id="session-code">—</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📝 Ваша точка зрения</div>
+                <div class="card-description">
+                    Опишите ситуацию со своей стороны. Это увидит только AI-психолог Soul — партнёр не будет видеть этот текст.
+                </div>
+                <textarea 
+                    id="description" 
+                    class="pair-textarea" 
+                    placeholder="Расскажите как вы видите ситуацию..."
+                    maxlength="500"
+                ></textarea>
+                <div class="textarea-counter">
+                    <span id="char-count">0</span>/500
+                </div>
+            </div>
+
+            <button class="ready-btn" id="join-btn" onclick="joinSession()">
+                🚀 Присоединиться к сессии
+            </button>
+
+            <button class="back-btn" onclick="tg.close()">Отмена</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+        const code = urlParams.get('code');
+
+        const topicNames = {
+            'partner': '💑 Отношения с партнёром',
+            'family': '👨‍👩‍👧 Семейный конфликт',
+            'friend': '👥 С другом/коллегой',
+            'work': '💼 Рабочий конфликт',
+            'other': '🎯 Другое'
+        };
+
+        // Счётчик символов
+        document.getElementById('description').addEventListener('input', function() {
+            document.getElementById('char-count').textContent = this.value.length;
+        });
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function showError(title, text) {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('join-screen').style.display = 'none';
+            document.getElementById('error-screen').style.display = 'block';
+            document.getElementById('error-title').textContent = title;
+            document.getElementById('error-text').textContent = text;
+        }
+
+        function showJoinForm(session) {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('error-screen').style.display = 'none';
+            document.getElementById('join-screen').style.display = 'block';
+            
+            document.getElementById('session-topic').textContent = topicNames[session.topic] || session.topic;
+            document.getElementById('session-code').textContent = code;
+        }
+
+        async function loadSession() {
+            if (!code) {
+                showError('Ошибка', 'Код сессии не указан');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/silas/pair/status?code=${code}`);
+                const data = await response.json();
+
+                if (!data.success || !data.session) {
+                    showError('Сессия не найдена', 'Возможно, ссылка устарела или сессия была отменена');
+                    return;
+                }
+
+                const session = data.session;
+
+                if (session.status === 'cancelled') {
+                    showError('Сессия отменена', 'Создатель отменил эту сессию');
+                    return;
+                }
+
+                if (session.status === 'active' && session.user2_id) {
+                    showError('Сессия уже начата', 'К этой сессии уже присоединился другой участник');
+                    return;
+                }
+
+                if (session.user1_id == userId) {
+                    showError('Это ваша сессия', 'Вы не можете присоединиться к своей сессии');
+                    return;
+                }
+
+                showJoinForm(session);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Ошибка соединения', 'Не удалось загрузить данные сессии');
+            }
+        }
+
+        async function joinSession() {
+            const description = document.getElementById('description').value.trim();
+            
+            if (description.length < 10) {
+                showToast('Опишите ситуацию подробнее (минимум 10 символов)');
+                return;
+            }
+
+            const btn = document.getElementById('join-btn');
+            btn.textContent = '⏳ Присоединяемся...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/silas/pair/join', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        code: code,
+                        description: description
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('✅ Присоединились! Переход к сессии...');
+                    setTimeout(() => {
+                        window.location.href = `/silas/pair/session?user_id=${userId}&code=${code}`;
+                    }, 1500);
+                } else {
+                    showToast(data.error || 'Ошибка присоединения');
+                    btn.textContent = '🚀 Присоединиться к сессии';
+                    btn.disabled = false;
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Ошибка соединения');
+                btn.textContent = '🚀 Присоединиться к сессии';
+                btn.disabled = false;
+            }
+        }
+
+        // Загружаем данные сессии при старте
+        loadSession();
+    </script>
+</body>
+</html>

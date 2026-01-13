@@ -110,12 +110,7 @@ def luca_msg_kb(has_telegraph: bool = False):
         ])
     return None
 
-def silas_msg_kb(has_telegraph: bool = False):
-    if has_telegraph:
-        return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📖 Telegraph", callback_data="silas:tg")]
-        ])
-    return None
+# silas_msg_kb перенесена в handlers/silas/keyboards.py (автономный модуль)
 
 # === АНКЕТА ===
 

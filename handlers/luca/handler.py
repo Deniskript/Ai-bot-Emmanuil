@@ -6,6 +6,7 @@ from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
+from database import redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
 from utils.openrouter import ask, ask_stream
 from utils.tokens import calculate_tokens
@@ -20,21 +21,6 @@ import base64
 import time
 import re
 import os
-import redis
-
-# Redis клиент для настроек
-try:
-    redis_client = redis.Redis(
-        host='localhost',
-        port=6379,
-        db=0,
-        decode_responses=True
-    )
-    redis_client.ping()
-    print("✅ Redis connected (Luca handler)")
-except Exception as e:
-    print(f"⚠️ Redis connection failed in Luca handler: {e}")
-    redis_client = None
 
 # Локальные импорты модуля (всё внутри handlers/luca/)
 from . import config as luca_config
@@ -79,26 +65,7 @@ BOT_NAME = luca_config.BOT_NAME
 
 def get_user_settings(user_id: int) -> dict:
     """Получить настройки пользователя из Redis"""
-    try:
-        if redis_client:
-            settings_key = f"luca:settings:{user_id}"
-            data = redis_client.hgetall(settings_key)
-
-            if data:
-                return {
-                    'character': data.get('character', 'soul'),
-                    'voice_enabled': data.get('voice_enabled', '0') == '1',
-                    'voice_gender': 'male'  # Всегда мужской
-                }
-    except Exception as e:
-        print(f"Redis error in get_user_settings: {e}")
-
-    # Дефолтные настройки
-    return {
-        'character': 'soul',
-        'voice_enabled': False,
-        'voice_gender': 'male'  # Всегда мужской
-    }
+    return redis_db.get_luca_settings(user_id)
 
 
 def md_to_html(text):

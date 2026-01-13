@@ -6,6 +6,8 @@ PostgreSQL database module for AI Bot
 import asyncpg
 import json
 import os
+import secrets
+import string
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, List
 from contextlib import asynccontextmanager
@@ -90,6 +92,8 @@ async def init_db():
         custom_mood TEXT,
         msg_counter INTEGER DEFAULT 0,
         voice_gender TEXT DEFAULT NULL,
+        voice_enabled BOOLEAN DEFAULT FALSE,
+        preferred_duration INTEGER DEFAULT 30,
         PRIMARY KEY(user_id, bot)
     );
     
@@ -405,6 +409,25 @@ async def init_db():
         ended TIMESTAMP
     );
     
+    -- Парные сессии Silas
+    CREATE TABLE IF NOT EXISTS pair_sessions (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(10) UNIQUE NOT NULL,
+        topic VARCHAR(50) NOT NULL,
+        user1_id BIGINT NOT NULL,
+        user1_description TEXT,
+        user2_id BIGINT,
+        user2_description TEXT,
+        status VARCHAR(20) DEFAULT 'waiting',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        started_at TIMESTAMP,
+        ended_at TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_pair_sessions_code ON pair_sessions(code);
+    CREATE INDEX IF NOT EXISTS idx_pair_sessions_user1 ON pair_sessions(user1_id);
+    CREATE INDEX IF NOT EXISTS idx_pair_sessions_user2 ON pair_sessions(user2_id);
+    CREATE INDEX IF NOT EXISTS idx_pair_sessions_status ON pair_sessions(status);
+    
     -- Метрики сервера
     CREATE TABLE IF NOT EXISTS server_metrics (
         id SERIAL PRIMARY KEY,
@@ -418,6 +441,20 @@ async def init_db():
     
     async with get_connection() as conn:
         await conn.execute(schema)
+        
+        # Миграция: добавление полей для Silas
+        try:
+            await conn.execute("""
+                ALTER TABLE user_bots 
+                ADD COLUMN IF NOT EXISTS voice_enabled BOOLEAN DEFAULT FALSE;
+            """)
+            await conn.execute("""
+                ALTER TABLE user_bots 
+                ADD COLUMN IF NOT EXISTS preferred_duration INTEGER DEFAULT 30;
+            """)
+            print("✅ Миграция user_bots: поля voice_enabled и preferred_duration добавлены")
+        except Exception as e:
+            print(f"⚠️ Миграция user_bots: {e}")
     
     print("✅ Все таблицы PostgreSQL созданы")
 
@@ -617,7 +654,15 @@ async def get_user_bot(uid: int, bot: str) -> Dict:
             "INSERT INTO user_bots (user_id, bot) VALUES ($1, $2)",
             uid, bot
         )
-        return {"user_id": uid, "bot": bot, "character": "душевный", "mood": None, "msg_counter": 0}
+        return {
+            "user_id": uid, 
+            "bot": bot, 
+            "character": "душевный", 
+            "mood": None, 
+            "msg_counter": 0,
+            "voice_enabled": False,
+            "preferred_duration": 30
+        }
 
 
 async def set_char(uid: int, char: str):
@@ -657,17 +702,23 @@ async def set_voice_gender(uid: int, gender: str, bot: str = 'voice'):
 
 
 async def set_mood(uid: int, mood: str, custom: str = None):
-    """Установить настроение"""
+    """Установить настроение для Silas"""
     async with get_connection() as conn:
         await conn.execute(
             """
             INSERT INTO user_bots (user_id, bot, mood, custom_mood)
-            VALUES ($1, 'luca', $2, $3)
+            VALUES ($1, 'silas', $2, $3)
             ON CONFLICT (user_id, bot)
             DO UPDATE SET mood = $2, custom_mood = $3
             """,
             uid, mood, custom
         )
+        # Сохраняем статистику настроения (если не custom)
+        if mood != 'custom':
+            await conn.execute(
+                "INSERT INTO mood_stats (user_id, mood) VALUES ($1, $2)",
+                uid, mood
+            )
 
 
 async def inc_msg_counter(uid: int, bot: str) -> int:
@@ -1927,4 +1978,283 @@ async def reset_msg_counter(uid: int, bot: str):
         await conn.execute(
             "UPDATE user_bots SET msg_counter = 0 WHERE user_id = $1 AND bot = $2",
             uid, bot
+        )
+
+
+# ============================================================================
+# MOOD STATS - Статистика настроения
+# ============================================================================
+
+async def get_mood_stats(uid: int) -> Dict:
+    """Получить статистику настроения за последние 30 дней"""
+    async with get_connection() as conn:
+        since = datetime.now() - timedelta(days=30)
+        
+        good = await conn.fetchval(
+            "SELECT COUNT(*) FROM mood_stats WHERE user_id = $1 AND mood = 'good' AND at >= $2",
+            uid, since
+        )
+        tired = await conn.fetchval(
+            "SELECT COUNT(*) FROM mood_stats WHERE user_id = $1 AND mood = 'tired' AND at >= $2",
+            uid, since
+        )
+        pain = await conn.fetchval(
+            "SELECT COUNT(*) FROM mood_stats WHERE user_id = $1 AND mood = 'pain' AND at >= $2",
+            uid, since
+        )
+        
+        return {
+            'good': good or 0,
+            'tired': tired or 0,
+            'pain': pain or 0
+        }
+
+
+# ============================================================================
+# НАСТРОЙКИ SILAS
+# ============================================================================
+
+async def set_silas_settings(uid: int, duration: int = None, voice_enabled: bool = None):
+    """Сохранить настройки Silas для пользователя"""
+    async with get_connection() as conn:
+        # Используем COALESCE для обновления только переданных полей
+        # Если параметр None, COALESCE вернёт старое значение (не обновляем)
+        await conn.execute('''
+            INSERT INTO user_bots (user_id, bot, preferred_duration, voice_enabled)
+            VALUES ($1, 'silas', COALESCE($2, 30), COALESCE($3, FALSE))
+            ON CONFLICT (user_id, bot) DO UPDATE SET
+                preferred_duration = CASE 
+                    WHEN $2 IS NOT NULL THEN $2 
+                    ELSE user_bots.preferred_duration 
+                END,
+                voice_enabled = CASE 
+                    WHEN $3 IS NOT NULL THEN $3 
+                    ELSE user_bots.voice_enabled 
+                END
+        ''', uid, duration, voice_enabled)
+
+
+async def get_silas_settings(uid: int) -> dict:
+    """Получить настройки Silas для пользователя"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow('''
+            SELECT mood, custom_mood, preferred_duration, voice_enabled
+            FROM user_bots
+            WHERE user_id = $1 AND bot = 'silas'
+        ''', uid)
+        
+        if row:
+            return {
+                'mood': row['mood'] or '',
+                'custom_mood': row['custom_mood'] or '',
+                'duration': row['preferred_duration'] or 30,
+                'voice_enabled': row['voice_enabled'] or False
+            }
+        
+        # Если записи нет — возвращаем значения по умолчанию
+        return {
+            'mood': '',
+            'custom_mood': '',
+            'duration': 30,
+            'voice_enabled': False
+        }
+
+
+# ============================================================================
+# ПАРНЫЕ СЕССИИ SILAS
+# ============================================================================
+
+def generate_pair_code() -> str:
+    """Генерация уникального кода для парной сессии (6 символов)"""
+    alphabet = string.ascii_uppercase + string.digits
+    # Убираем похожие символы: 0, O, I, 1, L
+    alphabet = alphabet.replace('0', '').replace('O', '').replace('I', '').replace('1', '').replace('L', '')
+    return ''.join(secrets.choice(alphabet) for _ in range(6))
+
+
+async def create_pair_session(uid: int, topic: str, description: str = None) -> str:
+    """Создать парную сессию и вернуть код приглашения"""
+    async with get_connection() as conn:
+        # Генерируем уникальный код
+        for _ in range(10):  # 10 попыток на случай коллизии
+            code = generate_pair_code()
+            try:
+                await conn.execute('''
+                    INSERT INTO pair_sessions (code, topic, user1_id, user1_description, status)
+                    VALUES ($1, $2, $3, $4, 'waiting')
+                ''', code, topic, uid, description)
+                return code
+            except Exception:
+                continue  # Код уже существует, пробуем другой
+        
+        raise Exception("Не удалось создать уникальный код")
+
+
+async def join_pair_session(uid: int, code: str, description: str = None) -> dict:
+    """Присоединиться к парной сессии по коду"""
+    async with get_connection() as conn:
+        # Проверяем существование и статус сессии
+        row = await conn.fetchrow('''
+            SELECT id, user1_id, status
+            FROM pair_sessions
+            WHERE code = $1
+        ''', code.upper())
+        
+        if not row:
+            return {'success': False, 'error': 'Сессия не найдена'}
+        
+        if row['status'] != 'waiting':
+            return {'success': False, 'error': 'Сессия уже началась или завершена'}
+        
+        if row['user1_id'] == uid:
+            return {'success': False, 'error': 'Нельзя присоединиться к своей сессии'}
+        
+        # Присоединяемся и активируем сессию
+        await conn.execute('''
+            UPDATE pair_sessions
+            SET user2_id = $1, user2_description = $2, status = 'active', started_at = CURRENT_TIMESTAMP
+            WHERE code = $3
+        ''', uid, description, code.upper())
+        
+        return {'success': True, 'session_id': row['id']}
+
+
+async def get_pair_session(code: str) -> dict:
+    """Получить информацию о парной сессии"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow('''
+            SELECT id, code, topic, user1_id, user1_description, user2_id, user2_description,
+                   status, created_at, started_at, ended_at
+            FROM pair_sessions
+            WHERE code = $1
+        ''', code.upper())
+        
+        if not row:
+            return None
+        
+        return dict(row)
+
+
+async def get_user_pair_session(uid: int) -> dict:
+    """Получить активную парную сессию пользователя"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow('''
+            SELECT id, code, topic, user1_id, user1_description, user2_id, user2_description,
+                   status, created_at, started_at, ended_at
+            FROM pair_sessions
+            WHERE (user1_id = $1 OR user2_id = $1) AND status IN ('waiting', 'active')
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''', uid)
+        
+        if not row:
+            return None
+        
+        return dict(row)
+
+
+async def end_pair_session(code: str):
+    """Завершить парную сессию"""
+    async with get_connection() as conn:
+        await conn.execute('''
+            UPDATE pair_sessions
+            SET status = 'ended', ended_at = CURRENT_TIMESTAMP
+            WHERE code = $1
+        ''', code.upper())
+
+
+async def cancel_pair_session(code: str, uid: int) -> bool:
+    """Отменить парную сессию (только создатель, только в статусе waiting)"""
+    async with get_connection() as conn:
+        result = await conn.execute('''
+            UPDATE pair_sessions
+            SET status = 'ended', ended_at = CURRENT_TIMESTAMP
+            WHERE code = $1 AND user1_id = $2 AND status = 'waiting'
+        ''', code.upper(), uid)
+        
+        return 'UPDATE 1' in result
+
+
+async def get_all_user_pair_sessions(uid: int) -> list:
+    """Получить все парные сессии пользователя (как создателя, так и участника)"""
+    async with get_connection() as conn:
+        rows = await conn.fetch('''
+            SELECT id, code, topic, user1_id, user2_id, status, created_at, started_at, ended_at
+            FROM pair_sessions
+            WHERE user1_id = $1 OR user2_id = $1
+            ORDER BY created_at DESC
+        ''', uid)
+        
+        sessions = []
+        for row in rows:
+            session = dict(row)
+            # Определяем роль пользователя
+            if session['user1_id'] == uid:
+                session['role'] = 'creator'
+            else:
+                session['role'] = 'partner'
+            sessions.append(session)
+        
+        return sessions
+
+
+async def delete_pair_session_by_id(session_id: int, uid: int) -> bool:
+    """Удалить парную сессию по ID (только если пользователь является участником)"""
+    async with get_connection() as conn:
+        # Проверяем что пользователь является участником
+        row = await conn.fetchrow('''
+            SELECT id FROM pair_sessions
+            WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)
+        ''', session_id, uid)
+        
+        if not row:
+            return False
+        
+        # Удаляем сессию
+        await conn.execute('DELETE FROM pair_sessions WHERE id = $1', session_id)
+        return True
+
+
+async def delete_all_user_pair_sessions(uid: int) -> int:
+    """Удалить все парные сессии пользователя (как создателя, так и участника)"""
+    async with get_connection() as conn:
+        result = await conn.execute('''
+            DELETE FROM pair_sessions
+            WHERE user1_id = $1 OR user2_id = $1
+        ''', uid)
+        
+        # Возвращаем количество удалённых строк
+        if 'DELETE' in result:
+            # Извлекаем число из строки вида "DELETE 5"
+            try:
+                return int(result.split()[-1])
+            except:
+                return 0
+        return 0
+
+
+# ============================================================================
+# SESSIONS - Сессии психолога
+# ============================================================================
+
+async def start_session(uid: int, dur: int) -> int:
+    """Создать новую сессию"""
+    async with get_connection() as conn:
+        session_id = await conn.fetchval(
+            """
+            INSERT INTO sessions (user_id, started, duration)
+            VALUES ($1, CURRENT_TIMESTAMP, $2)
+            RETURNING id
+            """,
+            uid, dur
+        )
+        return session_id
+
+
+async def end_session(sid: int):
+    """Завершить сессию"""
+    async with get_connection() as conn:
+        await conn.execute(
+            "UPDATE sessions SET ended = CURRENT_TIMESTAMP WHERE id = $1",
+            sid
         )

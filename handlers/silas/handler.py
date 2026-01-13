@@ -1,22 +1,33 @@
+"""
+Обработчик Silas (Психолог) - 100% автономный модуль
+"""
 from aiogram import Router, F
 import re
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import db
-from keyboards import reply, inline
-from utils.openrouter import ask
-from utils.memory import update_memory, build_memory_context
-from utils.voice import download_voice, transcribe_voice
+from database import db, redis_db
+from keyboards import reply as global_reply  # для bots_menu_kb()
+from utils.openrouter import ask, ask_stream
+from utils.tokens import calculate_tokens
+from utils.memory import update_memory
+from utils.voice import download_voice, transcribe_voice, text_to_speech
+from aiogram.types import FSInputFile
+import os
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
-from prompts.silas_prompt import SILAS_SYSTEM, MOOD_GOOD, MOOD_TIRED, MOOD_PAIN
 from config import MIN_TOKENS
 from loader import bot
 from datetime import datetime
 import asyncio
 import base64
+import time
+
+from . import keyboards as kb
+from . import texts
+from .prompts import SILAS_SYSTEM, MOODS
+from .memory import build_memory_context
 
 router = Router()
 
@@ -31,7 +42,6 @@ class SilasSt(StatesGroup):
     duration = State()
     session = State()
 
-MOODS = {'good': MOOD_GOOD, 'tired': MOOD_TIRED, 'pain': MOOD_PAIN}
 active_requests = {}
 last_messages = {}
 
@@ -45,32 +55,100 @@ def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
         for key in keys_to_remove:
             cache_dict.pop(key, None)
 
+# ========== МЕНЮ ==========
+
+async def _start_session_with_settings(msg: Message, state: FSMContext, duration: int, mood: str = '', voice_enabled: bool = False):
+    """Вспомогательная функция для запуска сессии с заданными настройками"""
+    try:
+        print(f"🔵 [Silas] _start_session_with_settings: duration={duration}, mood={mood}, voice={voice_enabled}")
+        
+        # Нормализуем настроение: 'hard' из Web App → 'pain' в БД
+        if mood == 'hard':
+            mood = 'pain'
+        
+        # Сохраняем настроение в БД если указано
+        if mood:
+            await db.set_mood(msg.from_user.id, mood)
+        
+        # Сохраняем настройки в PostgreSQL для постоянного хранения
+        await db.set_silas_settings(
+            uid=msg.from_user.id,
+            duration=duration,
+            voice_enabled=voice_enabled
+        )
+        print(f"🔵 [Silas] Настройки сохранены в PostgreSQL")
+        
+        sid = await db.start_session(msg.from_user.id, duration)
+        print(f"🔵 [Silas] Сессия создана: session_id={sid}")
+        
+        await state.set_state(SilasSt.session)
+        await state.update_data(bot='silas', sid=sid, dur=duration, start=datetime.now().timestamp())
+        print(f"🔵 [Silas] Состояние установлено: SilasSt.session")
+        
+        await db.clear_msgs(msg.from_user.id, 'silas')
+        await db.reset_msg_counter(msg.from_user.id, 'silas')
+        print(f"🔵 [Silas] История очищена, счётчик сброшен")
+        
+        await msg.answer(
+            texts.START_SESSION.format(duration=duration),
+            reply_markup=kb.psycho_chat_kb()
+        )
+        print(f"✅ [Silas] Сеанс успешно запущен для user_id={msg.from_user.id} с настройками из Web App")
+    except Exception as e:
+        print(f"❌ [Silas] ОШИБКА в _start_session_with_settings: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
 @router.message(F.text.in_(["🛋️ Психолог", "🧘 Психолог"]))
 async def silas_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('silas')
     if not cfg['enabled']:
-        await msg.answer("🔴 Психолог временно недоступен")
+        await msg.answer(texts.BOT_DISABLED)
         return
     await state.set_state(SilasSt.menu)
     await msg.answer(
-        "🛋️ <b>Психолог</b>\n\n"
-        "✨ Выслушает и подведёт к ответам как настоящий психолог\n"
-        "💭 Помнит контекст разговора\n"
-        "🔄 Подстраивается под твоё состояние\n"
-        "✅ Помогает разобраться в себе\n\n"
-        "📖 Перед началом загляни в раздел «Помощь»",
-        reply_markup=reply.psycho_kb(msg.from_user.id)
+        texts.MENU_TEXT,
+        reply_markup=kb.psycho_kb(msg.from_user.id)
     )
 
 @router.message(SilasSt.menu, F.text == "🛋️ Начать сеанс")
 async def silas_start_session(msg: Message, state: FSMContext):
-    await state.set_state(SilasSt.duration)
-    await msg.answer("⏱ <b>Выберите длительность сеанса:</b>", reply_markup=reply.psycho_dur_kb())
+    try:
+        print(f"🔵 [Silas] silas_start_session вызван: user_id={msg.from_user.id}")
+        
+        user_id = msg.from_user.id
+        
+        # Проверяем настройки из Web App
+        cached_settings = redis_db.get_silas_settings_cache(user_id)
+        
+        if cached_settings and cached_settings.get('duration'):
+            # Настройки есть — запускаем сессию сразу БЕЗ клавиатуры
+            duration = cached_settings['duration']
+            mood = cached_settings.get('mood', '')
+            # Нормализация: 'hard' из Web App → 'pain' в БД
+            if mood == 'hard':
+                mood = 'pain'
+            voice_enabled = cached_settings.get('voice_enabled', False)
+            
+            print(f"🔵 [Silas] Найдены настройки из Web App: duration={duration}, mood={mood}, voice={voice_enabled}")
+            
+            # Запустить сессию напрямую БЕЗ показа клавиатуры
+            await _start_session_with_settings(msg, state, duration, mood, voice_enabled)
+            return
+        
+        # Только если настроек НЕТ — показываем клавиатуру выбора
+        print(f"🔵 [Silas] Настройки не найдены, показываем меню выбора")
+        await state.set_state(SilasSt.duration)
+        await msg.answer("Выбери длительность:", reply_markup=kb.psycho_dur_kb())
+        print(f"✅ [Silas] Меню выбора длительности отправлено")
+    except Exception as e:
+        print(f"❌ [Silas] ОШИБКА в silas_start_session: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
-@router.message(SilasSt.menu, F.text == "📔 Настроение")
-async def silas_mood_menu(msg: Message, state: FSMContext):
-    await state.set_state(SilasSt.mood)
-    await msg.answer("📔 <b>Дневник настроения</b>\n\nКак вы себя сейчас чувствуете?", reply_markup=reply.psycho_mood_kb())
+# Обработчик "📔 Настроение" удалён - теперь используется Web App "🧘 Подготовка"
 
 @router.message(SilasSt.menu, F.text == "🔍 Помощь")
 async def silas_help(msg: Message):
@@ -82,78 +160,94 @@ async def silas_help(msg: Message):
 @router.message(SilasSt.menu, F.text == "◀️ Назад")
 async def silas_back(msg: Message, state: FSMContext):
     await state.clear()
-    await msg.answer("✨ Выберите помощника:", reply_markup=reply.bots_menu_kb())
+    await msg.answer("✨ Выберите помощника:", reply_markup=global_reply.bots_menu_kb())
 
 @router.message(SilasSt.duration, F.text.in_({"15 минут", "30 минут", "60 минут"}))
 async def silas_set_duration(msg: Message, state: FSMContext):
-    dur_map = {"15 минут": 15, "30 минут": 30, "60 минут": 60}
-    dur = dur_map.get(msg.text, 30)
-    sid = await db.start_session(msg.from_user.id, dur)
-    await state.set_state(SilasSt.session)
-    await state.update_data(bot='silas', sid=sid, dur=dur, start=datetime.now().timestamp())
-    await db.clear_msgs(msg.from_user.id, 'silas')
-    await db.reset_msg_counter(msg.from_user.id, 'silas')
-    await msg.answer(
-        f"🛋️ <b>Сеанс начат</b>\n\n"
-        f"⏱ Длительность: {dur} мин\n\n"
-        f"💬 Расскажите, что вас беспокоит:",
-        reply_markup=reply.psycho_chat_kb()
-    )
+    try:
+        print(f"🔵 [Silas] silas_set_duration вызван: user_id={msg.from_user.id}, text='{msg.text}'")
+        dur_map = {"15 минут": 15, "30 минут": 30, "60 минут": 60}
+        dur = dur_map.get(msg.text, 30)
+        print(f"🔵 [Silas] Длительность: {dur} мин")
+        
+        sid = await db.start_session(msg.from_user.id, dur)
+        print(f"🔵 [Silas] Сессия создана: session_id={sid}")
+        
+        await state.set_state(SilasSt.session)
+        await state.update_data(bot='silas', sid=sid, dur=dur, start=datetime.now().timestamp())
+        print(f"🔵 [Silas] Состояние установлено: SilasSt.session")
+        
+        await db.clear_msgs(msg.from_user.id, 'silas')
+        await db.reset_msg_counter(msg.from_user.id, 'silas')
+        print(f"🔵 [Silas] История очищена, счётчик сброшен")
+        
+        await msg.answer(
+            texts.START_SESSION.format(duration=dur),
+            reply_markup=kb.psycho_chat_kb()
+        )
+        print(f"✅ [Silas] Сеанс успешно запущен для user_id={msg.from_user.id}")
+    except Exception as e:
+        print(f"❌ [Silas] ОШИБКА в silas_set_duration: {e}")
+        import traceback
+        traceback.print_exc()
+        await msg.answer(f"❌ Ошибка при запуске сеанса: {str(e)[:200]}")
+        raise
 
 @router.message(SilasSt.duration, F.text == "◀️ Назад к Психологу")
 async def dur_back(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
-    await msg.answer("🛋️ <b>Психолог</b>\n\n✨ Готов выслушать", reply_markup=reply.psycho_kb(msg.from_user.id))
+    await msg.answer(texts.MENU_TEXT, reply_markup=kb.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "Хорошо")
 async def mood_good(msg: Message, state: FSMContext):
     await db.set_mood(msg.from_user.id, 'good')
     await state.set_state(SilasSt.menu)
-    await msg.answer("✅ Настроение сохранено: 😊 Хорошо", reply_markup=reply.psycho_kb(msg.from_user.id))
+    await msg.answer(texts.MOOD_SAVED.format(mood="😊 Хорошо"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "Устал")
 async def mood_tired(msg: Message, state: FSMContext):
     await db.set_mood(msg.from_user.id, 'tired')
     await state.set_state(SilasSt.menu)
-    await msg.answer("✅ Настроение сохранено: 😔 Устал", reply_markup=reply.psycho_kb(msg.from_user.id))
+    await msg.answer(texts.MOOD_SAVED.format(mood="😔 Устал"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "Тяжело")
 async def mood_pain(msg: Message, state: FSMContext):
     await db.set_mood(msg.from_user.id, 'pain')
     await state.set_state(SilasSt.menu)
-    await msg.answer("✅ Настроение сохранено: 😰 Тяжело", reply_markup=reply.psycho_kb(msg.from_user.id))
+    await msg.answer(texts.MOOD_SAVED.format(mood="😰 Тяжело"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.mood, F.text == "✏️ Ваше настроение")
 async def mood_custom(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.custom)
-    await msg.answer("✏️ Опишите ваше состояние (1-2 слова):")
+    await msg.answer(texts.CUSTOM_MOOD_INPUT)
 
 @router.message(SilasSt.mood, F.text == "Статистика")
 async def mood_stats(msg: Message):
     s = await db.get_mood_stats(msg.from_user.id)
     total = s['good'] + s['tired'] + s['pain']
     await msg.answer(
-        f"📊 <b>Статистика за месяц</b>\n\n"
-        f"😊 Хорошо: {s['good']}\n"
-        f"😔 Устал: {s['tired']}\n"
-        f"😰 Тяжело: {s['pain']}\n\n"
-        f"📈 Всего записей: {total}"
+        texts.MOOD_STATS.format(
+            good=s['good'],
+            tired=s['tired'],
+            pain=s['pain'],
+            total=total
+        )
     )
 
 @router.message(SilasSt.mood, F.text == "◀️ Назад к Психологу")
 async def mood_back(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
-    await msg.answer("🛋️ <b>Психолог</b>", reply_markup=reply.psycho_kb(msg.from_user.id))
+    await msg.answer(texts.MENU_TEXT, reply_markup=kb.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.custom)
 async def custom_mood_input(msg: Message, state: FSMContext):
     words = len(msg.text.split())
     if words > 2:
-        await msg.answer("⚠️ Пожалуйста, только 1-2 слова:")
+        await msg.answer(texts.CUSTOM_MOOD_ERROR)
         return
     await db.set_mood(msg.from_user.id, 'custom', msg.text)
     await state.set_state(SilasSt.menu)
-    await msg.answer(f"✅ Настроение сохранено: <b>{msg.text}</b>", reply_markup=reply.psycho_kb(msg.from_user.id))
+    await msg.answer(texts.MOOD_SAVED.format(mood=f"<b>{msg.text}</b>"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
 @router.message(SilasSt.session, F.text == "🛑 Завершить")
 async def silas_stop(msg: Message, state: FSMContext):
@@ -161,14 +255,14 @@ async def silas_stop(msg: Message, state: FSMContext):
     await db.end_session(d.get('sid'))
     await state.set_state(SilasSt.menu)
     await msg.answer(
-        "🙏 <b>Сеанс завершён</b>\n\nСпасибо за доверие. Берегите себя.",
-        reply_markup=reply.psycho_kb(msg.from_user.id)
+        texts.STOP_SESSION,
+        reply_markup=kb.psycho_kb(msg.from_user.id)
     )
 
 @router.message(SilasSt.session, F.text == "🗑 Очистить")
 async def silas_clear(msg: Message):
     await db.clear_msgs(msg.from_user.id, 'silas')
-    await msg.answer("🗑 История очищена")
+    await msg.answer(texts.HISTORY_CLEARED)
 
 @router.message(SilasSt.session, F.text == "⌛️ Отменить запрос")
 async def silas_cancel(msg: Message):
@@ -191,27 +285,27 @@ async def silas_cancel(msg: Message):
             await msg.delete()
         except:
             pass
-        await msg.answer("❌ Запрос отменён", reply_markup=reply.psycho_chat_kb())
+        await msg.answer(texts.REQUEST_CANCELLED, reply_markup=kb.psycho_chat_kb())
     else:
-        await msg.answer("Нет активного запроса", reply_markup=reply.psycho_chat_kb())
+        await msg.answer(texts.NO_ACTIVE_REQUEST, reply_markup=kb.psycho_chat_kb())
 
 @router.callback_query(F.data == "silas:tg")
 async def silas_telegraph(cb: CallbackQuery):
     user_id = cb.from_user.id
     if user_id not in last_messages:
-        await cb.answer("❌ Нет текста", show_alert=True)
+        await cb.answer(texts.NO_TEXT_FOR_TELEGRAPH, show_alert=True)
         return
-    await cb.answer("📖 Публикую на Telegraph...")
+    await cb.answer(texts.TELEGRAPH_PUBLISHING)
     data = last_messages[user_id]
     text = data['text']
     url = await create_telegraph_page("🛋️ Психолог — Сеанс", text)
     if url:
         await cb.message.answer(
-            "📖 <b>Полный текст опубликован</b>",
-            reply_markup=inline.titus_telegraph_kb(url)
+            texts.TELEGRAPH_PUBLISHED,
+            reply_markup=kb.silas_msg_kb(has_telegraph=True)
         )
     else:
-        await cb.message.answer("❌ Не удалось опубликовать")
+        await cb.message.answer(texts.TELEGRAPH_FAILED)
 
 async def process_silas_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
     allowed, error_msg = await ai_flood.check(msg.from_user.id)
@@ -221,7 +315,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     
     remaining = await db.get_available_tokens(msg.from_user.id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+        await msg.answer(texts.NO_TOKENS, reply_markup=global_reply.main_kb(msg.from_user.id))
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -234,8 +328,8 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await db.end_session(d['sid'])
         await state.set_state(SilasSt.menu)
         await msg.answer(
-            "⏱ <b>Время сеанса истекло</b>\n\nСпасибо за работу над собой.",
-            reply_markup=reply.psycho_kb(msg.from_user.id)
+            texts.SESSION_ENDED,
+            reply_markup=kb.psycho_kb(msg.from_user.id)
         )
         return
     
@@ -243,7 +337,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     request_state = {'cancelled': False, 'kb_msg': None, 'status_msg': None}
     active_requests[user_id] = request_state
     
-    status_msg = await msg.answer("⏳ Обрабатываю...")
+    status_msg = await msg.answer(texts.STATUS_PROCESSING)
     request_state['status_msg'] = status_msg
     
     resp = None
@@ -253,11 +347,32 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
             return
         
         s = await db.get_user_bot(msg.from_user.id, 'silas')
-        mood = MOODS.get(s['mood'], s.get('custom_mood') or 'не указано')
+        
+        # Получаем настроение из кэша Redis (приоритет) или из БД
+        cached_settings = redis_db.get_silas_settings_cache(msg.from_user.id)
+        if cached_settings and cached_settings.get('mood'):
+            mood = cached_settings.get('mood')
+            # Нормализация: 'hard' → 'pain'
+            if mood == 'hard':
+                mood = 'pain'
+        else:
+            # Получаем из БД
+            mood = s.get('mood') or s.get('custom_mood') or 'не указано'
+        
+        # Преобразуем mood для промпта
+        mood_descriptions = {
+            'good': 'хорошее — клиент в ресурсе',
+            'tired': 'усталость — нужен бережный подход',
+            'hard': 'тяжело — приоритет на поддержку',
+            'pain': 'тяжело — приоритет на поддержку',
+            '': 'не указано'
+        }
+        mood_text = mood_descriptions.get(mood, 'не указано')
+        
         mem = await db.get_memory(msg.from_user.id, 'silas')
         hist = await db.get_msgs(msg.from_user.id, 'silas')
         cnt = await db.inc_msg_counter(msg.from_user.id, 'silas')
-        sys = SILAS_SYSTEM.format(mood=mood, duration=d['dur'], elapsed=el, remaining=rem, msg_count=cnt)
+        sys = SILAS_SYSTEM.format(mood=mood_text, duration=d['dur'], elapsed=el, remaining=rem, msg_count=cnt)
         sys += build_memory_context(mem)
         
         if rem <= 5:
@@ -275,11 +390,6 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         if image_b64:
             resp, tok = await ask(msgs, model, image_b64)
         else:
-            from utils.openrouter import ask_stream
-            from utils.tokens import calculate_tokens
-            from utils.errors import check_tokens_and_notify
-            import time
-            
             full_response = ""
             sentence_buffer = ""
             displayed_text = ""
@@ -300,7 +410,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
                 if typing_phase == 0 and len(full_response) > 20:
                     typing_phase = 1
                     try:
-                        await status_msg.edit_text("✍️ Печатаю...")
+                        await status_msg.edit_text(texts.STATUS_TYPING)
                     except:
                         pass
                 
@@ -368,7 +478,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     
     if resp:
         resp_html = md_to_html(resp)
-        footer = "\n\n<i>🛋️ Психолог</i>"
+        footer = texts.RESPONSE_FOOTER
         
         # Проверяем, нужно ли превью
         needs_preview, display_text = should_show_preview(resp_html, max_length=3000)
@@ -379,8 +489,42 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         # Получаем кнопку для просмотра диалога
         keyboard = get_chat_button(conv_id, len(resp_html))
         
-        # Отправляем ответ
-        await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+        # Проверяем настройку голоса
+        cached_settings = redis_db.get_silas_settings_cache(msg.from_user.id)
+        voice_enabled = cached_settings.get('voice_enabled', False) if cached_settings else False
+        
+        if voice_enabled:
+            # === ГОЛОСОВОЙ ОТВЕТ ===
+            # Используем мужской голос по умолчанию (как у Луки)
+            voice_tts = "onyx"  # Мужской голос OpenAI TTS
+            
+            # Очищаем текст от markdown для TTS
+            resp_clean = resp.replace("**", "").replace("*", "").replace("#", "")
+            resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_clean, flags=re.UNICODE)
+            
+            try:
+                audio_path = await text_to_speech(resp_clean, voice=voice_tts)
+                
+                if audio_path:
+                    voice_file = FSInputFile(audio_path)
+                    await msg.answer_voice(voice_file, reply_markup=keyboard)
+                    
+                    # Удаляем временный файл
+                    try:
+                        os.remove(audio_path)
+                    except:
+                        pass
+                else:
+                    # Fallback на текст если TTS не сработал
+                    await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+                    
+            except Exception as e:
+                print(f"TTS error in Silas: {e}")
+                # Fallback на текст
+                await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+        else:
+            # Отправляем текстовый ответ
+            await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
 
 @router.message(SilasSt.session, F.text)
 async def silas_text(msg: Message, state: FSMContext):
@@ -389,7 +533,7 @@ async def silas_text(msg: Message, state: FSMContext):
 @router.message(SilasSt.session, F.voice)
 async def silas_voice(msg: Message, state: FSMContext):
     sec = 0
-    st = await msg.answer("🎧 Слушаю... (0 сек)")
+    st = await msg.answer(texts.STATUS_LISTENING.format(sec=0))
     
     running = True
     async def update_voice_counter():
@@ -400,7 +544,7 @@ async def silas_voice(msg: Message, state: FSMContext):
                 break
             sec += 1
             try:
-                await st.edit_text(f"🎧 Слушаю... ({sec} сек)")
+                await st.edit_text(texts.STATUS_LISTENING.format(sec=sec))
             except:
                 break
     
@@ -412,7 +556,7 @@ async def silas_voice(msg: Message, state: FSMContext):
         running = False
         counter_task.cancel()
         if not text:
-            await st.edit_text("❌ Не распознано")
+            await st.edit_text(texts.ERROR_NO_RECOGNITION)
             return
         await st.delete()
     except Exception as e:
@@ -425,7 +569,7 @@ async def silas_voice(msg: Message, state: FSMContext):
 @router.message(SilasSt.session, F.photo)
 async def silas_photo(msg: Message, state: FSMContext):
     sec = 0
-    st = await msg.answer("🔎 Смотрю фото... (0 сек)")
+    st = await msg.answer(texts.STATUS_LOOKING.format(sec=0))
     
     running = True
     async def update_photo_counter():
@@ -436,7 +580,7 @@ async def silas_photo(msg: Message, state: FSMContext):
                 break
             sec += 1
             try:
-                await st.edit_text(f"🔎 Смотрю фото... ({sec} сек)")
+                await st.edit_text(texts.STATUS_LOOKING.format(sec=sec))
             except:
                 break
     

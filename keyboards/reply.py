@@ -35,37 +35,10 @@ def back_kb():
 # теперь находятся в автономном модуле handlers/luka/
 
 # ============================================
-# === ПСИХОЛОГ (Silas) ===
+# === ПСИХОЛОГ (Silas) - ПЕРЕНЕСЕНО В handlers/silas/keyboards.py ===
 # ============================================
-
-def psycho_kb(user_id: int):
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛋️ Начать сеанс"), KeyboardButton(text="📔 Настроение")],
-        [KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
-    ], resize_keyboard=True)
-
-def psycho_chat_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🗑 Очистить")]
-    ], resize_keyboard=True)
-
-def psycho_chat_loading_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="⌛️ Отменить запрос")]
-    ], resize_keyboard=True)
-
-def psycho_dur_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="15 минут"), KeyboardButton(text="30 минут"), KeyboardButton(text="60 минут")],
-        [KeyboardButton(text="◀️ Назад к Психологу")]
-    ], resize_keyboard=True)
-
-def psycho_mood_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="Хорошо"), KeyboardButton(text="Устал"), KeyboardButton(text="Тяжело")],
-        [KeyboardButton(text="✏️ Ваше настроение"), KeyboardButton(text="Статистика")],
-        [KeyboardButton(text="◀️ Назад к Психологу")]
-    ], resize_keyboard=True)
+# Функции psycho_kb, psycho_chat_kb, psycho_dur_kb, psycho_mood_kb
+# теперь находятся в автономном модуле handlers/silas/
 
 # ============================================
 # === ОБУЧЕНИЕ (Titus) ===
@@ -245,11 +218,7 @@ def photo_kb(user_id: int):
 # === АЛИАСЫ ДЛЯ СОВМЕСТИМОСТИ ===
 # ============================================
 
-# Luka теперь автономный модуль - алиасы удалены
-silas_kb = psycho_kb
-silas_chat_kb = psycho_chat_kb
-silas_dur_kb = psycho_dur_kb
-silas_mood_kb = psycho_mood_kb
+# Luka и Silas теперь автономные модули - алиасы удалены
 titus_kb = study_kb
 titus_chat_kb = study_chat_kb
 titus_steps_kb = study_steps_kb

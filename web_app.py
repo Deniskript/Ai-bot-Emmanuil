@@ -5,26 +5,46 @@
 from flask import Flask, render_template_string, render_template, abort, jsonify, request
 import asyncio
 from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens, DATABASE_PATH
+from database.postgres_db import init_pool, init_db, get_user_pair_session, create_pair_session, join_pair_session, get_pair_session, cancel_pair_session, get_user, create_user, get_all_user_pair_sessions, delete_pair_session_by_id, delete_all_user_pair_sessions
+from database import redis_db
 import aiosqlite
 import html
 import re
-import redis
 
 app = Flask(__name__, template_folder='templates')
 
-# Redis клиент для хранения настроек
-try:
-    redis_client = redis.Redis(
-        host='localhost',
-        port=6379,
-        db=0,
-        decode_responses=True
-    )
-    redis_client.ping()
-    print("✅ Redis connected")
-except Exception as e:
-    print(f"⚠️ Redis connection failed: {e}")
-    redis_client = None
+# Глобальный event loop для всех async операций
+_global_loop = None
+_pool_initialized = False
+
+def get_or_create_loop():
+    """Получить или создать глобальный event loop"""
+    global _global_loop
+    if _global_loop is None or _global_loop.is_closed():
+        _global_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_global_loop)
+    return _global_loop
+
+def ensure_pool_initialized():
+    """Убедиться что пул PostgreSQL инициализирован"""
+    global _pool_initialized
+    if _pool_initialized:
+        return
+    
+    try:
+        loop = get_or_create_loop()
+        if not _pool_initialized:
+            loop.run_until_complete(init_pool())
+            loop.run_until_complete(init_db())
+            print("✅ PostgreSQL pool initialized in web_app")
+            _pool_initialized = True
+    except Exception as e:
+        print(f"⚠️ Failed to initialize PostgreSQL in web_app: {e}")
+        import traceback
+        traceback.print_exc()
+
+# Инициализируем при импорте
+ensure_pool_initialized()
 
 # HTML темп лейт для отображения чата
 CHAT_TEMPLATE = """
@@ -375,10 +395,10 @@ def format_message_content(content: str) -> str:
 def view_chat(conv_id):
     """Просмотр диалога"""
     try:
-        # Получаем диалог и сообщения
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
         
+        # Получаем диалог и сообщения
         conv = loop.run_until_complete(get_conversation(conv_id))
         if not conv:
             abort(404)
@@ -485,6 +505,13 @@ def luca_settings():
     return render_template('luca_settings.html', user_id=user_id)
 
 
+@app.route('/silas/settings')
+def silas_settings():
+    """Telegram Mini App - Настройки Silas"""
+    user_id = request.args.get('user_id', '')
+    return render_template('silas_settings.html', user_id=user_id)
+
+
 @app.route('/luca/settings/save', methods=['POST'])
 def luca_settings_save():
     """API для сохранения настроек Luca в Redis"""
@@ -495,18 +522,17 @@ def luca_settings_save():
         if not user_id:
             return jsonify({'success': False, 'error': 'user_id required'}), 400
         
-        settings_key = f"luca:settings:{user_id}"
+        success = redis_db.set_luca_settings(
+            user_id=int(user_id),
+            character=data.get('character', 'soul'),
+            voice_enabled=data.get('voice_enabled', False)
+        )
         
-        if redis_client:
-            redis_client.hset(settings_key, mapping={
-                'character': data.get('character', 'soul'),
-                'voice_enabled': '1' if data.get('voice_enabled') else '0',
-                'voice_gender': 'male'  # Всегда мужской голос
-            })
+        if success:
             return jsonify({'success': True})
         else:
             return jsonify({'success': False, 'error': 'Redis not available'}), 500
-        
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -520,29 +546,343 @@ def luca_settings_load():
         if not user_id:
             return jsonify({'success': False, 'error': 'user_id required'}), 400
         
-        settings_key = f"luca:settings:{user_id}"
+        settings = redis_db.get_luca_settings(int(user_id))
+        return jsonify({'success': True, 'settings': settings})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ========== SILAS SETTINGS ==========
+
+@app.route('/silas/settings/save', methods=['POST'])
+def silas_settings_save():
+    """API для сохранения настроек Silas"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
         
-        if redis_client:
-            data = redis_client.hgetall(settings_key)
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Сохраняем в Redis кэш
+        redis_db.set_silas_settings_cache(
+            user_id=int(user_id),
+            duration=data.get('duration', 30),
+            voice_enabled=data.get('voice_enabled', False),
+            mood=data.get('mood', ''),
+            custom_mood=data.get('custom_mood', '')
+        )
+        
+        return jsonify({'success': True})
             
-            if data:
-                settings = {
-                    'character': data.get('character', 'soul'),
-                    'voice_enabled': data.get('voice_enabled', '0') == '1',
-                    'voice_gender': 'male'  # Всегда мужской
-                }
-            else:
-                settings = {
-                    'character': 'soul',
-                    'voice_enabled': False,
-                    'voice_gender': 'male'  # Всегда мужской
-                }
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/silas/settings/load', methods=['GET'])
+def silas_settings_load():
+    """API для загрузки настроек Silas"""
+    try:
+        user_id = request.args.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Пробуем из Redis кэша
+        settings = redis_db.get_silas_settings_cache(int(user_id))
+        
+        if not settings:
+            # Дефолтные настройки
+            settings = {
+                'duration': 30,
+                'voice_enabled': False,
+                'mood': '',
+                'custom_mood': ''
+            }
+        
+        return jsonify({'success': True, 'settings': settings})
             
-            return jsonify({'success': True, 'settings': settings})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ========== SILAS PAIR SESSIONS ==========
+
+@app.route('/silas/pair')
+def silas_pair():
+    """Telegram Mini App - Парная сессия Silas"""
+    user_id = request.args.get('user_id', '')
+    action = request.args.get('action', 'menu')  # menu, create, join
+    return render_template('silas_pair.html', user_id=user_id, action=action)
+
+
+@app.route('/silas/pair/join')
+def silas_pair_join_page():
+    """Telegram Mini App - Страница присоединения к парной сессии"""
+    user_id = request.args.get('user_id', '')
+    code = request.args.get('code', '').upper()
+    return render_template('silas_pair_join.html', user_id=user_id, code=code)
+
+
+@app.route('/silas/pair/session')
+def silas_pair_session():
+    """Telegram Mini App - Страница парной сессии (чат)"""
+    user_id = request.args.get('user_id', '')
+    code = request.args.get('code', '').upper()
+    return render_template('silas_pair_session.html', user_id=user_id, code=code)
+
+
+@app.route('/silas/pair/create', methods=['POST'])
+def silas_pair_create():
+    """API для создания парной сессии"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        topic = data.get('topic')
+        description = data.get('description', '')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        if not topic:
+            return jsonify({'success': False, 'error': 'topic required'}), 400
+        
+        # Убеждаемся что пул инициализирован
+        ensure_pool_initialized()
+        
+        # Используем глобальный loop
+        loop = get_or_create_loop()
+        
+        existing = loop.run_until_complete(get_user_pair_session(int(user_id)))
+        if existing:
+            return jsonify({
+                'success': False, 
+                'error': 'У вас уже есть активная сессия',
+                'code': existing.get('code')
+            }), 400
+        
+        # Создаём новую сессию
+        code = loop.run_until_complete(create_pair_session(
+            uid=int(user_id),
+            topic=topic,
+            description=description
+        ))
+        
+        # Кэшируем в Redis
+        redis_db.set_pair_session_cache(code, {
+            'topic': topic,
+            'user1_id': int(user_id),
+            'user1_description': description,
+            'status': 'waiting'
+        })
+        redis_db.set_user_pair_session(int(user_id), code)
+        
+        return jsonify({'success': True, 'code': code})
+        # НЕ закрываем loop - используется глобальный loop
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/silas/pair/join', methods=['POST'])
+def silas_pair_join():
+    """API для присоединения к парной сессии"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        code = data.get('code', '').upper()
+        description = data.get('description', '')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        if not code:
+            return jsonify({'success': False, 'error': 'code required'}), 400
+        
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        
+        # Проверяем/создаём пользователя перед присоединением
+        # Используем get_user и create_user из postgres_db (импортированы выше)
+        from database.postgres_db import get_user as pg_get_user, create_user as pg_create_user
+        user = loop.run_until_complete(pg_get_user(int(user_id)))
+        if not user:
+            # Создаём пользователя с минимальными данными
+            loop.run_until_complete(pg_create_user(
+                uid=int(user_id),
+                uname=f"user_{user_id}",
+                fname="Участник"
+            ))
+            print(f"✅ Создан пользователь {user_id} для парной сессии")
+        
+        result = loop.run_until_complete(join_pair_session(
+            uid=int(user_id),
+            code=code,
+            description=description
+        ))
+        
+        if result['success']:
+            # Обновляем кэш в Redis
+            session = loop.run_until_complete(get_pair_session(code))
+            if session:
+                redis_db.set_pair_session_cache(code, session)
+            redis_db.set_user_pair_session(int(user_id), code)
+            
+            return jsonify({'success': True, 'session_id': result['session_id']})
         else:
-            return jsonify({'success': False, 'error': 'Redis not available'}), 500
+            return jsonify({'success': False, 'error': result['error']}), 400
+        # НЕ закрываем loop - используется глобальный loop
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/silas/pair/status', methods=['GET'])
+def silas_pair_status():
+    """API для получения статуса парной сессии"""
+    try:
+        user_id = request.args.get('user_id')
+        code = request.args.get('code', '').upper()
+        
+        if not user_id and not code:
+            return jsonify({'success': False, 'error': 'user_id or code required'}), 400
+        
+        # Если есть код — ищем по коду
+        if code:
+            session = redis_db.get_pair_session_cache(code)
+            if session:
+                return jsonify({'success': True, 'session': session})
+        
+        # Если нет — ищем по user_id
+        if user_id:
+            code = redis_db.get_user_pair_session(int(user_id))
+            if code:
+                session = redis_db.get_pair_session_cache(code)
+                if session:
+                    session['code'] = code
+                    return jsonify({'success': True, 'session': session})
+        
+        return jsonify({'success': True, 'session': None})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/silas/pair/cancel', methods=['POST'])
+def silas_pair_cancel():
+    """API для отмены парной сессии"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        code = data.get('code', '').upper()
+        
+        if not user_id or not code:
+            return jsonify({'success': False, 'error': 'user_id and code required'}), 400
+        
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        
+        success = loop.run_until_complete(cancel_pair_session(code, int(user_id)))
+        
+        if success:
+            redis_db.delete_pair_session_cache(code)
+            redis_db.clear_user_pair_session(int(user_id))
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Не удалось отменить сессию'}), 400
+        # НЕ закрываем loop - используется глобальный loop
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pair-sessions/<int:user_id>', methods=['GET'])
+def get_user_pair_sessions(user_id):
+    """Получить все парные сессии пользователя"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        
+        sessions = loop.run_until_complete(get_all_user_pair_sessions(user_id))
+        
+        # Форматируем данные для фронтенда
+        formatted_sessions = []
+        for session in sessions:
+            # Определяем статус для отображения
+            status_display = {
+                'waiting': 'Ожидает партнёра',
+                'active': 'Активная',
+                'ended': 'Завершённая'
+            }.get(session.get('status', ''), 'Неизвестно')
+            
+            # Форматируем дату
+            created_at = session.get('created_at')
+            if created_at:
+                if isinstance(created_at, str):
+                    date_str = created_at[:10]  # YYYY-MM-DD
+                else:
+                    date_str = str(created_at)[:10]
+            else:
+                date_str = '—'
+            
+            formatted_sessions.append({
+                'id': session.get('id'),
+                'code': session.get('code'),
+                'topic': session.get('topic'),
+                'status': session.get('status'),
+                'status_display': status_display,
+                'created_at': date_str,
+                'role': session.get('role', 'unknown')
+            })
+        
+        return jsonify({'success': True, 'sessions': formatted_sessions})
         
     except Exception as e:
+        print(f"Error in get_user_pair_sessions: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pair-sessions/<int:session_id>', methods=['DELETE'])
+def delete_pair_session(session_id):
+    """Удалить парную сессию"""
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        
+        success = loop.run_until_complete(delete_pair_session_by_id(session_id, int(user_id)))
+        
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Сессия не найдена или у вас нет прав на удаление'}), 404
+            
+    except Exception as e:
+        print(f"Error in delete_pair_session: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pair-sessions/clear/<int:user_id>', methods=['DELETE'])
+def clear_all_pair_sessions(user_id):
+    """Удалить все парные сессии пользователя"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        
+        deleted_count = loop.run_until_complete(delete_all_user_pair_sessions(user_id))
+        
+        return jsonify({'success': True, 'deleted_count': deleted_count})
+        
+    except Exception as e:
+        print(f"Error in clear_all_pair_sessions: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -560,8 +900,8 @@ def images_settings():
 def api_user(user_id):
     """API для получения данных пользователя"""
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
         
         # Получаем данные пользователя
         user = loop.run_until_complete(get_user(user_id))
@@ -624,12 +964,14 @@ def robokassa_result():
             return 'ERROR: Invalid signature', 403
         
         # Обрабатываем оплату
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
         try:
             loop.run_until_complete(process_successful_payment(int(inv_id), robokassa_id=int(inv_id)))
-        finally:
-            loop.close()
+        except Exception as e:
+            print(f"Error processing payment: {e}")
+            import traceback
+            traceback.print_exc()
         
         return f'OK{inv_id}'
         
