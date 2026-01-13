@@ -126,6 +126,23 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
             parse_mode="HTML"
         )
         print(f"✅ [Deep Link] Отправлено сообщение с кнопкой для user_id: {msg.from_user.id}")
+        
+        # Восстанавливаем Reply Keyboard после отправки inline-кнопки
+        # Важно: InlineKeyboardMarkup не заменяет ReplyKeyboardMarkup,
+        # но после отправки inline-кнопки нужно явно восстановить reply-клавиатуру
+        try:
+            from handlers.silas.keyboards import psycho_kb
+            # Отправляем пустое сообщение с reply-клавиатурой для восстановления
+            # Используем reply_to_message_id=None чтобы не было связи с предыдущим сообщением
+            await msg.answer(
+                "💬 Используйте кнопки ниже для навигации",
+                reply_markup=psycho_kb(msg.from_user.id)
+            )
+        except Exception as e:
+            print(f"⚠️ [Deep Link] Не удалось восстановить клавиатуру: {e}")
+            import traceback
+            traceback.print_exc()
+        
         return
     
     # Если не deep link для парной сессии - продолжаем обычную логику
