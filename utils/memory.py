@@ -67,8 +67,19 @@ JSON массив строк:
         new_facts = json.loads(clean)
         
         if isinstance(new_facts, list):
-            # AI возвращает полный обновлённый список, сохраняем его
-            all_facts = new_facts[-15:] if new_facts else current_memory
+            # Удаляем дубликаты (сохраняем порядок, оставляем последние)
+            seen = set()
+            unique_facts = []
+            for fact in reversed(new_facts):
+                # Нормализуем для сравнения (lowercase, strip)
+                normalized = fact.lower().strip()
+                if normalized not in seen:
+                    seen.add(normalized)
+                    unique_facts.append(fact)
+            unique_facts.reverse()
+            
+            # Сохраняем последние 15 уникальных фактов
+            all_facts = unique_facts[-15:] if unique_facts else current_memory
             await db.save_memory(user_id, bot_type, all_facts)
             
     except json.JSONDecodeError as e:
