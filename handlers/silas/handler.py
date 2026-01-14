@@ -100,7 +100,7 @@ async def _start_session_with_settings(msg: Message, state: FSMContext, duration
         traceback.print_exc()
         raise
 
-@router.message(F.text.in_(["🛋️ Психолог", "🧘 Психолог"]))
+@router.message(F.text.in_(["🛋️ Психолог"]))
 async def silas_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('silas')
     if not cfg['enabled']:
@@ -112,7 +112,7 @@ async def silas_enter(msg: Message, state: FSMContext):
         reply_markup=kb.psycho_kb(msg.from_user.id)
     )
 
-@router.message(SilasSt.menu, F.text == "🛋️ Начать сеанс")
+@router.message(SilasSt.menu, F.text == "🛋️ Начать сессию")
 async def silas_start_session(msg: Message, state: FSMContext):
     try:
         print(f"🔵 [Silas] silas_start_session вызван: user_id={msg.from_user.id}")
@@ -150,7 +150,7 @@ async def silas_start_session(msg: Message, state: FSMContext):
 
 # Обработчик "📔 Настроение" удалён - теперь используется Web App "🧘 Подготовка"
 
-@router.message(SilasSt.menu, F.text == "🔍 Помощь")
+@router.message(SilasSt.menu, F.text == "📖 Как это работает")
 async def silas_help(msg: Message):
     text = await db.get_text('help_psycho')
     if not text:
@@ -468,7 +468,9 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await save_message(msg.from_user.id, 'user', text, 'silas', model)
         conv_id = await save_message(msg.from_user.id, 'assistant', resp, 'silas', model)
         
-        asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
+        # Обновляем память каждые 15 сообщений (экономия токенов)
+        if cnt % 15 == 0 or cnt == 1:
+            asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
         
         last_messages[user_id] = {"text": resp}
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
@@ -568,8 +570,7 @@ async def silas_voice(msg: Message, state: FSMContext):
 
 @router.message(SilasSt.session, F.photo)
 async def silas_photo(msg: Message, state: FSMContext):
-    sec = 0
-    st = await msg.answer(texts.STATUS_LOOKING.format(sec=0))
+    sec = 0 
     
     running = True
     async def update_photo_counter():

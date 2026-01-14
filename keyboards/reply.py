@@ -13,7 +13,7 @@ def main_kb(user_id: int):
 
 def bots_menu_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="💬 Диалог"), KeyboardButton(text="🧘 Психолог")],
+        [KeyboardButton(text="💬 Диалог"), KeyboardButton(text="🛋️ Психолог")],
         [KeyboardButton(text="📚 Обучение"), KeyboardButton(text="📸 Фото")],
         [KeyboardButton(text="🍎 Здоровье"), KeyboardButton(text="🏃 Лайфстайл")],
         [KeyboardButton(text="◀️ Главное меню")]

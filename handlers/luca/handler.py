@@ -121,7 +121,7 @@ async def luka_enter(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.menu, F.text == "✨ Начать")
+@router.message(LukaSt.menu, F.text == "🙂 Поговорить")
 async def luka_start_chat(msg: Message, state: FSMContext):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await db.reset_msg_counter(msg.from_user.id, 'luca')
