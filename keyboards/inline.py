@@ -95,13 +95,8 @@ def payment_kb(url: str, tx_id: int):
         [InlineKeyboardButton(text="◀️ Назад", callback_data="subscription")]
     ])
 
-# === БОТЫ (Telegraph) ===
-
-def titus_msg_kb(user_id: int, has_telegraph: bool = False):
-    kb = [[InlineKeyboardButton(text="📝 Конспект", callback_data=f"titus:summary:{user_id}")]]
-    if has_telegraph:
-        kb[0].append(InlineKeyboardButton(text="📖 Telegraph", callback_data=f"titus:tg:{user_id}"))
-    return InlineKeyboardMarkup(inline_keyboard=kb)
+# === БОТЫ ===
+# titus_msg_kb удалена - теперь используется get_titus_keyboard из utils/conversations.py
 
 def luca_msg_kb(has_telegraph: bool = False):
     if has_telegraph:
@@ -333,10 +328,7 @@ def memory_fact_view_kb(uid: int, bot: str, idx: int):
         [InlineKeyboardButton(text="◀️ Назад", callback_data=f"mem:bot:{uid}:{bot}")]
     ])
 
-def titus_telegraph_kb(url: str):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📖 Открыть Telegraph", url=url)]
-    ])
+# titus_telegraph_kb удалена - Telegraph больше не используется
 
 
 def course_continue_kb(course_id: int, current_step: int, has_weak_topics: bool = False):

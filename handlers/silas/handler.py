@@ -6,6 +6,7 @@ import re
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from database.postgres_db import set_silas_settings, get_silas_settings
 from database import db, redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
 from utils.openrouter import ask, ask_stream
@@ -71,7 +72,7 @@ async def _start_session_with_settings(msg: Message, state: FSMContext, duration
             await db.set_mood(msg.from_user.id, mood)
         
         # Сохраняем настройки в PostgreSQL для постоянного хранения
-        await db.set_silas_settings(
+        await set_silas_settings(
             uid=msg.from_user.id,
             duration=duration,
             voice_enabled=voice_enabled
@@ -107,8 +108,10 @@ async def silas_enter(msg: Message, state: FSMContext):
         await msg.answer(texts.BOT_DISABLED)
         return
     await state.set_state(SilasSt.menu)
-    await msg.answer(
-        texts.MENU_TEXT,
+    # Отправляем баннер вместо текста
+    banner = FSInputFile("assets/banner_silas.png")
+    await msg.answer_photo(
+        photo=banner,
         reply_markup=kb.psycho_kb(msg.from_user.id)
     )
 

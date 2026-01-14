@@ -63,6 +63,35 @@ def get_chat_button(conv_id: int, response_length: int) -> InlineKeyboardMarkup:
     return keyboard
 
 
+def get_titus_keyboard(conv_id: int, response_length: int, user_id: int) -> InlineKeyboardMarkup:
+    """
+    Создать клавиатуру для Titus с кнопкой Конспект выше и Посмотреть весь диалог ниже
+    
+    Args:
+        conv_id: ID диалога
+        response_length: Длина ответа в символах
+        user_id: ID пользователя
+    
+    Returns:
+        InlineKeyboardMarkup с кнопками Конспект и Посмотреть весь диалог
+    """
+    # Определяем текст кнопки в зависимости от длины ответа
+    if response_length < 3000:
+        button_text = "📜 Посмотреть весь диалог"
+    else:
+        button_text = "📜 Читать полностью"
+    
+    # Создаем кнопку с WebApp (открывается внутри Telegram)
+    url = f"https://soul-bot.ru/chat/{conv_id}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Конспект", callback_data=f"titus:summary:{user_id}")],
+        [InlineKeyboardButton(text=button_text, web_app=WebAppInfo(url=url))]
+    ])
+    
+    return keyboard
+
+
 def should_show_preview(content: str, max_length: int = 3000) -> tuple[bool, str]:
     """
     Проверить, нужно ли показывать превью вместо полного текста

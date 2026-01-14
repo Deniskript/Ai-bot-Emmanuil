@@ -16,8 +16,7 @@ from utils.openrouter import ask, ask_stream
 from utils.tokens import calculate_tokens
 from utils.voice import download_voice, transcribe_voice
 from utils.antiflood import ai_flood
-from utils.telegraph import create_telegraph_page, make_preview, clean_html_for_telegram
-from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
+from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button, get_titus_keyboard
 from loader import bot
 
 # Локальные импорты модуля (всё внутри handlers/titus/)
@@ -173,7 +172,7 @@ async def create_course(msg: Message, state: FSMContext):
                     sentence_buffer = ""
                     
                     if now - last_update >= 0.5:
-                        formatted = clean_html_for_telegram(displayed_text)
+                        formatted = clean_response(displayed_text)
                         try:
                             await stream_msg.edit_text(formatted + " ▌")
                             last_update = now
@@ -210,24 +209,26 @@ async def create_course(msg: Message, state: FSMContext):
         raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
-    resp_clean = clean_html_for_telegram(resp_clean)
+    resp_clean = clean_response(resp_clean)
     
     await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
     await db.increment_requests(msg.from_user.id)
-    await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp_clean)
+    
+    # Сохраняем в систему диалогов
+    conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
     
     last_messages[msg.from_user.id] = {"text": resp_clean, "course": cname, "step": 1}
     cleanup_cache(last_messages)  # Предотвращаем утечку памяти
     
-    if len(resp_clean) >= 3000:
-        preview = make_preview(resp_clean, 800)
-        text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
-    else:
-        text_to_send = resp_clean
+    # Проверяем, нужно ли превью
+    needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
+    
+    # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
+    keyboard = get_titus_keyboard(conv_id, len(resp_clean), msg.from_user.id)
     
     await msg.answer(
-        f"{text_to_send}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
-        reply_markup=inline.titus_msg_kb(msg.from_user.id, has_telegraph=True)
+        f"{display_text}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
+        reply_markup=keyboard
     )
 
 
@@ -444,26 +445,28 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         
         await status.delete()
         
-        resp_clean = clean_html_for_telegram(resp)
+        resp_clean = clean_response(resp)
         
         # Списываем токены
         await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
         await db.increment_requests(msg.from_user.id)
         
+        # Сохраняем в систему диалогов
+        conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
+        
         # Сохраняем в last_messages
         last_messages[msg.from_user.id] = {"text": resp_clean, "course": "Анализ видео", "step": 1}
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
-        # Отправляем результат
-        if len(resp_clean) >= 3000:
-            preview = make_preview(resp_clean, 800)
-            text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
-        else:
-            text_to_send = resp_clean
+        # Проверяем, нужно ли превью
+        needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
+        
+        # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
+        keyboard = get_titus_keyboard(conv_id, len(resp_clean), msg.from_user.id)
         
         await msg.answer(
-            f"📚 <b>Анализ видео</b>\n\n{text_to_send}",
-            reply_markup=inline.titus_msg_kb(msg.from_user.id, has_telegraph=True)
+            f"📚 <b>Анализ видео</b>\n\n{display_text}",
+            reply_markup=keyboard
         )
         
         await state.set_state(TitusSt.menu)
@@ -552,7 +555,7 @@ async def titus_make_summary(cb: CallbackQuery):
 
     try:
         resp, tok = await ask([{"role": "user", "content": summary_prompt}], model)
-        resp = clean_html_for_telegram(resp)
+        resp = clean_response(resp)
         await db.use_tokens_smart(user_id, tok, 'titus')
         await db.increment_requests(user_id)
         await cb.message.answer(
@@ -561,27 +564,6 @@ async def titus_make_summary(cb: CallbackQuery):
         )
     except Exception as e:
         await cb.message.answer(f"❌ Ошибка: {e}", reply_markup=reply.study_chat_kb())
-
-
-@router.callback_query(F.data.startswith("titus:tg:"))
-async def titus_telegraph(cb: CallbackQuery):
-    user_id = cb.from_user.id
-    if user_id not in last_messages:
-        await cb.answer("❌ Нет текста", show_alert=True)
-        return
-    
-    await cb.answer("📖 Публикую на Telegraph...")
-    data = last_messages[user_id]
-    title = f"{data.get('course', 'Урок')} — Шаг {data.get('step', 1)}"
-    url = await create_telegraph_page(title, data['text'])
-    
-    if url:
-        await cb.message.answer(
-            f"{texts.TELEGRAPH_PUBLISHED}\n\n{title}",
-            reply_markup=inline.titus_telegraph_kb(url)
-        )
-    else:
-        await cb.message.answer(texts.TELEGRAPH_FAILED, reply_markup=reply.study_chat_kb())
 
 
 def check_step_transition(resp: str) -> bool:
@@ -705,9 +687,8 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                         sentence_buffer = ""
                         
                         if now - last_update >= 0.5:
-                            from utils.telegraph import clean_html_for_telegram
                             from utils.errors import check_tokens_and_notify
-                            formatted = clean_html_for_telegram(displayed_text)
+                            formatted = clean_response(displayed_text)
                             try:
                                 await stream_msg.edit_text(formatted + " ▌")
                                 last_update = now
@@ -736,12 +717,14 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         
         should_advance = check_step_transition(resp)
         resp_clean = resp.replace("---NEXT---", "").strip()
-        resp_clean = clean_html_for_telegram(resp_clean)
+        resp_clean = clean_response(resp_clean)
         
         await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
         await db.increment_requests(msg.from_user.id)
-        await db.add_msg(msg.from_user.id, 'titus', 'user', text)
-        await db.add_msg(msg.from_user.id, 'titus', 'assistant', resp_clean)
+        
+        # Сохраняем в систему диалогов
+        await save_message(msg.from_user.id, 'user', text, 'titus')
+        conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
         
         if cid and should_advance:
             course = await db.get_course(cid)
@@ -795,8 +778,8 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         # Проверяем, нужно ли превью
         needs_preview, display_text = should_show_preview(resp, max_length=3000)
         
-        # Получаем кнопку для просмотра диалога
-        keyboard = get_chat_button(conv_id, len(resp))
+        # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
+        keyboard = get_titus_keyboard(conv_id, len(resp), user_id)
         
         await msg.answer("💬", reply_markup=reply.study_chat_kb())
         await msg.answer(
@@ -958,7 +941,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
                     sentence_buffer = ""
                     
                     if now - last_update >= 0.5:
-                        formatted = clean_html_for_telegram(displayed_text)
+                        formatted = clean_response(displayed_text)
                         try:
                             await stream_msg.edit_text(formatted + " ▌")
                             last_update = now
@@ -997,24 +980,26 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
         raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
-    resp_clean = clean_html_for_telegram(resp_clean)
+    resp_clean = clean_response(resp_clean)
     
     await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
     await db.increment_requests(cb.from_user.id)
-    await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
+    
+    # Сохраняем в систему диалогов
+    conv_id = await save_message(cb.from_user.id, 'assistant', resp_clean, 'titus')
     
     last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
     cleanup_cache(last_messages)  # Предотвращаем утечку памяти
     
-    if len(resp_clean) >= 3000:
-        preview = make_preview(resp_clean, 800)
-        text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
-    else:
-        text_to_send = resp_clean
+    # Проверяем, нужно ли превью
+    needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
+    
+    # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
+    keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
     
     await cb.message.answer(
-        f"{text_to_send}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
-        reply_markup=inline.titus_msg_kb(cb.from_user.id, has_telegraph=True)
+        f"{display_text}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
+        reply_markup=keyboard
     )
 
 
@@ -1109,7 +1094,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                     sentence_buffer = ""
                     
                     if now - last_update >= 0.5:
-                        formatted = clean_html_for_telegram(displayed_text)
+                        formatted = clean_response(displayed_text)
                         try:
                             await stream_msg.edit_text(formatted + " ▌")
                             last_update = now
@@ -1132,24 +1117,26 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
             except:
                 pass
         
-        resp_clean = clean_html_for_telegram(resp)
+        resp_clean = clean_response(resp)
         
         await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
         await db.increment_requests(cb.from_user.id)
-        await db.add_msg(cb.from_user.id, 'titus', 'assistant', resp_clean)
+        
+        # Сохраняем в систему диалогов
+        conv_id = await save_message(cb.from_user.id, 'assistant', resp_clean, 'titus')
         
         last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
-        if len(resp_clean) >= 3000:
-            preview = make_preview(resp_clean, 800)
-            text_to_send = f"{preview}\n\n<i>📖 Полный текст — нажмите Telegraph</i>"
-        else:
-            text_to_send = resp_clean
+        # Проверяем, нужно ли превью
+        needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
+        
+        # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
+        keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
         
         await cb.message.answer(
-            f"{text_to_send}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
-            reply_markup=inline.titus_msg_kb(cb.from_user.id, has_telegraph=True)
+            f"{display_text}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
+            reply_markup=keyboard
         )
     except Exception as e:
         timer_running = False

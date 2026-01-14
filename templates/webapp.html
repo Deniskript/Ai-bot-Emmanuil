@@ -398,36 +398,6 @@
                 <div class="badges" id="badges"></div>
             </div>
 
-            <!-- Настройки генерации фото -->
-            <div class="card" id="photoSettings">
-                <div class="card-title">🎨 Настройки генерации фото</div>
-                <p style="color: #555; margin-bottom: 16px;">Выберите модель, которая будет использоваться по умолчанию при генерации изображений</p>
-                
-                <div style="background: #f0f8ff; padding: 16px; border-radius: 12px; margin-bottom: 16px; border-left: 4px solid #667eea;">
-                    <div style="font-weight: 600; margin-bottom: 8px;">ℹ️ Как выбрать модель:</div>
-                    <div style="font-size: 14px; color: #666; line-height: 1.6;">
-                        • <strong>Экономный (2K)</strong> - для быстрых набросков<br>
-                        • <strong>Стандарт (8K)</strong> - баланс цены и качества<br>
-                        • <strong>Качество (33K)</strong> - детальные изображения<br>
-                        • <strong>GPT-1.5 (33K)</strong> - продвинутая модель<br>
-                        • <strong>Gemini (29K)</strong> - от Google
-                    </div>
-                </div>
-                
-                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">Модель по умолчанию:</label>
-                <select id="imageModel" onchange="saveImageSettings()" style="width: 100%; padding: 14px; border: 2px solid #e9ecef; border-radius: 12px; font-size: 16px; background: white; cursor: pointer;">
-                    <option value="mini_low">🆓 Экономный (2K токенов)</option>
-                    <option value="mini_medium" selected>⭐ Стандарт (8K токенов)</option>
-                    <option value="mini_high">💎 Качество (33K токенов)</option>
-                    <option value="gpt_medium">🚀 GPT-1.5 Стандарт (33K токенов)</option>
-                    <option value="gemini">✨ Gemini Flash (29K токенов)</option>
-                </select>
-                
-                <div id="saveStatus" style="margin-top: 12px; padding: 12px; background: #d4edda; color: #155724; border-radius: 8px; display: none;">
-                    ✅ Настройки сохранены!
-                </div>
-            </div>
-
             <!-- Реферальная программа -->
             <div class="card">
                 <div class="card-title">👥 Реферальная программа</div>
@@ -721,40 +691,11 @@
             setTimeout(() => notif.remove(), 2000);
         }
 
-        // Сохранение настроек фото
-        window.saveImageSettings = function() {
-            const model = document.getElementById('imageModel').value;
-            
-            // Сохраняем в localStorage
-            localStorage.setItem('imageModel_' + userId, model);
-            
-            // Показываем уведомление
-            const status = document.getElementById('saveStatus');
-            status.style.display = 'block';
-            setTimeout(() => {
-                status.style.display = 'none';
-            }, 2000);
-            
-            console.log('Image model saved:', model);
-        };
-
-        // Загружаем сохранённые настройки
-        function loadImageSettings() {
-            if (userId) {
-                const savedModel = localStorage.getItem('imageModel_' + userId);
-                if (savedModel) {
-                    document.getElementById('imageModel').value = savedModel;
-                    console.log('Loaded saved image model:', savedModel);
-                }
-            }
-        }
-
         // Загружаем данные при старте
         loadUserData().then(() => {
             // Обновляем реферальную ссылку с реальным user_id
             if (userId) {
                 document.getElementById('refLink').value = `https://t.me/iisoul_bot?start=ref_${userId}`;
-                loadImageSettings(); // Загружаем настройки фото
             }
         });
     </script>

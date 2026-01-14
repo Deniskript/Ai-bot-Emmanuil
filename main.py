@@ -4,7 +4,7 @@ import sys
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 from loader import bot, dp
 from database import postgres_db  # PostgreSQL database
-from handlers import start, emmanuil, admin, subscription, images, health
+from handlers import start, admin, subscription, images, health
 from handlers import luca  # Автономный модуль Luca
 from handlers import silas  # Автономный модуль Silas
 from handlers import titus  # Автономный модуль Titus
@@ -55,7 +55,6 @@ async def main():
         dp.include_router(admin.router)
         dp.include_router(subscription.router)
         dp.include_router(start.router)
-        dp.include_router(emmanuil.router)
         dp.include_router(luca.router)  # Автономный модуль Luca (Soul AI)
         dp.include_router(silas.router)
         dp.include_router(titus.router)

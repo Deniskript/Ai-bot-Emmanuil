@@ -121,15 +121,7 @@ ERROR_VOICE_RECOGNITION = "❌ Не удалось распознать речь
 
 ERROR_SELECT_COURSE = "❌ Выберите курс из списка"
 
-# ========== TELEGRAPH ==========
-
-TELEGRAPH_PUBLISHING = "📖 Публикую на Telegraph..."
-
-TELEGRAPH_PUBLISHED = "📖 <b>Полный текст опубликован</b>"
-
-TELEGRAPH_FAILED = "❌ Не удалось опубликовать"
-
-NO_TEXT_FOR_TELEGRAPH = "❌ Нет текста"
+# ========== КОНСПЕКТ ==========
 
 NO_TEXT_FOR_SUMMARY = "❌ Нет текста для конспекта"
 

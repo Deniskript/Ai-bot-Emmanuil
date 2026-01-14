@@ -32,8 +32,7 @@ MAX_CACHE_SIZE = 1000  # Максимальное количество запи�
 CACHE_CLEANUP_PERCENT = 0.2  # Процент удаляемых записей при переполнении
 
 # ========== TELEGRAPH ==========
-TELEGRAPH_ENABLED = True  # Включить публикацию в Telegraph
-TELEGRAPH_MIN_LENGTH = 3000  # Минимальная длина текста для предложения Telegraph
+# Telegraph удалён - теперь используется Web App для просмотра диалогов
 
 # ========== ВИДЕО АНАЛИЗ ==========
 VIDEO_ANALYSIS_ENABLED = True  # Включить анализ видео
