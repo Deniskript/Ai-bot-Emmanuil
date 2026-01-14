@@ -1226,6 +1226,169 @@ async def get_streak(uid: int, goal_id: int) -> Dict:
         return dict(row) if row else {"current_streak": 0, "best_streak": 0}
 
 
+# Алиасы для совместимости с handlers
+async def get_active_goals(uid: int) -> List[Dict]:
+    """Получить активные цели (алиас для get_user_goals)"""
+    return await get_user_goals(uid, active_only=True)
+
+
+async def get_goal_by_id(goal_id: int) -> Optional[Dict]:
+    """Получить цель по ID (алиас для get_goal)"""
+    return await get_goal(goal_id)
+
+
+async def create_streak(uid: int, goal_id: int):
+    """Создать streak для цели"""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_streaks (user_id, goal_id, current_streak, best_streak)
+            VALUES ($1, $2, 0, 0)
+            ON CONFLICT (user_id, goal_id) DO NOTHING
+            """,
+            uid, goal_id
+        )
+
+
+async def get_goal_streak(goal_id: int, user_id: int) -> Dict:
+    """Получить streak для цели"""
+    return await get_streak(user_id, goal_id)
+
+
+async def get_checkin_today(goal_id: int, user_id: int) -> Optional[Dict]:
+    """Проверить есть ли отметка за сегодня"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM goal_checkins WHERE goal_id = $1 AND user_id = $2 AND date = CURRENT_DATE",
+            goal_id, user_id
+        )
+        return dict(row) if row else None
+
+
+async def save_checkin(goal_id: int, user_id: int, is_done: bool = True, note: str = None):
+    """Сохранить отметку выполнения"""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO goal_checkins (goal_id, user_id, date, is_done, note)
+            VALUES ($1, $2, CURRENT_DATE, $3, $4)
+            ON CONFLICT (goal_id, user_id, date) DO UPDATE SET is_done = $3, note = $4
+            """,
+            goal_id, user_id, 1 if is_done else 0, note
+        )
+        await update_streak(user_id, goal_id)
+
+
+async def get_goal_progress(goal_id: int, target: int, period: int) -> Dict:
+    """Получить прогресс цели за текущий период"""
+    async with get_connection() as conn:
+        since = datetime.now() - timedelta(days=period)
+        done = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM goal_checkins
+            WHERE goal_id = $1 AND date >= $2 AND is_done = 1
+            """,
+            goal_id, since.date()
+        )
+        return {
+            'done': done or 0,
+            'target': target,
+            'percent': int((done or 0) / target * 100) if target > 0 else 0
+        }
+
+
+async def get_total_streak(uid: int) -> int:
+    """Получить общий streak пользователя"""
+    async with get_connection() as conn:
+        total = await conn.fetchval(
+            "SELECT COALESCE(SUM(current_streak), 0) FROM user_streaks WHERE user_id = $1",
+            uid
+        )
+        return total or 0
+
+
+async def delete_goal(goal_id: int):
+    """Деактивировать цель"""
+    await deactivate_goal(goal_id)
+
+
+async def get_monthly_stats_user(uid: int) -> Dict:
+    """Получить статистику за 30 дней (для совместимости)"""
+    from datetime import date, timedelta
+    today = date.today()
+    start_date = (today - timedelta(days=30)).isoformat()
+    
+    async with get_connection() as conn:
+        done = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM goal_checkins
+            WHERE user_id = $1 AND date >= $2 AND is_done = 1
+            """,
+            uid, start_date
+        )
+        
+        skipped = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM goal_checkins
+            WHERE user_id = $1 AND date >= $2 AND is_done = 0
+            """,
+            uid, start_date
+        )
+        
+        total = (done or 0) + (skipped or 0)
+        percent = int((done or 0) / total * 100) if total > 0 else 0
+        
+        # Статистика по неделям
+        weeks = []
+        for i in range(4):
+            week_start = (today - timedelta(days=(i+1)*7)).isoformat()
+            week_end = (today - timedelta(days=i*7)).isoformat()
+            
+            week_done = await conn.fetchval(
+                """
+                SELECT COUNT(CASE WHEN is_done = 1 THEN 1 END)
+                FROM goal_checkins
+                WHERE user_id = $1 AND date >= $2 AND date < $3
+                """,
+                uid, week_start, week_end
+            )
+            
+            week_total = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM goal_checkins
+                WHERE user_id = $1 AND date >= $2 AND date < $3
+                """,
+                uid, week_start, week_end
+            )
+            
+            week_total = week_total or 0
+            week_done = week_done or 0
+            week_percent = int(week_done / week_total * 100) if week_total > 0 else 0
+            
+            weeks.append({
+                'label': f'Неделя {4-i}',
+                'percent': week_percent,
+                'done': week_done,
+                'total': week_total
+            })
+        
+        weeks.reverse()
+        
+        return {
+            'done': done or 0,
+            'skipped': skipped or 0,
+            'total': total,
+            'percent': percent,
+            'weeks': weeks
+        }
+
+
+# Алиас для обратной совместимости
+async def get_monthly_stats(uid: int) -> Dict:
+    """Получить статистику за 30 дней (алиас)"""
+    return await get_monthly_stats_user(uid)
+
+
 # ============================================================================
 # ROUTINES - Рутины
 # ============================================================================
@@ -1293,6 +1456,87 @@ async def get_routine_checkins(uid: int, routine_type: str, days: int = 30) -> L
             data['completed_items'] = json.loads(data['completed_items'])
             result.append(data)
         return result
+
+
+# Алиасы для совместимости с handlers
+async def get_user_routine(uid: int, routine_type: str) -> Optional[Dict]:
+    """Получить рутину пользователя (алиас для get_routine)"""
+    return await get_routine(uid, routine_type)
+
+
+async def save_user_routine(uid: int, routine_type: str, items: List[str], reminder_time: str = None):
+    """Сохранить рутину пользователя (алиас для save_routine)"""
+    await save_routine(uid, routine_type, items, reminder_time)
+
+
+async def get_today_routine_checkin(uid: int, routine_type: str) -> Optional[Dict]:
+    """Получить отметку рутины за сегодня"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM routine_checkins WHERE user_id = $1 AND routine_type = $2 AND date = CURRENT_DATE",
+            uid, routine_type
+        )
+        if row:
+            data = dict(row)
+            data['completed_items'] = json.loads(data['completed_items'])
+            return data
+        return None
+
+
+async def save_routine_checkin(uid: int, routine_type: str, completed_items: List[str],
+                               total_items: int, completion_percent: int = None,
+                               reflection: str = None, mood: int = None):
+    """Сохранить отметку рутины"""
+    if completion_percent is None:
+        completion_percent = int((len(completed_items) / total_items) * 100) if total_items > 0 else 0
+    await add_routine_checkin(uid, routine_type, completed_items, total_items, reflection, mood)
+
+
+async def get_routine_stats(uid: int, days: int = 7) -> Dict:
+    """Получить статистику рутин за N дней"""
+    async with get_connection() as conn:
+        since = datetime.now() - timedelta(days=days)
+        rows = await conn.fetch(
+            """
+            SELECT * FROM routine_checkins
+            WHERE user_id = $1 AND date >= $2
+            ORDER BY date
+            """,
+            uid, since.date()
+        )
+        checkins = [dict(row) for row in rows]
+    
+    # Группируем по типу и дате
+    morning_stats = []
+    evening_stats = []
+    
+    for i in range(days):
+        day = datetime.now().date() - timedelta(days=days-1-i)
+        day_str = day.strftime("%d.%m")
+        
+        morning = next((c for c in checkins if c['date'] == day and c['routine_type'] == "morning"), None)
+        evening = next((c for c in checkins if c['date'] == day and c['routine_type'] == "evening"), None)
+        
+        morning_stats.append({
+            "date": day_str,
+            "percent": morning['completion_percent'] if morning else 0
+        })
+        evening_stats.append({
+            "date": day_str,
+            "percent": evening['completion_percent'] if evening else 0,
+            "mood": evening['mood'] if evening else 0
+        })
+    
+    avg_percent = sum(m['percent'] for m in morning_stats) / len(morning_stats) if morning_stats else 0
+    moods = [e['mood'] for e in evening_stats if e['mood'] and e['mood'] > 0]
+    avg_mood = sum(moods) / len(moods) if moods else 0
+    
+    return {
+        "morning": morning_stats,
+        "evening": evening_stats,
+        "avg_percent": int(avg_percent),
+        "avg_mood": avg_mood
+    }
 
 
 # ============================================================================
@@ -1433,6 +1677,89 @@ async def get_meditation_stats(uid: int, days: int = 30) -> Dict:
         return {"total_sessions": total_count, "total_minutes": total_minutes}
 
 
+# Алиасы для совместимости с handlers
+async def get_today_mood(uid: int) -> Optional[Dict]:
+    """Получить настроение за сегодня"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM mood_logs WHERE user_id = $1 AND date = CURRENT_DATE",
+            uid
+        )
+        if row:
+            data = dict(row)
+            if data.get('tags'):
+                data['tags'] = json.loads(data['tags'])
+            return data
+        return None
+
+
+async def save_mood_log(uid: int, mood: int, energy: int, tags: List[str], note: str = None):
+    """Сохранить запись настроения"""
+    await log_mood(uid, mood, energy, note, tags)
+
+
+async def save_meditation_log(uid: int, duration: int, med_type: str):
+    """Сохранить запись медитации"""
+    await log_meditation(uid, duration, med_type)
+
+
+async def get_meditation_streak(uid: int) -> int:
+    """Получить streak медитаций"""
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT date FROM meditation_logs
+            WHERE user_id = $1
+            ORDER BY date DESC
+            """,
+            uid
+        )
+        dates = [row['date'] for row in rows]
+    
+    if not dates:
+        return 0
+    
+    streak = 0
+    expected = datetime.now().date()
+    
+    for d in dates:
+        if d == expected:
+            streak += 1
+            expected = expected - timedelta(days=1)
+        elif d < expected:
+            break
+    
+    return streak
+
+
+async def get_mood_stats(uid: int, days: int = 14) -> Dict:
+    """Получить статистику настроения за N дней"""
+    logs = await get_mood_logs(uid, days)
+    
+    if not logs:
+        return {"logs": [], "avg_mood": 0, "avg_energy": 0, "top_tag": None}
+    
+    mood_sum = sum(l['mood'] for l in logs)
+    energy_sum = sum(l['energy'] for l in logs)
+    
+    # Считаем теги
+    from collections import Counter
+    all_tags = []
+    for l in logs:
+        if l.get('tags'):
+            all_tags.extend(l['tags'])
+    
+    tag_counts = Counter(all_tags)
+    top_tag = tag_counts.most_common(1)[0][0] if tag_counts else None
+    
+    return {
+        "logs": [{"date": l['date'].strftime("%d.%m") if isinstance(l['date'], date) else str(l['date']), "mood": l['mood']} for l in logs],
+        "avg_mood": mood_sum / len(logs),
+        "avg_energy": energy_sum / len(logs),
+        "top_tag": top_tag
+    }
+
+
 # ============================================================================
 # FINANCE - Финансы
 # ============================================================================
@@ -1534,6 +1861,141 @@ async def get_budget(uid: int) -> Optional[Dict]:
                 data['category_limits'] = json.loads(data['category_limits'])
             return data
         return None
+
+
+# Алиасы для совместимости с handlers
+async def get_user_budget(uid: int) -> Optional[Dict]:
+    """Получить бюджет пользователя (алиас для get_budget)"""
+    return await get_budget(uid)
+
+
+async def save_user_budget(uid: int, monthly_limit: float):
+    """Сохранить бюджет пользователя"""
+    await save_budget(uid, monthly_limit, {}, 'RUB')
+
+
+async def save_transaction(uid: int, trans_type: str, amount: float, category: str, description: str):
+    """Сохранить транзакцию"""
+    from datetime import date
+    await add_transaction(uid, trans_type, amount, category, description, date.today().isoformat())
+
+
+async def get_month_expenses(uid: int) -> Dict:
+    """Получить расходы за текущий месяц"""
+    from datetime import date
+    today = date.today()
+    stats = await get_monthly_stats(uid, today.year, today.month)
+    return {"total": stats.get("expense", 0)}
+
+
+async def get_month_total(uid: int) -> float:
+    """Получить общую сумму расходов за месяц"""
+    stats = await get_month_expenses(uid)
+    return stats.get("total", 0)
+
+
+async def get_expenses_by_period(uid: int, start_date: date) -> List[Dict]:
+    """Получить расходы за период"""
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT * FROM transactions
+            WHERE user_id = $1 AND type = 'expense' AND date >= $2
+            ORDER BY date DESC
+            """,
+            uid, start_date.isoformat()
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_top_categories(uid: int, limit: int = 5) -> List[tuple]:
+    """Получить топ категорий по расходам"""
+    from datetime import date
+    today = date.today()
+    stats = await get_monthly_stats(uid, today.year, today.month)
+    by_category = stats.get("by_category", {})
+    sorted_cats = sorted(by_category.items(), key=lambda x: x[1], reverse=True)
+    return sorted_cats[:limit]
+
+
+async def get_average_expense(uid: int) -> float:
+    """Получить средний чек"""
+    from datetime import date
+    today = date.today()
+    start_date = today.replace(day=1).isoformat()
+    
+    async with get_connection() as conn:
+        avg = await conn.fetchval(
+            """
+            SELECT AVG(amount) FROM transactions
+            WHERE user_id = $1 AND type = 'expense' AND date >= $2
+            """,
+            uid, start_date
+        )
+        return float(avg) if avg else 0
+
+
+async def get_max_expense(uid: int) -> Optional[Dict]:
+    """Получить максимальную трату"""
+    from datetime import date
+    today = date.today()
+    start_date = today.replace(day=1).isoformat()
+    
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT * FROM transactions
+            WHERE user_id = $1 AND type = 'expense' AND date >= $2
+            ORDER BY amount DESC
+            LIMIT 1
+            """,
+            uid, start_date
+        )
+        return dict(row) if row else None
+
+
+async def get_last_month_total(uid: int) -> float:
+    """Получить расходы за прошлый месяц"""
+    from datetime import date
+    today = date.today()
+    if today.month == 1:
+        last_month = 12
+        last_year = today.year - 1
+    else:
+        last_month = today.month - 1
+        last_year = today.year
+    
+    stats = await get_monthly_stats(uid, last_year, last_month)
+    return stats.get("expense", 0)
+
+
+async def get_month_expenses_detailed(uid: int) -> Dict:
+    """Получить детальную статистику расходов за месяц"""
+    from datetime import date
+    today = date.today()
+    start_date = today.replace(day=1).isoformat()
+    
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT category, SUM(amount) as total, COUNT(*) as count
+            FROM transactions
+            WHERE user_id = $1 AND type = 'expense' AND date >= $2
+            GROUP BY category
+            ORDER BY total DESC
+            """,
+            uid, start_date
+        )
+        
+        result = {}
+        for row in rows:
+            cat_name = EXPENSE_CATEGORIES.get(row['category'], row['category'])
+            result[cat_name] = {
+                'total': float(row['total']),
+                'count': row['count']
+            }
+    
+    return result
 
 
 # ============================================================================

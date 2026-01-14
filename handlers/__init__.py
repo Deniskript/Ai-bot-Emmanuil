@@ -1,2 +1,5 @@
-from . import start, emmanuil, silas, titus, admin, subscription
-from . import luca  # Автономный модуль
+from . import start, emmanuil, admin, subscription
+from . import luca  # Автономный модуль Luca
+from . import silas  # Автономный модуль Silas
+from . import titus  # Автономный модуль Titus
+from . import lifestyle  # Автономный модуль Lifestyle

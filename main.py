@@ -4,10 +4,11 @@ import sys
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 from loader import bot, dp
 from database import postgres_db  # PostgreSQL database
-from handlers import start, emmanuil, admin, subscription, images, viral_analysis, lifestyle, health, goals, routine, mental, finance
+from handlers import start, emmanuil, admin, subscription, images, health
 from handlers import luca  # Автономный модуль Luca
 from handlers import silas  # Автономный модуль Silas
 from handlers import titus  # Автономный модуль Titus
+from handlers import lifestyle  # Автономный модуль Lifestyle
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -49,13 +50,8 @@ async def main():
         
         # Подключение роутеров
         dp.include_router(images.router)  # Moved up for state priority
-        dp.include_router(viral_analysis.router)  # Viral content analysis
         dp.include_router(health.router)  # Health & Calories
-        dp.include_router(goals.router)  # Goals Tracker
-        dp.include_router(routine.router)  # Daily Routine
-        dp.include_router(mental.router)  # Mental Health
-        dp.include_router(finance.router)  # Finance Tracker
-        dp.include_router(lifestyle.router)  # Lifestyle
+        dp.include_router(lifestyle.router)  # Автономный модуль Lifestyle (объединяет viral, routine, goals, mental, finance)
         dp.include_router(admin.router)
         dp.include_router(subscription.router)
         dp.include_router(start.router)
