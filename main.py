@@ -4,9 +4,10 @@ import sys
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 from loader import bot, dp
 from database import postgres_db  # PostgreSQL database
-from handlers import start, emmanuil, titus, admin, subscription, images, viral_analysis, lifestyle, health, goals, routine, mental, finance
+from handlers import start, emmanuil, admin, subscription, images, viral_analysis, lifestyle, health, goals, routine, mental, finance
 from handlers import luca  # Автономный модуль Luca
 from handlers import silas  # Автономный модуль Silas
+from handlers import titus  # Автономный модуль Titus
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)

@@ -805,7 +805,7 @@ async def prompt_view(cb: CallbackQuery, state: FSMContext):
             elif bot_name == 'silas':
                 from prompts.silas_prompt import SYSTEM_PROMPT
             else:
-                from prompts.titus_prompt import SYSTEM_PROMPT
+                from handlers.titus.prompts import TITUS_BASE as SYSTEM_PROMPT
             
             prompt_preview = SYSTEM_PROMPT[:500] + "..." if len(SYSTEM_PROMPT) > 500 else SYSTEM_PROMPT
             
