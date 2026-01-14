@@ -200,7 +200,8 @@ def finance_menu_kb():
 def photo_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="📷 Создать"), KeyboardButton(text="✏️ Редактор")],
-        [KeyboardButton(text="🎨 4K Фото"), KeyboardButton(text="⚙️ Настройки", web_app=WebAppInfo(url=f"https://soul-bot.ru/images/settings?user_id={user_id}"))],
+        [KeyboardButton(text="🎨 4K Фото"), KeyboardButton(text="🎬 Видео")],
+        [KeyboardButton(text="⚙️ Настройки", web_app=WebAppInfo(url=f"https://soul-bot.ru/images/settings?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 

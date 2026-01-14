@@ -6,151 +6,144 @@
     <title>Soul Bot - Настройки изображений</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
-            color: #333;
         }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
+        
+        .container { max-width: 600px; margin: 0 auto; }
+        
         .header {
             text-align: center;
             color: white;
-            margin-bottom: 30px;
-            animation: fadeIn 0.5s;
+            margin-bottom: 24px;
         }
-
-        .header h1 {
-            font-size: 32px;
-            margin-bottom: 8px;
-        }
-
-        .header p {
-            font-size: 16px;
-            opacity: 0.9;
-        }
-
+        .header h1 { font-size: 28px; margin-bottom: 8px; }
+        .header p { opacity: 0.9; }
+        
         .card {
             background: white;
             border-radius: 16px;
-            padding: 24px;
+            padding: 20px;
             margin-bottom: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            animation: slideUp 0.5s;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
-
+        
         .card-title {
             font-size: 18px;
             font-weight: 600;
-            margin-bottom: 16px;
             color: #667eea;
+            margin-bottom: 16px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-
-        .info-box {
-            background: #f0f8ff;
-            padding: 16px;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            border-left: 4px solid #667eea;
-        }
-
-        .info-box-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #333;
-        }
-
-        .info-box-text {
-            font-size: 14px;
-            color: #666;
-            line-height: 1.6;
-        }
-
-        select {
-            width: 100%;
+        
+        .model-option {
             padding: 14px;
             border: 2px solid #e9ecef;
             border-radius: 12px;
-            font-size: 16px;
-            background: white;
+            margin-bottom: 10px;
             cursor: pointer;
-            transition: border-color 0.2s;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .save-status {
-            margin-top: 12px;
-            padding: 12px;
-            background: #d4edda;
-            color: #155724;
-            border-radius: 8px;
-            display: none;
-            text-align: center;
-            font-weight: 600;
-        }
-
-        .save-status.show {
+            transition: all 0.2s;
             display: block;
-        }
-
-        .btn {
             width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .model-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .model-option.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        }
+        
+        .model-option input[type="radio"] {
+            display: none;
+        }
+        
+        .model-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .model-price {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .model-desc {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+        
+        .btn-apply {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
             border: none;
             border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 16px;
+            margin-top: 12px;
         }
-
-        .btn:hover {
+        
+        .btn-apply:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
         }
-
-        .btn-secondary {
+        
+        .btn-back {
+            width: 100%;
+            padding: 14px;
             background: white;
             color: #667eea;
             border: 2px solid #667eea;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
         }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        
+        .status-saved {
+            padding: 12px;
+            background: #d4edda;
+            color: #155724;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 12px;
+            display: none;
         }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        
+        .status-saved.show { display: block; }
+        
+        .balance-info {
+            background: #f0f8ff;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 16px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .balance-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
         }
     </style>
 </head>
@@ -158,93 +151,188 @@
     <div class="container">
         <div class="header">
             <h1>🎨 Настройки изображений</h1>
-            <p>Выберите модель для генерации</p>
+            <p>Выберите модели для каждого действия</p>
+        </div>
+        
+        <div class="balance-info">
+            <div>Ваш баланс</div>
+            <div class="balance-amount" id="balance">0</div>
+            <div style="font-size: 12px; color: #666;">токенов</div>
         </div>
 
+        <!-- СОЗДАНИЕ ФОТО -->
         <div class="card">
-            <div class="card-title">🎨 Режимы обработки фото</div>
+            <div class="card-title">📷 Создание фото</div>
             
-            <div class="info-box">
-                <div class="info-box-title">📷 Создание фото (8,000 токенов)</div>
-                <div class="info-box-text">
-                    Генерация изображений по текстовому описанию. Создайте любое изображение, описав его словами.
-                </div>
-            </div>
-
-            <div class="info-box">
-                <div class="info-box-title">🎨 4K Upscale (33,000 токенов)</div>
-                <div class="info-box-text">
-                    Улучшение качества до 4K разрешения. Увеличивает детализацию, резкость и чёткость изображения.
-                </div>
-            </div>
-
-            <div class="info-box">
-                <div class="info-box-title">✏️ Редактор (15,000 токенов)</div>
-                <div class="info-box-text">
-                    Редактирование изображений по команде: удаление фона, добавление объектов, изменение сцены.
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">💎 Модели AI и цены</div>
+            <label class="model-option" data-action="create" data-model="gpt-image-1-mini" data-price="8000">
+                <input type="radio" name="create_model" value="gpt-image-1-mini">
+                <div class="model-name">🆓 Экономный</div>
+                <div class="model-price">8,000 токенов</div>
+                <div class="model-desc">gpt-image-1-mini • Быстрая генерация</div>
+            </label>
             
-            <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
-                <thead>
-                    <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                        <th style="padding: 12px; text-align: left;">Модель</th>
-                        <th style="padding: 12px; text-align: right;">Цена</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr style="border-bottom: 1px solid #e9ecef;">
-                        <td style="padding: 12px;">
-                            <strong>📷 Создание</strong><br>
-                            <small style="color: #666;">Базовая генерация</small>
-                        </td>
-                        <td style="padding: 12px; text-align: right; font-weight: 600;">8,000</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid #e9ecef;">
-                        <td style="padding: 12px;">
-                            <strong>✏️ Редактор</strong><br>
-                            <small style="color: #666;">Изменение фото</small>
-                        </td>
-                        <td style="padding: 12px; text-align: right; font-weight: 600;">15,000</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 12px;">
-                            <strong>🎨 4K Upscale</strong><br>
-                            <small style="color: #666;">Улучшение до 4K</small>
-                        </td>
-                        <td style="padding: 12px; text-align: right; font-weight: 600;">33,000</td>
-                    </tr>
-                </tbody>
-            </table>
+            <label class="model-option" data-action="create" data-model="gpt-image-1" data-price="15000">
+                <input type="radio" name="create_model" value="gpt-image-1">
+                <div class="model-name">⭐ Стандарт</div>
+                <div class="model-price">15,000 токенов</div>
+                <div class="model-desc">gpt-image-1 • Хорошее качество</div>
+            </label>
+            
+            <label class="model-option" data-action="create" data-model="gpt-image-1.5" data-price="25000">
+                <input type="radio" name="create_model" value="gpt-image-1.5">
+                <div class="model-name">💎 Продвинутый</div>
+                <div class="model-price">25,000 токенов</div>
+                <div class="model-desc">gpt-image-1.5 • Высокая детализация</div>
+            </label>
+            
+            <label class="model-option" data-action="create" data-model="gpt-image-1.5-hd" data-price="33000">
+                <input type="radio" name="create_model" value="gpt-image-1.5-hd">
+                <div class="model-name">👑 Премиум HD</div>
+                <div class="model-price">33,000 токенов</div>
+                <div class="model-desc">gpt-image-1.5 HD • Максимальное качество</div>
+            </label>
+            
+            <button class="btn-apply" onclick="saveSection('create')">✅ Применить для создания</button>
+            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startInBot('create')">▶️ Начать в боте</button>
+            <div class="status-saved" id="status-create">✅ Сохранено! Используйте «📷 Создать» в боте</div>
         </div>
 
+        <!-- UPSCALE - УЛУЧШЕНИЕ КАЧЕСТВА -->
         <div class="card">
-            <div class="card-title">📋 Информация</div>
-            <div class="info-box-text">
-                <p style="margin-bottom: 12px;">
-                    <strong>Доступные функции:</strong>
-                </p>
-                <ul style="padding-left: 20px; line-height: 1.8;">
-                    <li>📷 <strong>Создание</strong> - генерация по описанию</li>
-                    <li>🎨 <strong>4K Upscale</strong> - улучшение качества</li>
-                    <li>✏️ <strong>Редактор</strong> - изменение фото</li>
-                    <li>🔄 <strong>Удаление фона</strong> - автоматическое</li>
-                    <li>✨ <strong>Улучшение лица</strong> - детализация</li>
-                    <li>🎭 <strong>Стилизация</strong> - художественные эффекты</li>
-                </ul>
-                <p style="margin-top: 12px; font-size: 13px; color: #666;">
-                    💡 Подписка даёт скидку 50% на все операции!
-                </p>
-            </div>
+            <div class="card-title">🎨 Улучшение качества</div>
+            
+            <label class="model-option" data-action="upscale" data-model="standard_1024" data-price="20000">
+                <input type="radio" name="upscale_model" value="standard_1024">
+                <div class="model-name">⭐ Стандарт 1024x1024</div>
+                <div class="model-price">20,000 токенов</div>
+                <div class="model-desc">Базовое улучшение качества</div>
+            </label>
+            
+            <label class="model-option" data-action="upscale" data-model="wide_1536" data-price="28000">
+                <input type="radio" name="upscale_model" value="wide_1536">
+                <div class="model-name">🖼 Широкий 1536x1024</div>
+                <div class="model-price">28,000 токенов</div>
+                <div class="model-desc">Широкоформатное улучшение</div>
+            </label>
+            
+            <label class="model-option" data-action="upscale" data-model="tall_1536" data-price="28000">
+                <input type="radio" name="upscale_model" value="tall_1536">
+                <div class="model-name">📱 Высокий 1024x1536</div>
+                <div class="model-price">28,000 токенов</div>
+                <div class="model-desc">Вертикальное улучшение</div>
+            </label>
+            
+            <label class="model-option" data-action="upscale" data-model="auto_max" data-price="33000">
+                <input type="radio" name="upscale_model" value="auto_max">
+                <div class="model-name">👑 Авто максимум</div>
+                <div class="model-price">33,000 токенов</div>
+                <div class="model-desc">API выберет лучший размер автоматически</div>
+            </label>
+            
+            <button class="btn-apply" onclick="saveSection('upscale')">✅ Применить для улучшения</button>
+            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startInBot('upscale')">▶️ Начать в боте</button>
+            <div class="status-saved" id="status-upscale">✅ Сохранено! Используйте «🎨 4K Фото» в боте</div>
         </div>
 
-        <button class="btn btn-secondary" onclick="Telegram.WebApp.close()">
-            ← Вернуться в бот
-        </button>
+        <!-- РЕДАКТОР -->
+        <div class="card">
+            <div class="card-title">✏️ Редактор фото</div>
+            
+            <label class="model-option" data-action="edit" data-model="gpt-image-1" data-price="15000">
+                <input type="radio" name="edit_model" value="gpt-image-1">
+                <div class="model-name">⭐ Стандарт</div>
+                <div class="model-price">15,000 токенов</div>
+                <div class="model-desc">gpt-image-1 • Базовое редактирование</div>
+            </label>
+            
+            <label class="model-option" data-action="edit" data-model="gpt-image-1.5" data-price="25000">
+                <input type="radio" name="edit_model" value="gpt-image-1.5">
+                <div class="model-name">💎 Продвинутый</div>
+                <div class="model-price">25,000 токенов</div>
+                <div class="model-desc">gpt-image-1.5 • Точное редактирование</div>
+            </label>
+            
+            <button class="btn-apply" onclick="saveSection('edit')">✅ Применить для редактора</button>
+            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startInBot('edit')">▶️ Начать в боте</button>
+            <div class="status-saved" id="status-edit">✅ Сохранено! Используйте «✏️ Редактор» в боте</div>
+        </div>
+
+        <!-- ВИДЕО -->
+        <div class="card">
+            <div class="card-title">🎬 Видео</div>
+
+            <div style="font-size: 13px; color: #666; margin-bottom: 10px; line-height: 1.4;">
+                Выберите режим и уровень качества. Запуск и отправка контента — в боте.
+                <br><br>
+                <b>Если видите ошибку VseGPT про лимит (например: limit 10₽, а цена 12₽)</b> —
+                увеличьте лимит “на один запрос” в настройках аккаунта VseGPT минимум до <b>12₽</b>
+                (лучше 20–200₽, если планируете premium-модели).
+            </div>
+
+            <div style="font-weight: 600; color: #333; margin: 10px 0 8px;">Режим</div>
+            <label class="model-option video-mode selected" data-video-mode="photo_to_video">
+                <div class="model-name">📸 Фото → Видео</div>
+                <div class="model-desc">Сделаем ролик на основе фото (можно добавить подпись)</div>
+            </label>
+            <label class="model-option video-mode" data-video-mode="text_to_video">
+                <div class="model-name">📝 Текст → Видео</div>
+                <div class="model-desc">Сгенерируем видео только по описанию</div>
+            </label>
+            <label class="model-option video-mode" data-video-mode="animate_photo">
+                <div class="model-name">✨ Анимация фото</div>
+                <div class="model-desc">Оживим фото мягкими движениями (можно добавить подпись)</div>
+            </label>
+
+            <div style="font-weight: 600; color: #333; margin: 14px 0 8px;">Уровень</div>
+            <label class="model-option video-tier selected" data-video-tier="econom" data-price="12000">
+                <div class="model-name">💰 Эконом (LTX)</div>
+                <div class="model-price">12,000 токенов</div>
+                <div class="model-desc">Быстро и недорого • лучше для тестов</div>
+            </label>
+            <label class="model-option video-tier" data-video-tier="standard" data-price="99000">
+                <div class="model-name">⭐ Стандарт (Veo Fast)</div>
+                <div class="model-price">99,000 токенов</div>
+                <div class="model-desc">Хорошее качество • можно включить аудио</div>
+            </label>
+            <label class="model-option video-tier" data-video-tier="premium" data-price="198000">
+                <div class="model-name">👑 Премиум (Sora/Kling)</div>
+                <div class="model-price">198,000 токенов</div>
+                <div class="model-desc">Максимальное качество (дороже)</div>
+            </label>
+
+            <div style="display:flex; gap:10px; align-items:center; margin-top: 10px;">
+                <label style="display:flex; gap:8px; align-items:center; font-size: 14px; color:#333;">
+                    <input type="checkbox" id="videoAudio" style="transform: scale(1.1);">
+                    Аудио (если поддерживается уровнем)
+                </label>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top: 12px;">
+                <div style="flex:1;">
+                    <div style="font-size: 13px; color:#666; margin-bottom:6px;">Соотношение сторон</div>
+                    <select id="videoAspect" style="width:100%; padding:12px; border-radius:12px; border:2px solid #e9ecef;">
+                        <option value="16:9">16:9</option>
+                        <option value="9:16">9:16</option>
+                        <option value="1:1">1:1</option>
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size: 13px; color:#666; margin-bottom:6px;">Длительность</div>
+                    <select id="videoSeconds" style="width:100%; padding:12px; border-radius:12px; border:2px solid #e9ecef;">
+                        <option value="4">4 сек</option>
+                        <option value="5" selected>5 сек</option>
+                        <option value="8">8 сек</option>
+                        <option value="10">10 сек</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-apply" onclick="saveVideoSettings()">✅ Применить для видео</button>
+            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startVideoInBot()">▶️ Начать в боте</button>
+            <div class="status-saved" id="status-video">✅ Сохранено! Используйте «🎬 Видео» в боте</div>
+        </div>
+
+        <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
     </div>
 
     <script>
@@ -252,8 +340,8 @@
         tg.ready();
         tg.expand();
         
-        // Получаем user_id
         let userId = tg.initDataUnsafe?.user?.id;
+        console.log('Initial userId from initDataUnsafe:', userId);
         if (!userId && tg.initData) {
             try {
                 const params = new URLSearchParams(tg.initData);
@@ -261,55 +349,405 @@
                 if (userStr) {
                     const user = JSON.parse(userStr);
                     userId = user.id;
+                    console.log('Parsed userId from initData:', userId);
                 }
             } catch (e) {
-                console.error("Parse error:", e);
+                console.error('Error parsing initData:', e);
             }
         }
         if (!userId) {
             const urlParams = new URLSearchParams(window.location.search);
             userId = urlParams.get('user_id');
+            console.log('UserId from URL params:', userId);
         }
+        console.log('Final userId:', userId);
 
-        // Сохранение настроек
-        function saveImageSettings() {
-            const model = document.getElementById('imageModel').value;
-            
-            // Сохраняем в localStorage
-            if (userId) {
-                localStorage.setItem('imageModel_' + userId, model);
-            } else {
-                localStorage.setItem('imageModel_default', model);
+        // Выбор модели (только для блоков create/upscale/edit)
+        document.querySelectorAll('.model-option').forEach(option => {
+            option.addEventListener('click', function() {
+                const action = this.dataset.action;
+                if (!action) return; // video-элементы обрабатываются отдельно
+                document.querySelectorAll(`.model-option[data-action="${action}"]`).forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+            });
+        });
+
+        // Загрузка настроек
+        async function loadSettings() {
+            if (!userId) {
+                console.error('No userId available');
+                return;
             }
             
-            // Показываем уведомление
-            const status = document.getElementById('saveStatus');
-            status.classList.add('show');
-            setTimeout(() => {
-                status.classList.remove('show');
-            }, 2000);
-            
-            console.log('Image model saved:', model);
-        }
+            try {
+                console.log('Loading settings for user:', userId);
+                const resp = await fetch(`/api/image-settings/${userId}`);
+                console.log('Load response status:', resp.status);
+                
+                if (resp.ok) {
+                    const data = await resp.json();
+                    console.log('Loaded settings:', data);
+                    
+                    // Баланс
+                    if (data.balance !== undefined) {
+                        document.getElementById('balance').textContent = formatNumber(data.balance);
+                    }
+                    
+                    // Выбранные модели
+                    if (data.create_model) selectModel('create', data.create_model);
+                    if (data.upscale_model) selectModel('upscale', data.upscale_model);
+                    if (data.edit_model) selectModel('edit', data.edit_model);
 
-        // Загружаем сохранённые настройки
-        function loadImageSettings() {
-            if (userId) {
-                const savedModel = localStorage.getItem('imageModel_' + userId);
-                if (savedModel) {
-                    document.getElementById('imageModel').value = savedModel;
-                    console.log('Loaded saved image model:', savedModel);
+                    // Видео (extra_settings)
+                    const video = data.extra_settings?.video;
+                    if (video) {
+                        selectVideoMode(video.mode || 'photo_to_video');
+                        selectVideoTier(video.tier || 'econom');
+                        if (video.audio !== undefined) document.getElementById('videoAudio').checked = !!video.audio;
+                        if (video.aspect_ratio) document.getElementById('videoAspect').value = video.aspect_ratio;
+                        if (video.seconds) document.getElementById('videoSeconds').value = String(video.seconds);
+                    }
+                } else {
+                    const errorData = await resp.json().catch(() => ({error: 'Unknown error'}));
+                    console.error('Load error response:', errorData);
                 }
-            } else {
-                const savedModel = localStorage.getItem('imageModel_default');
-                if (savedModel) {
-                    document.getElementById('imageModel').value = savedModel;
-                }
+            } catch (e) {
+                console.error('Load error:', e);
             }
         }
 
-        // Загружаем настройки при старте
-        loadImageSettings();
+        function selectModel(action, model) {
+            const option = document.querySelector(`.model-option[data-action="${action}"][data-model="${model}"]`);
+            if (option) {
+                document.querySelectorAll(`.model-option[data-action="${action}"]`).forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                option.classList.add('selected');
+                option.querySelector('input[type="radio"]').checked = true;
+            }
+        }
+
+        // Сохранение секции
+        async function saveSection(action) {
+            if (!userId) {
+                alert('Ошибка: не удалось определить пользователя');
+                return;
+            }
+            
+            const selected = document.querySelector(`.model-option[data-action="${action}"].selected`);
+            if (!selected) {
+                alert('Выберите модель!');
+                return;
+            }
+            
+            const model = selected.dataset.model;
+            const price = parseInt(selected.dataset.price);
+            
+            try {
+                console.log('Saving:', {user_id: userId, action: action, model: model, price: price});
+                const resp = await fetch('/api/image-settings/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        action: action,
+                        model: model,
+                        price: price
+                    })
+                });
+                
+                const result = await resp.json();
+                console.log('Save response:', result);
+                
+                if (resp.ok && result.success) {
+                    const status = document.getElementById(`status-${action}`);
+                    status.classList.add('show');
+                    setTimeout(() => status.classList.remove('show'), 3000);
+                } else {
+                    const errorMsg = result.error || 'Ошибка сохранения';
+                    console.error('Save error:', errorMsg);
+                    alert('Ошибка сохранения: ' + errorMsg);
+                }
+            } catch (e) {
+                console.error('Save error:', e);
+                alert('Ошибка сохранения: ' + e.message);
+            }
+        }
+
+        // Старт в боте (гибридный режим)
+        async function startInBot(action) {
+            if (!userId) {
+                alert('Ошибка: не удалось определить пользователя');
+                return;
+            }
+            const selected = document.querySelector(`.model-option[data-action="${action}"].selected`);
+            if (!selected) {
+                alert('Сначала выберите модель');
+                return;
+            }
+
+            const payload = {
+                type: "images_start",
+                action: action,
+                model: selected.dataset.model,
+                price: parseInt(selected.dataset.price, 10)
+            };
+
+            try {
+                // Сохраняем выбор перед стартом (чтобы бот сразу использовал настройки)
+                await saveSection(action);
+            } catch (e) {
+                // Даже если сохранение не удалось — все равно отправим данные в бот, чтобы он показал ошибку/помощь
+            }
+
+            try {
+                tg.sendData(JSON.stringify(payload));
+                tg.close();
+            } catch (e) {
+                console.error('sendData error:', e);
+                alert('Не удалось передать данные в бот');
+            }
+        }
+
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function selectVideoMode(mode) {
+            document.querySelectorAll('.video-mode').forEach(opt => opt.classList.remove('selected'));
+            const el = document.querySelector(`.video-mode[data-video-mode="${mode}"]`);
+            if (el) el.classList.add('selected');
+        }
+
+        function selectVideoTier(tier) {
+            document.querySelectorAll('.video-tier').forEach(opt => opt.classList.remove('selected'));
+            const el = document.querySelector(`.video-tier[data-video-tier="${tier}"]`);
+            if (el) el.classList.add('selected');
+        }
+
+        // Клики по видео-опциям
+        document.addEventListener('click', (e) => {
+            const modeEl = e.target.closest?.('.video-mode');
+            if (modeEl) {
+                selectVideoMode(modeEl.dataset.videoMode);
+            }
+            const tierEl = e.target.closest?.('.video-tier');
+            if (tierEl) {
+                selectVideoTier(tierEl.dataset.videoTier);
+            }
+        });
+
+        async function saveVideoSettings() {
+            if (!userId) {
+                alert('Ошибка: не удалось определить пользователя');
+                return;
+            }
+            const modeEl = document.querySelector('.video-mode.selected');
+            const tierEl = document.querySelector('.video-tier.selected');
+            if (!modeEl || !tierEl) {
+                alert('Выберите режим и уровень');
+                return;
+            }
+
+            const mode = modeEl.dataset.videoMode;
+            const tier = tierEl.dataset.videoTier;
+            // Цена динамическая — вычисляем по правилам
+            const computedPrice = computeVideoPriceTokens({ mode, tier, audio: document.getElementById('videoAudio').checked, seconds: parseInt(document.getElementById('videoSeconds').value, 10) });
+            const price = computedPrice;
+            const audio = document.getElementById('videoAudio').checked;
+            const aspect = document.getElementById('videoAspect').value;
+            const seconds = parseInt(document.getElementById('videoSeconds').value, 10);
+
+            try {
+                const resp = await fetch('/api/image-settings/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        action: 'video',
+                        extra_settings: {
+                            video: {
+                                mode: mode,
+                                tier: tier,
+                                price: price,
+                                audio: audio,
+                                aspect_ratio: aspect,
+                                seconds: seconds
+                            }
+                        }
+                    })
+                });
+
+                const result = await resp.json().catch(() => ({}));
+                if (resp.ok && result.success) {
+                    const status = document.getElementById('status-video');
+                    status.classList.add('show');
+                    setTimeout(() => status.classList.remove('show'), 3000);
+                } else {
+                    alert('Ошибка сохранения: ' + (result.error || 'Unknown'));
+                }
+            } catch (e) {
+                console.error('Save video error:', e);
+                alert('Ошибка сохранения: ' + e.message);
+            }
+        }
+
+        async function startVideoInBot() {
+            try {
+                await saveVideoSettings();
+            } catch (e) {}
+
+            try {
+                tg.sendData(JSON.stringify({ type: 'images_start', action: 'video' }));
+                tg.close();
+            } catch (e) {
+                console.error('sendData error:', e);
+                alert('Не удалось передать данные в бот');
+            }
+        }
+
+        // ====== Умная цена видео по выбранным параметрам ======
+        const VIDEO_PRICING_RUB = {
+            econom: {
+                text_to_video: { base: 12 },
+                photo_to_video: { base: 12 },
+                animate_photo: { base: 12 }
+            },
+            standard: {
+                text_to_video: { no_audio: 99, with_audio: 149 },
+                photo_to_video: { no_audio: 159, with_audio: 239 },
+                animate_photo: { no_audio: 159, with_audio: 239 }
+            },
+            premium: {
+                // Sora (текст): 4с=99, 8с=198
+                text_to_video: { s4: 99, s8: 198 },
+                // Kling (фото): 5с=89.9, 10с=179.9
+                photo_to_video: { s5: 89.9, s10: 179.9 },
+                animate_photo: { s5: 89.9, s10: 179.9 }
+            }
+        };
+
+        function rubToTokens(rub) {
+            // У тебя в UI уже используется логика “1₽ = 1000 токенов”
+            return Math.round(rub * 1000);
+        }
+
+        function getSelectedVideoParams() {
+            const modeEl = document.querySelector('.video-mode.selected');
+            const tierEl = document.querySelector('.video-tier.selected');
+            const mode = modeEl?.dataset.videoMode || 'photo_to_video';
+            const tier = tierEl?.dataset.videoTier || 'econom';
+            const audio = document.getElementById('videoAudio')?.checked || false;
+            const seconds = parseInt(document.getElementById('videoSeconds')?.value || '5', 10);
+            return { mode, tier, audio, seconds };
+        }
+
+        function computeVideoPriceTokens(params) {
+            const { mode, tier, audio, seconds } = params;
+            const t = (tier || 'econom');
+
+            if (t === 'econom') {
+                return rubToTokens(12);
+            }
+
+            if (t === 'standard') {
+                const m = VIDEO_PRICING_RUB.standard[mode] || VIDEO_PRICING_RUB.standard.photo_to_video;
+                const rub = audio ? m.with_audio : m.no_audio;
+                return rubToTokens(rub);
+            }
+
+            // premium
+            if (mode === 'text_to_video') {
+                const rub = seconds >= 8 ? VIDEO_PRICING_RUB.premium.text_to_video.s8 : VIDEO_PRICING_RUB.premium.text_to_video.s4;
+                return rubToTokens(rub);
+            }
+            const rub = seconds >= 10 ? VIDEO_PRICING_RUB.premium.photo_to_video.s10 : VIDEO_PRICING_RUB.premium.photo_to_video.s5;
+            return rubToTokens(rub);
+        }
+
+        function updateVideoTierPricesUI() {
+            const params = getSelectedVideoParams();
+            const mode = params.mode;
+            const audio = params.audio;
+            const seconds = params.seconds;
+
+            // Эконом всегда 12₽
+            const economEl = document.querySelector('.video-tier[data-video-tier="econom"]');
+            if (economEl) {
+                economEl.dataset.price = String(rubToTokens(12));
+                const priceEl = economEl.querySelector('.model-price');
+                if (priceEl) priceEl.textContent = `${rubToTokens(12).toLocaleString('ru-RU')} токенов`;
+            }
+
+            // Стандарт зависит от mode+audio
+            const standardEl = document.querySelector('.video-tier[data-video-tier="standard"]');
+            if (standardEl) {
+                const rub = (mode === 'text_to_video')
+                    ? (audio ? 149 : 99)
+                    : (audio ? 239 : 159);
+                const tokens = rubToTokens(rub);
+                standardEl.dataset.price = String(tokens);
+                const priceEl = standardEl.querySelector('.model-price');
+                if (priceEl) priceEl.textContent = `${tokens.toLocaleString('ru-RU')} токенов`;
+            }
+
+            // Премиум зависит от mode+seconds
+            const premiumEl = document.querySelector('.video-tier[data-video-tier="premium"]');
+            if (premiumEl) {
+                let rub;
+                if (mode === 'text_to_video') {
+                    rub = seconds >= 8 ? 198 : 99;
+                } else {
+                    rub = seconds >= 10 ? 179.9 : 89.9;
+                }
+                const tokens = rubToTokens(rub);
+                premiumEl.dataset.price = String(tokens);
+                const priceEl = premiumEl.querySelector('.model-price');
+                if (priceEl) priceEl.textContent = `${tokens.toLocaleString('ru-RU')} токенов`;
+            }
+
+            // Если режим text_to_video — ограничим секунды до 4/8 (чтобы не вводить в заблуждение)
+            const secondsSelect = document.getElementById('videoSeconds');
+            if (secondsSelect) {
+                const isText = mode === 'text_to_video';
+                Array.from(secondsSelect.options).forEach(opt => {
+                    const v = parseInt(opt.value, 10);
+                    if (isText) {
+                        opt.disabled = !(v === 4 || v === 8);
+                        // авто-фикс если выбран недопустимый
+                        if (secondsSelect.value && ![4,8].includes(parseInt(secondsSelect.value,10))) {
+                            secondsSelect.value = "4";
+                        }
+                    } else {
+                        opt.disabled = false;
+                    }
+                });
+            }
+        }
+
+        // Реактивное обновление цен при изменениях
+        document.getElementById('videoAudio')?.addEventListener('change', updateVideoTierPricesUI);
+        document.getElementById('videoAspect')?.addEventListener('change', updateVideoTierPricesUI);
+        document.getElementById('videoSeconds')?.addEventListener('change', updateVideoTierPricesUI);
+
+        document.addEventListener('click', (e) => {
+            const modeEl = e.target.closest?.('.video-mode');
+            const tierEl = e.target.closest?.('.video-tier');
+            if (modeEl || tierEl) {
+                // После выбора режима/уровня пересчитываем цены
+                setTimeout(updateVideoTierPricesUI, 0);
+            }
+        });
+
+        // Первичный пересчет
+        updateVideoTierPricesUI();
+
+        // Загружаем при старте
+        loadSettings();
     </script>
 </body>
 </html>

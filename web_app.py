@@ -4,12 +4,17 @@
 """
 from flask import Flask, render_template_string, render_template, abort, jsonify, request
 import asyncio
+import logging
 from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens, DATABASE_PATH
 from database.postgres_db import init_pool, init_db, get_user_pair_session, create_pair_session, join_pair_session, get_pair_session, cancel_pair_session, get_user, create_user, get_all_user_pair_sessions, delete_pair_session_by_id, delete_all_user_pair_sessions, get_pair_session_with_names
 from database import redis_db
 import aiosqlite
 import html
 import re
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__, template_folder='templates')
 
@@ -915,6 +920,116 @@ def images_settings():
     except Exception as e:
         print(f"Error loading images settings: {e}")
         return f"Error: {e}", 500
+
+
+@app.route('/api/image-settings/<int:user_id>')
+def get_image_settings_api(user_id: int):
+    """Получить настройки изображений и баланс"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        from database.postgres_db import get_image_settings
+        from database.db import get_available_tokens
+        
+        settings = loop.run_until_complete(get_image_settings(user_id))
+        balance = loop.run_until_complete(get_available_tokens(user_id))
+        
+        return jsonify({
+            "balance": balance,
+            "create_model": settings.get("create_model", "gpt-image-1-mini"),
+            "create_price": settings.get("create_price", 8000),
+            "upscale_model": settings.get("upscale_model", "auto_max"),
+            "upscale_price": settings.get("upscale_price", 33000),
+            "edit_model": settings.get("edit_model", "gpt-image-1.5"),
+            "edit_price": settings.get("edit_price", 15000),
+            # Расширяемая часть под новые функции (видео/обработка/стили/инструменты)
+            "extra_settings": settings.get("extra_settings", {}) or {}
+        })
+    except Exception as e:
+        print(f"❌ [Image Settings] Error in get_image_settings_api: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/image-settings/save', methods=['POST'])
+def save_image_settings_api():
+    """Сохранить настройки изображений"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        from database.postgres_db import get_image_settings, save_image_settings
+        
+        data = request.get_json()
+        logger.info(f"🔵 [Image Settings] Received data: {data}")
+        
+        if not data:
+            logger.error("❌ [Image Settings] No JSON data")
+            return jsonify({"success": False, "error": "No JSON data"}), 400
+            
+        user_id = data.get("user_id")
+        action = data.get("action")  # create, upscale, edit
+        model = data.get("model")
+        price = data.get("price")
+        extra_patch = data.get("extra_settings")  # dict: merge into extra_settings
+        
+        logger.info(f"🔵 [Image Settings] Parsed: user_id={user_id} (type: {type(user_id).__name__}), action={action}, model={model}, price={price} (type: {type(price).__name__})")
+        
+        # Преобразуем user_id в int если это строка
+        if isinstance(user_id, str):
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                logger.error(f"❌ [Image Settings] Invalid user_id: {user_id}")
+                return jsonify({"success": False, "error": "Invalid user_id"}), 400
+        
+        # Преобразуем price в int если это строка
+        if isinstance(price, str):
+            try:
+                price = int(price)
+            except ValueError:
+                logger.error(f"❌ [Image Settings] Invalid price: {price}")
+                return jsonify({"success": False, "error": "Invalid price"}), 400
+        
+        # Вариант A: сохранить стандартную секцию (create/upscale/edit)
+        is_standard_section = action in ("create", "upscale", "edit")
+
+        # Вариант B: сохранить расширенные настройки (extra_settings) без модели/цены
+        if not is_standard_section and not isinstance(extra_patch, dict):
+            logger.error(f"❌ [Image Settings] Missing fields: user_id={user_id}, action={action}, model={model}, price={price}, extra_settings={type(extra_patch).__name__}")
+            return jsonify({"success": False, "error": "Missing fields"}), 400
+
+        if is_standard_section and not all([user_id, action, model, price is not None]):
+            logger.error(f"❌ [Image Settings] Missing fields: user_id={user_id}, action={action}, model={model}, price={price}")
+            return jsonify({"success": False, "error": "Missing fields"}), 400
+        
+        # Получаем текущие настройки
+        logger.info(f"🔵 [Image Settings] Getting current settings for user {user_id}")
+        current = loop.run_until_complete(get_image_settings(user_id))
+        logger.info(f"🔵 [Image Settings] Current settings: {current}")
+        
+        # Обновляем стандартную секцию
+        if is_standard_section:
+            current[f"{action}_model"] = model
+            current[f"{action}_price"] = price
+
+        # Обновляем расширенные настройки (merge)
+        if isinstance(extra_patch, dict) and extra_patch:
+            existing_extra = current.get("extra_settings") or {}
+            if not isinstance(existing_extra, dict):
+                existing_extra = {}
+            existing_extra.update(extra_patch)
+            current["extra_settings"] = existing_extra
+        
+        logger.info(f"🔵 [Image Settings] Saving settings: {current}")
+        # Сохраняем
+        loop.run_until_complete(save_image_settings(user_id, current))
+        
+        logger.info(f"✅ [Image Settings] Settings saved successfully for user {user_id}")
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"❌ [Image Settings] Error in save_image_settings_api: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/user/<int:user_id>')

@@ -1,3 +1,17 @@
+.env
+.env.*
+!.env.example
+*.key
+*credentials*
+*secret*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+venv/
+node_modules/
 venv/
 __pycache__/
 *.pyc

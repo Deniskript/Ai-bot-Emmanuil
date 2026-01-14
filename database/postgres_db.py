@@ -410,6 +410,22 @@ async def init_db():
     );
     
     -- Парные сессии Silas
+    -- Настройки изображений для пользователей
+    CREATE TABLE IF NOT EXISTS user_image_settings (
+        user_id BIGINT PRIMARY KEY,
+        create_model TEXT DEFAULT 'gpt-image-1-mini',
+        create_price INTEGER DEFAULT 8000,
+        -- Важно: upscale_model должен совпадать с ключами в handlers/images.py (MODEL_CONFIGS)
+        upscale_model TEXT DEFAULT 'auto_max',
+        upscale_price INTEGER DEFAULT 33000,
+        edit_model TEXT DEFAULT 'gpt-image-1.5',
+        edit_price INTEGER DEFAULT 15000,
+        -- Расширяемая JSON-настройка под новые функции (видео/обработка/стили/инструменты)
+        extra_settings JSONB DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_image_settings_user ON user_image_settings(user_id);
+    
     CREATE TABLE IF NOT EXISTS pair_sessions (
         id SERIAL PRIMARY KEY,
         code VARCHAR(10) UNIQUE NOT NULL,
@@ -455,6 +471,30 @@ async def init_db():
             print("✅ Миграция user_bots: поля voice_enabled и preferred_duration добавлены")
         except Exception as e:
             print(f"⚠️ Миграция user_bots: {e}")
+
+        # Миграции: настройки изображений (совместимость + новые поля)
+        try:
+            await conn.execute("""
+                ALTER TABLE user_image_settings
+                ADD COLUMN IF NOT EXISTS extra_settings JSONB DEFAULT '{}'::jsonb;
+            """)
+            await conn.execute("""
+                ALTER TABLE user_image_settings
+                ALTER COLUMN upscale_model SET DEFAULT 'auto_max';
+            """)
+            await conn.execute("""
+                ALTER TABLE user_image_settings
+                ALTER COLUMN edit_model SET DEFAULT 'gpt-image-1.5';
+            """)
+            # Чиним старые/несовместимые значения (из прежних версий)
+            await conn.execute("""
+                UPDATE user_image_settings
+                SET upscale_model = 'auto_max'
+                WHERE upscale_model = 'hd_2048';
+            """)
+            print("✅ Миграция user_image_settings: extra_settings + дефолты моделей обновлены")
+        except Exception as e:
+            print(f"⚠️ Миграция user_image_settings: {e}")
     
     print("✅ Все таблицы PostgreSQL созданы")
 
@@ -2754,3 +2794,82 @@ async def end_session(sid: int):
             "UPDATE sessions SET ended = CURRENT_TIMESTAMP WHERE id = $1",
             sid
         )
+
+
+# ============================================================================
+# НАСТРОЙКИ ИЗОБРАЖЕНИЙ
+# ============================================================================
+
+async def get_image_settings(user_id: int) -> dict:
+    """Получить настройки изображений пользователя"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow('''
+            SELECT create_model, create_price, upscale_model, upscale_price, edit_model, edit_price, extra_settings
+            FROM user_image_settings
+            WHERE user_id = $1
+        ''', user_id)
+        
+        if row:
+            data = dict(row)
+            extra = data.get("extra_settings")
+            if extra is None:
+                data["extra_settings"] = {}
+            elif isinstance(extra, str):
+                try:
+                    data["extra_settings"] = json.loads(extra)
+                except Exception:
+                    data["extra_settings"] = {}
+            return data
+        
+        # Возвращаем дефолтные значения если настроек нет
+        return {
+            "create_model": "gpt-image-1-mini",
+            "create_price": 8000,
+            "upscale_model": "auto_max",
+            "upscale_price": 33000,
+            "edit_model": "gpt-image-1.5",
+            "edit_price": 15000
+            ,
+            "extra_settings": {}
+        }
+
+
+async def save_image_settings(user_id: int, settings: dict) -> bool:
+    """Сохранить настройки изображений"""
+    async with get_connection() as conn:
+        extra_settings = settings.get("extra_settings") or {}
+        # На всякий случай нормализуем тип (jsonb)
+        if isinstance(extra_settings, str):
+            try:
+                extra_settings = json.loads(extra_settings)
+            except Exception:
+                extra_settings = {}
+        # asyncpg для jsonb ожидает строку JSON (иначе "expected str, got dict")
+        extra_settings_json = json.dumps(extra_settings, ensure_ascii=False)
+
+        await conn.execute('''
+            INSERT INTO user_image_settings (
+                user_id, create_model, create_price, upscale_model, upscale_price, 
+                edit_model, edit_price, extra_settings, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO UPDATE SET
+                create_model = EXCLUDED.create_model,
+                create_price = EXCLUDED.create_price,
+                upscale_model = EXCLUDED.upscale_model,
+                upscale_price = EXCLUDED.upscale_price,
+                edit_model = EXCLUDED.edit_model,
+                edit_price = EXCLUDED.edit_price,
+                extra_settings = EXCLUDED.extra_settings,
+                updated_at = CURRENT_TIMESTAMP
+        ''', 
+            user_id,
+            settings.get("create_model", "gpt-image-1-mini"),
+            settings.get("create_price", 8000),
+            settings.get("upscale_model", "auto_max"),
+            settings.get("upscale_price", 33000),
+            settings.get("edit_model", "gpt-image-1.5"),
+            settings.get("edit_price", 15000),
+            extra_settings_json
+        )
+        return True
