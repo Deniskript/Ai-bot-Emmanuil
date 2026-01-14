@@ -5,7 +5,7 @@
 from flask import Flask, render_template_string, render_template, abort, jsonify, request
 import asyncio
 from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens, DATABASE_PATH
-from database.postgres_db import init_pool, init_db, get_user_pair_session, create_pair_session, join_pair_session, get_pair_session, cancel_pair_session, get_user, create_user, get_all_user_pair_sessions, delete_pair_session_by_id, delete_all_user_pair_sessions
+from database.postgres_db import init_pool, init_db, get_user_pair_session, create_pair_session, join_pair_session, get_pair_session, cancel_pair_session, get_user, create_user, get_all_user_pair_sessions, delete_pair_session_by_id, delete_all_user_pair_sessions, get_pair_session_with_names
 from database import redis_db
 import aiosqlite
 import html
@@ -630,7 +630,28 @@ def silas_pair_session():
     """Telegram Mini App - Страница парной сессии (чат)"""
     user_id = request.args.get('user_id', '')
     code = request.args.get('code', '').upper()
-    return render_template('silas_pair_session.html', user_id=user_id, code=code)
+    
+    # Получаем данные сессии с именами участников
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        session_data = loop.run_until_complete(get_pair_session_with_names(code))
+        
+        # Передаём имена в шаблон
+        user1_name = session_data.get('user1_name', 'Участник 1') if session_data else 'Участник 1'
+        user2_name = session_data.get('user2_name', 'Участник 2') if session_data else 'Участник 2'
+    except Exception as e:
+        print(f"Error getting session names: {e}")
+        # Fallback на дефолтные имена при ошибке
+        user1_name = 'Участник 1'
+        user2_name = 'Участник 2'
+    
+    return render_template('silas_pair_session.html', 
+        user_id=user_id, 
+        code=code,
+        user1_name=user1_name,
+        user2_name=user2_name
+    )
 
 
 @app.route('/silas/pair/create', methods=['POST'])

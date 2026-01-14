@@ -368,6 +368,17 @@
         const userId = urlParams.get('user_id');
         const sessionCode = urlParams.get('code');
 
+        // Имена участников из шаблона
+        const user1Name = "{{ user1_name | default('Участник 1') }}";
+        const user2Name = "{{ user2_name | default('Участник 2') }}";
+        
+        // Функция для получения имени по номеру участника
+        function getParticipantName(participantNum) {
+            if (participantNum === 1) return user1Name;
+            if (participantNum === 2) return user2Name;
+            return `Участник ${participantNum}`;
+        }
+
         let ws = null;
         let myParticipantNum = 0;
         let reconnectAttempts = 0;
@@ -426,8 +437,9 @@
                 case 'connected':
                     myParticipantNum = data.participant;
                     reconnectAttempts = 0;
-                    updateStatus('online', `Вы — Участник ${myParticipantNum}`);
-                    document.getElementById('badge-me').textContent = `Участник ${myParticipantNum}`;
+                    const myName = getParticipantName(myParticipantNum);
+                    updateStatus('online', `Вы — ${myName}`);
+                    document.getElementById('badge-me').textContent = myName;
                     
                     if (data.participants_online === 2) {
                         hideOverlay();
@@ -505,7 +517,8 @@
             if (type === 'soul') {
                 header = '<div class="message-header">🧘 Soul</div>';
             } else if (type === 'partner') {
-                header = `<div class="message-header">👤 Участник ${participantNum}</div>`;
+                const displayName = getParticipantName(participantNum);
+                header = `<div class="message-header">👤 ${displayName}</div>`;
             }
             
             msg.innerHTML = header + formatContent(content);

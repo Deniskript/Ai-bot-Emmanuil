@@ -2135,6 +2135,40 @@ async def get_pair_session(code: str) -> dict:
         return dict(row)
 
 
+async def get_pair_session_with_names(code: str) -> dict:
+    """Получить данные парной сессии с именами участников из таблицы users"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow('''
+            SELECT 
+                ps.id, ps.code, ps.topic, 
+                ps.user1_id, ps.user1_description, 
+                ps.user2_id, ps.user2_description,
+                ps.status, ps.created_at, ps.started_at, ps.ended_at,
+                u1.first_name as user1_name,
+                u1.username as user1_username,
+                u2.first_name as user2_name,
+                u2.username as user2_username
+            FROM pair_sessions ps
+            LEFT JOIN users u1 ON ps.user1_id = u1.user_id
+            LEFT JOIN users u2 ON ps.user2_id = u2.user_id
+            WHERE ps.code = $1
+        ''', code.upper())
+        
+        if not row:
+            return None
+        
+        data = dict(row)
+        
+        # Fallback если имя пустое или None
+        data['user1_name'] = data.get('user1_name') or data.get('user1_username') or 'Участник 1'
+        if data.get('user2_id'):
+            data['user2_name'] = data.get('user2_name') or data.get('user2_username') or 'Участник 2'
+        else:
+            data['user2_name'] = None
+        
+        return data
+
+
 async def get_user_pair_session(uid: int) -> dict:
     """Получить активную парную сессию пользователя"""
     async with get_connection() as conn:

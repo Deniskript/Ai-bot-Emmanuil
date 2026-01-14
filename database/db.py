@@ -2356,6 +2356,7 @@ try:
         create_pair_session,
         join_pair_session,
         get_pair_session,
+        get_pair_session_with_names,
         get_user_pair_session,
         end_pair_session,
         cancel_pair_session
