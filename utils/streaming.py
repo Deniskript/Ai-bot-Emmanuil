@@ -1,15 +1,14 @@
 """
 Единый модуль стриминга для бота Soul
-Автоматически: статус → переключение → стриминг
 """
 
 import asyncio
+import time
 from aiogram import Bot
 from aiogram.types import Message
 from utils.status_manager import show_status
-from utils.openrouter import ask_stream
+from utils.openrouter import ask_stream, ask
 from utils.markdown import md_to_html
-from utils.conversations import clean_response
 
 
 async def stream_response(
@@ -23,24 +22,6 @@ async def stream_response(
 ) -> str:
     """
     Единая функция стриминга с автоматическим статусом.
-    
-    Логика:
-    1. Показывает анимированный статус
-    2. Отправляет запрос к OpenRouter API
-    3. При первом chunk — выключает статус
-    4. Стримит ответ пользователю
-    
-    Args:
-        bot: Экземпляр бота
-        message: Сообщение пользователя (для получения chat_id)
-        messages: История сообщений для API
-        model: Модель (OpenRouter)
-        status_type: Тип статуса ("text", "photo", "voice", "magic", "generate")
-        system_prompt: Системный промпт (опционально)
-        max_tokens: Макс токенов в ответе
-    
-    Returns:
-        Полный текст ответа
     """
     
     chat_id = message.chat.id
@@ -51,13 +32,13 @@ async def stream_response(
     
     # 1. Запускаем статус
     status = await show_status(bot, chat_id, status_type)
-    first_chunk = True
     stream_msg = None
     full_response = ""
+    status_stopped = False
     
     try:
         # 2. Стриминг от OpenRouter
-        paragraph_count = 0
+        last_update_time = time.time()
         last_paragraph_count = 0
         
         async for chunk in ask_stream(messages, model, max_tokens=max_tokens):
@@ -66,15 +47,22 @@ async def stream_response(
             
             full_response += chunk
             
-            # Считаем абзацы (двойной перенос = новый абзац)
+            # Проверяем нужно ли обновить
+            current_time = time.time()
             paragraph_count = full_response.count("\n\n")
             
-            # Обновляем каждые 2 абзаца
-            if paragraph_count >= 2 and paragraph_count != last_paragraph_count and paragraph_count % 2 == 0:
-                if first_chunk:
+            # Условия для обновления:
+            # 1. Новые 2 абзаца появились
+            # 2. ИЛИ прошло 2+ секунды и есть текст 100+ символов
+            new_paragraphs = paragraph_count >= last_paragraph_count + 2
+            time_passed = current_time - last_update_time >= 2.0 and len(full_response) >= 100
+            
+            if new_paragraphs or time_passed:
+                # Останавливаем статус при первом обновлении
+                if not status_stopped:
                     await status.stop()
+                    status_stopped = True
                     await asyncio.sleep(0.05)
-                    first_chunk = False
                     formatted = md_to_html(full_response)
                     stream_msg = await message.answer(formatted, parse_mode="HTML")
                 else:
@@ -85,31 +73,41 @@ async def stream_response(
                         except Exception:
                             pass
                 
+                last_update_time = current_time
                 last_paragraph_count = paragraph_count
         
-        # Финальное обновление (весь оставшийся текст)
-        if first_chunk:
+        # 3. Финальное обновление
+        # Останавливаем статус если ещё не остановлен
+        if not status_stopped:
             await status.stop()
-            if full_response:
-                formatted = md_to_html(full_response.strip())
-                stream_msg = await message.answer(formatted, parse_mode="HTML")
-        elif stream_msg and full_response:
-            formatted = md_to_html(full_response.strip())
-            try:
-                await stream_msg.edit_text(formatted, parse_mode="HTML")
-            except Exception:
-                pass
+            status_stopped = True
         
-        # Если не было ни одного chunk
-        if first_chunk:
-            await status.stop()
-            return ""
+        # Отправляем/обновляем финальный текст
+        if full_response.strip():
+            formatted = md_to_html(full_response.strip())
+            if stream_msg:
+                try:
+                    await stream_msg.edit_text(formatted, parse_mode="HTML")
+                except Exception:
+                    pass
+            else:
+                await message.answer(formatted, parse_mode="HTML")
+        else:
+            # Фолбэк: стриминг не дал текста — обычный запрос
+            fallback_text, _ = await ask(messages, model, max_tokens=max_tokens)
+            fallback_text = (fallback_text or "").strip()
+            if fallback_text:
+                formatted = md_to_html(fallback_text)
+                await message.answer(formatted, parse_mode="HTML")
+                return fallback_text
+            else:
+                await message.answer("Не удалось получить ответ. Попробуйте ещё раз.")
+                return ""
         
         return full_response.strip()
         
     except Exception as e:
-        # При ошибке — выключаем статус
-        if first_chunk:
+        if not status_stopped:
             await status.stop()
         raise e
 
@@ -122,7 +120,7 @@ async def stream_magic_response(
     model: str = "anthropic/claude-sonnet-4.5"
 ) -> str:
     """
-    Стриминг для магических функций (таро, гороскоп, гадания).
+    Стриминг для магических функций.
     """
     
     MAGIC_PROMPTS = {
