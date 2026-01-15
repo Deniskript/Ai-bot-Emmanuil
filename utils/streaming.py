@@ -7,27 +7,26 @@ import asyncio
 from aiogram import Bot
 from aiogram.types import Message
 from utils.status_manager import show_status
-import openai
-from config import OPENAI_API_KEY
-
-# Инициализация клиента
-client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+from utils.openrouter import ask_stream
+from utils.markdown import md_to_html
+from utils.conversations import clean_response
 
 
 async def stream_response(
     bot: Bot,
     message: Message,
     messages: list,
-    model: str = "gpt-4o-mini",
+    model: str = "anthropic/claude-sonnet-4.5",
     status_type: str = "text",
-    system_prompt: str = None
+    system_prompt: str = None,
+    max_tokens: int = 4000
 ) -> str:
     """
     Единая функция стриминга с автоматическим статусом.
     
     Логика:
     1. Показывает анимированный статус
-    2. Отправляет запрос к API
+    2. Отправляет запрос к OpenRouter API
     3. При первом chunk — выключает статус
     4. Стримит ответ пользователю
     
@@ -35,9 +34,10 @@ async def stream_response(
         bot: Экземпляр бота
         message: Сообщение пользователя (для получения chat_id)
         messages: История сообщений для API
-        model: Модель OpenAI
+        model: Модель (OpenRouter)
         status_type: Тип статуса ("text", "photo", "voice", "magic", "generate")
         system_prompt: Системный промпт (опционально)
+        max_tokens: Макс токенов в ответе
     
     Returns:
         Полный текст ответа
@@ -53,100 +53,70 @@ async def stream_response(
     status = await show_status(bot, chat_id, status_type)
     first_chunk = True
     stream_msg = None
-    full_text = ""
+    full_response = ""
+    sentence_buffer = ""
+    displayed_text = ""
+    last_update = asyncio.get_event_loop().time()
     
     try:
-        # 2. Стриминг от OpenAI
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True
-        )
-        
-        buffer = ""
-        last_update = 0
-        
-        async for chunk in stream:
-            content = chunk.choices[0].delta.content
-            if content:
-                buffer += content
-                full_text += content
-                
-                # Обновляем каждые 20 символов или при переносе строки
-                if len(buffer) - last_update >= 20 or "\n" in content:
-                    if first_chunk:
-                        # 3. Первый chunk — выключаем статус
-                        await status.stop()
-                        first_chunk = False
-                        stream_msg = await message.answer(buffer)
-                    else:
-                        # 4. Обновляем сообщение
+        # 2. Стриминг от OpenRouter
+        async for chunk in ask_stream(messages, model, max_tokens=max_tokens):
+            if not chunk:
+                continue
+            
+            full_response += chunk
+            sentence_buffer += chunk
+            now = asyncio.get_event_loop().time()
+            
+            # При первом chunk - выключаем статус
+            if first_chunk:
+                first_chunk = False
+                await status.stop()
+                stream_msg = await message.answer("_Печатаю..._", parse_mode=None)
+            
+            # Обновляем текст блоками
+            if stream_msg:
+                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                    displayed_text += sentence_buffer
+                    sentence_buffer = ""
+                    
+                    if now - last_update >= 0.5:
+                        formatted = md_to_html(displayed_text)
                         try:
-                            await stream_msg.edit_text(buffer)
-                        except Exception:
-                            pass  # Игнорируем ошибки редактирования
-                    last_update = len(buffer)
+                            await stream_msg.edit_text(formatted + " ▌", parse_mode="HTML")
+                            last_update = now
+                            await asyncio.sleep(0.3)
+                        except:
+                            pass
         
-        # Финальное обновление
-        if stream_msg and buffer != stream_msg.text:
+        # Добавляем остаток
+        displayed_text += sentence_buffer
+        resp = full_response.strip()
+        
+        # Удаляем streaming сообщение
+        if stream_msg:
             try:
-                await stream_msg.edit_text(buffer)
-            except Exception:
+                await stream_msg.delete()
+            except:
                 pass
         
         # Если не было ни одного chunk
         if first_chunk:
             await status.stop()
-            await message.answer("Не удалось получить ответ. Попробуйте ещё раз.")
             return ""
         
-        return full_text
+        return resp
         
     except Exception as e:
         # При ошибке — выключаем статус
         if first_chunk:
             await status.stop()
-        await message.answer(f"❌ Ошибка: {str(e)}")
+        if stream_msg:
+            try:
+                await stream_msg.delete()
+            except:
+                pass
         raise e
-
-
-async def stream_response_with_photo(
-    bot: Bot,
-    message: Message,
-    prompt: str,
-    image_url: str = None,
-    image_base64: str = None,
-    model: str = "gpt-4o",
-    system_prompt: str = None
-) -> str:
-    """
-    Стриминг для анализа фото.
-    """
-    
-    # Формируем сообщение с изображением
-    content = [{"type": "text", "text": prompt}]
-    
-    if image_url:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": image_url}
-        })
-    elif image_base64:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
-        })
-    
-    messages = [{"role": "user", "content": content}]
-    
-    return await stream_response(
-        bot=bot,
-        message=message,
-        messages=messages,
-        model=model,
-        status_type="photo",
-        system_prompt=system_prompt
-    )
 
 
 async def stream_magic_response(
@@ -154,7 +124,7 @@ async def stream_magic_response(
     message: Message,
     prompt: str,
     magic_type: str = "tarot",
-    model: str = "gpt-4o-mini"
+    model: str = "anthropic/claude-sonnet-4.5"
 ) -> str:
     """
     Стриминг для магических функций (таро, гороскоп, гадания).

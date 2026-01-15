@@ -19,7 +19,7 @@ STATUS_CONFIG = {
     "voice": {
         "emoji_animation": ["🎤", "🎧", "🎵", "🔊"],
         "text": "🎧 Слушаю ваше сообщение",
-        "action": ChatAction.RECORD_AUDIO
+        "action": ChatAction.RECORD_VOICE
     },
     "magic": {
         "emoji_animation": ["✨", "🔮", "🌙", "⭐"],
