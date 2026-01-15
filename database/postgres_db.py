@@ -456,6 +456,75 @@ async def init_db():
     CREATE INDEX IF NOT EXISTS idx_pair_sessions_user2 ON pair_sessions(user2_id);
     CREATE INDEX IF NOT EXISTS idx_pair_sessions_status ON pair_sessions(status);
     
+    -- Магия: профили и логи
+    CREATE TABLE IF NOT EXISTS magic_horoscope_profiles (
+        user_id BIGINT PRIMARY KEY,
+        birth_date DATE,
+        birth_time TEXT,
+        birth_place TEXT,
+        notify_time TEXT,
+        tz_offset INTEGER DEFAULT 0,
+        last_sent_date DATE,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_magic_horoscope_notify ON magic_horoscope_profiles(notify_time);
+    
+    CREATE TABLE IF NOT EXISTS magic_tarot_logs (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        spread_type TEXT,
+        question TEXT,
+        image_used BOOLEAN DEFAULT FALSE,
+        result_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_magic_tarot_user ON magic_tarot_logs(user_id, created_at DESC);
+    
+    CREATE TABLE IF NOT EXISTS magic_divination_logs (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        divination_type TEXT,
+        question TEXT,
+        image_used BOOLEAN DEFAULT FALSE,
+        result_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_magic_divination_user ON magic_divination_logs(user_id, created_at DESC);
+    
+    CREATE TABLE IF NOT EXISTS magic_numerology_profiles (
+        user_id BIGINT PRIMARY KEY,
+        full_name TEXT,
+        birth_date DATE,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE IF NOT EXISTS magic_rituals_logs (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        ritual_type TEXT,
+        result_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_magic_rituals_user ON magic_rituals_logs(user_id, created_at DESC);
+    
+    CREATE TABLE IF NOT EXISTS magic_horoscope_logs (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        forecast_type TEXT,
+        result_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_magic_horoscope_user ON magic_horoscope_logs(user_id, created_at DESC);
+    
+    CREATE TABLE IF NOT EXISTS magic_numerology_logs (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        calc_type TEXT,
+        result_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_magic_numerology_user ON magic_numerology_logs(user_id, created_at DESC);
+    
     -- Метрики сервера
     CREATE TABLE IF NOT EXISTS server_metrics (
         id SERIAL PRIMARY KEY,
@@ -2967,3 +3036,259 @@ async def delete_video_note(user_id: int, note_id: int) -> bool:
             return n > 0
         except Exception:
             return False
+
+
+# ============================================================================
+# MAGIC - Гороскопы, Таро, Гадания, Нумерология
+# ============================================================================
+
+async def save_magic_horoscope_profile(
+    user_id: int,
+    birth_date: Optional[date] = None,
+    birth_time: str = None,
+    birth_place: str = None,
+    notify_time: str = None,
+    tz_offset: int = 0
+) -> bool:
+    """Сохранить профиль гороскопа."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_horoscope_profiles
+            (user_id, birth_date, birth_time, birth_place, notify_time, tz_offset, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO UPDATE SET
+                birth_date = EXCLUDED.birth_date,
+                birth_time = EXCLUDED.birth_time,
+                birth_place = EXCLUDED.birth_place,
+                notify_time = EXCLUDED.notify_time,
+                tz_offset = EXCLUDED.tz_offset,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            int(user_id), birth_date, birth_time, birth_place, notify_time, int(tz_offset or 0)
+        )
+        return True
+
+
+async def get_magic_horoscope_profile(user_id: int) -> Optional[Dict]:
+    """Получить профиль гороскопа."""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM magic_horoscope_profiles WHERE user_id = $1",
+            int(user_id)
+        )
+        if not row:
+            return None
+        d = dict(row)
+        # Конвертация date объектов в ISO строки
+        if d.get("birth_date") and isinstance(d["birth_date"], date):
+            d["birth_date"] = d["birth_date"].isoformat()
+        if d.get("last_sent_date") and isinstance(d["last_sent_date"], date):
+            d["last_sent_date"] = d["last_sent_date"].isoformat()
+        if d.get("updated_at"):
+            d["updated_at"] = d["updated_at"].strftime("%Y-%m-%d %H:%M")
+        return d
+
+
+async def get_magic_horoscope_profiles() -> List[Dict]:
+    """Получить все профили гороскопа для уведомлений."""
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM magic_horoscope_profiles WHERE notify_time IS NOT NULL"
+        )
+        items = []
+        for r in rows:
+            d = dict(r)
+            # Конвертация date объектов в ISO строки
+            if d.get("birth_date") and isinstance(d["birth_date"], date):
+                d["birth_date"] = d["birth_date"].isoformat()
+            if d.get("last_sent_date") and isinstance(d["last_sent_date"], date):
+                d["last_sent_date"] = d["last_sent_date"].isoformat()
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].strftime("%Y-%m-%d %H:%M")
+            items.append(d)
+        return items
+
+
+async def update_magic_horoscope_last_sent(user_id: int, sent_date: date) -> bool:
+    """Обновить дату последней отправки."""
+    async with get_connection() as conn:
+        await conn.execute(
+            "UPDATE magic_horoscope_profiles SET last_sent_date = $1 WHERE user_id = $2",
+            sent_date, int(user_id)
+        )
+        return True
+
+
+async def save_magic_tarot_log(
+    user_id: int,
+    spread_type: str = None,
+    question: str = None,
+    image_used: bool = False,
+    result_text: str = ""
+) -> None:
+    """Сохранить лог Таро."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_tarot_logs
+            (user_id, spread_type, question, image_used, result_text)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            int(user_id), spread_type, question, bool(image_used), result_text
+        )
+
+
+async def save_magic_divination_log(
+    user_id: int,
+    divination_type: str = None,
+    question: str = None,
+    image_used: bool = False,
+    result_text: str = ""
+) -> None:
+    """Сохранить лог гаданий."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_divination_logs
+            (user_id, divination_type, question, image_used, result_text)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            int(user_id), divination_type, question, bool(image_used), result_text
+        )
+
+
+async def save_magic_numerology_profile(user_id: int, full_name: str = None, birth_date: Optional[date] = None) -> bool:
+    """Сохранить профиль нумерологии."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_numerology_profiles
+            (user_id, full_name, birth_date, updated_at)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                birth_date = EXCLUDED.birth_date,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            int(user_id), full_name, birth_date
+        )
+        return True
+
+
+async def get_magic_numerology_profile(user_id: int) -> Optional[Dict]:
+    """Получить профиль нумерологии."""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM magic_numerology_profiles WHERE user_id = $1",
+            int(user_id)
+        )
+        if not row:
+            return None
+        d = dict(row)
+        # Конвертация date объектов в ISO строки
+        if d.get("birth_date") and isinstance(d["birth_date"], date):
+            d["birth_date"] = d["birth_date"].isoformat()
+        if d.get("updated_at"):
+            d["updated_at"] = d["updated_at"].strftime("%Y-%m-%d %H:%M")
+        return d
+
+
+async def save_magic_ritual_log(user_id: int, ritual_type: str, result_text: str) -> None:
+    """Сохранить лог ритуалов."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_rituals_logs (user_id, ritual_type, result_text)
+            VALUES ($1, $2, $3)
+            """,
+            int(user_id), ritual_type, result_text
+        )
+
+
+async def save_magic_horoscope_log(user_id: int, forecast_type: str, result_text: str) -> None:
+    """Сохранить лог гороскопов."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_horoscope_logs (user_id, forecast_type, result_text)
+            VALUES ($1, $2, $3)
+            """,
+            int(user_id), forecast_type, result_text
+        )
+
+
+async def save_magic_numerology_log(user_id: int, calc_type: str, result_text: str) -> None:
+    """Сохранить лог нумерологии."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO magic_numerology_logs (user_id, calc_type, result_text)
+            VALUES ($1, $2, $3)
+            """,
+            int(user_id), calc_type, result_text
+        )
+
+
+async def list_magic_history(
+    user_id: int,
+    table: str,
+    limit: int = 20,
+    kind_filter: str = None,
+    date_from: date = None,
+    date_to: date = None
+) -> List[Dict]:
+    """Универсальная история магии."""
+    allowed = {
+        "tarot": "magic_tarot_logs",
+        "divination": "magic_divination_logs",
+        "rituals": "magic_rituals_logs",
+        "horoscope": "magic_horoscope_logs",
+        "numerology": "magic_numerology_logs",
+    }
+    type_columns = {
+        "tarot": "spread_type",
+        "divination": "divination_type",
+        "rituals": "ritual_type",
+        "horoscope": "forecast_type",
+        "numerology": "calc_type",
+    }
+    table_name = allowed.get(table)
+    if not table_name:
+        return []
+    where = ["user_id = $1"]
+    params = [int(user_id)]
+    idx = 2
+    if kind_filter:
+        col = type_columns.get(table)
+        if col:
+            where.append(f"{col} = ${idx}")
+            params.append(kind_filter)
+            idx += 1
+    if date_from:
+        where.append(f"created_at::date >= ${idx}")
+        params.append(date_from)
+        idx += 1
+    if date_to:
+        where.append(f"created_at::date <= ${idx}")
+        params.append(date_to)
+        idx += 1
+    params.append(int(limit))
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT *
+            FROM {table_name}
+            WHERE {" AND ".join(where)}
+            ORDER BY created_at DESC
+            LIMIT ${idx}
+            """,
+            *params
+        )
+        items = []
+        for r in rows:
+            d = dict(r)
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].strftime("%Y-%m-%d %H:%M")
+            items.append(d)
+        return items

@@ -14,6 +14,7 @@ from . import routine
 from . import goals
 from . import mental
 from . import finance
+from . import magic
 
 router = Router()
 
@@ -23,6 +24,7 @@ router.include_router(routine.router)
 router.include_router(goals.router)
 router.include_router(mental.router)
 router.include_router(finance.router)
+router.include_router(magic.router)
 
 
 # ========== ГЛАВНОЕ МЕНЮ ЛАЙФСТАЙЛ ==========
@@ -37,7 +39,8 @@ async def lifestyle_menu(msg: Message, state: FSMContext):
         "🌅 <b>Режим дня</b> — оптимизация расписания\n"
         "🎯 <b>Трекер целей</b> — достижение целей\n"
         "🧘 <b>Ментальное</b> — забота о себе\n"
-        "💰 <b>Финансы</b> — управление бюджетом",
+        "💰 <b>Финансы</b> — управление бюджетом\n"
+        "🔮 <b>Магия</b> — гороскопы, таро и ритуалы",
         reply_markup=reply.lifestyle_kb(msg.from_user.id),
         parse_mode="HTML"
     )

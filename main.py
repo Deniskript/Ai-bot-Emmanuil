@@ -9,6 +9,7 @@ from handlers import luca  # Автономный модуль Luca
 from handlers import silas  # Автономный модуль Silas
 from handlers import titus  # Автономный модуль Titus
 from handlers import lifestyle  # Автономный модуль Lifestyle
+from utils.magic_notifications import run_magic_horoscope_notifier
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -58,6 +59,9 @@ async def main():
         dp.include_router(luca.router)  # Автономный модуль Luca (Soul AI)
         dp.include_router(silas.router)
         dp.include_router(titus.router)
+        
+        # Фоновая отправка гороскопов
+        asyncio.create_task(run_magic_horoscope_notifier(bot))
         
         await bot.delete_webhook(drop_pending_updates=True)
         print("🤖 Soul AI запущен с PostgreSQL!")

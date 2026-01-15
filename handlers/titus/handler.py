@@ -6,15 +6,17 @@ import time
 import json
 import base64
 import asyncio
+import os
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
+from database import redis_db
 from keyboards import reply, inline
 from utils.openrouter import ask, ask_stream
 from utils.tokens import calculate_tokens
-from utils.voice import download_voice, transcribe_voice
+from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button, get_titus_keyboard
 from loader import bot
@@ -23,7 +25,7 @@ from loader import bot
 from . import config as titus_config
 from . import texts
 from .memory import save_step_progress, build_smart_context
-from .prompts import TITUS_BASE
+from .prompts import TITUS_BASE, TITUS_VOICE_BASE
 
 router = Router()
 
@@ -129,7 +131,12 @@ async def create_course(msg: Message, state: FSMContext):
     
     await msg.answer(texts.COURSE_CREATED, reply_markup=reply.study_chat_kb())
     
-    sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: 1 из {steps}\n\n⚠️ НЕ представляйся! Сразу начни с 📌 Тема:"
+    # Проверяем настройки голоса для выбора промпта
+    titus_settings_pre = redis_db.get_titus_settings(msg.from_user.id) or {}
+    voice_enabled_pre = bool(titus_settings_pre.get("voice_enabled", False))
+    base_prompt = TITUS_VOICE_BASE if voice_enabled_pre else TITUS_BASE
+    
+    sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: 1 из {steps}\n\n⚠️ НЕ представляйся! Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": "Начни шаг 1"}]
     
     status = await msg.answer("⏳ Обрабатываю...")
@@ -226,10 +233,40 @@ async def create_course(msg: Message, state: FSMContext):
     # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
     keyboard = get_titus_keyboard(conv_id, len(resp_clean), msg.from_user.id)
     
-    await msg.answer(
-        f"{display_text}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
-        reply_markup=keyboard
-    )
+    # Проверяем настройки голоса
+    titus_settings = redis_db.get_titus_settings(msg.from_user.id) or {}
+    voice_enabled = bool(titus_settings.get("voice_enabled", False))
+    voice_gender = titus_settings.get("voice_gender", "male")
+    
+    if voice_enabled:
+        # === ГОЛОСОВОЙ ОТВЕТ ===
+        resp_for_tts = resp_clean
+        resp_for_tts = re.sub(r"<[^>]+>", "", resp_for_tts)
+        resp_for_tts = resp_for_tts.replace("**", "").replace("*", "")
+        resp_for_tts = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_for_tts, flags=re.UNICODE)
+        
+        voice_tts = "onyx" if voice_gender == "male" else "shimmer"
+        audio_path = await text_to_speech(resp_for_tts, voice=voice_tts)
+        
+        if audio_path:
+            from aiogram.types import FSInputFile
+            await msg.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
+            try:
+                os.remove(audio_path)
+            except:
+                pass
+        else:
+            # Fallback на текст
+            await msg.answer(
+                f"{display_text}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
+                reply_markup=keyboard
+            )
+    else:
+        # Текстовый ответ
+        await msg.answer(
+            f"{display_text}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
+            reply_markup=keyboard
+        )
 
 
 @router.message(TitusSt.menu, F.text == "📂 Ваши курсы")
@@ -622,6 +659,9 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         return
     
     model = await db.get_user_model(msg.from_user.id)
+    titus_settings = redis_db.get_titus_settings(msg.from_user.id) or {}
+    voice_enabled = bool(titus_settings.get("voice_enabled", False))
+    voice_gender = titus_settings.get("voice_gender", "male")
     
     data = await state.get_data()
     cid = data.get('cid')
@@ -676,7 +716,8 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                 if memory_context:
                     course_info += f"\n\n{memory_context}"
         
-        sys = TITUS_BASE + course_info
+        # Если включены голосовые ответы — используем voice-ориентированный промпт без HTML/эмодзи
+        sys = (TITUS_VOICE_BASE if voice_enabled else TITUS_BASE) + course_info
         msgs_to_send = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
         
         if request_state['cancelled']:
@@ -820,12 +861,39 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         
         # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
         keyboard = get_titus_keyboard(conv_id, len(resp), user_id)
-        
-        await msg.answer("💬", reply_markup=reply.study_chat_kb())
-        await msg.answer(
-            f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
-            reply_markup=keyboard
-        )
+
+        if voice_enabled:
+            # === ГОЛОСОВОЙ ОТВЕТ ===
+            # Под TTS: убираем HTML/эмодзи/служебные маркеры
+            resp_clean = resp.replace("---NEXT---", "").strip()
+            resp_clean = re.sub(r"<[^>]+>", "", resp_clean)  # теги
+            resp_clean = resp_clean.replace("**", "").replace("*", "")
+            resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_clean, flags=re.UNICODE)
+
+            voice_tts = "onyx" if voice_gender == "male" else "shimmer"
+            audio_path = await text_to_speech(resp_clean, voice=voice_tts)
+
+            if audio_path:
+                from aiogram.types import FSInputFile
+                await msg.answer("💬", reply_markup=reply.study_chat_kb())
+                await msg.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
+                try:
+                    os.remove(audio_path)
+                except:
+                    pass
+            else:
+                # Fallback на текст
+                await msg.answer("💬", reply_markup=reply.study_chat_kb())
+                await msg.answer(
+                    f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
+                    reply_markup=keyboard
+                )
+        else:
+            await msg.answer("💬", reply_markup=reply.study_chat_kb())
+            await msg.answer(
+                f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
+                reply_markup=keyboard
+            )
 
 
 @router.message(TitusSt.chat, F.text)
@@ -938,7 +1006,12 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     
     timer_task = asyncio.create_task(update_timer())
     
-    sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Продолжи обучение с шага {current_step}. Сразу начни с 📌 Тема:"
+    # Проверяем настройки голоса для выбора промпта
+    titus_settings_pre = redis_db.get_titus_settings(cb.from_user.id) or {}
+    voice_enabled_pre = bool(titus_settings_pre.get("voice_enabled", False))
+    base_prompt = TITUS_VOICE_BASE if voice_enabled_pre else TITUS_BASE
+    
+    sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Продолжи обучение с шага {current_step}. Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Продолжи с шага {current_step}"}]
     
     # STREAMING для продолжения
@@ -1037,10 +1110,40 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
     keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
     
-    await cb.message.answer(
-        f"{display_text}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
-        reply_markup=keyboard
-    )
+    # Проверяем настройки голоса
+    titus_settings = redis_db.get_titus_settings(cb.from_user.id) or {}
+    voice_enabled = bool(titus_settings.get("voice_enabled", False))
+    voice_gender = titus_settings.get("voice_gender", "male")
+    
+    if voice_enabled:
+        # === ГОЛОСОВОЙ ОТВЕТ ===
+        resp_for_tts = resp_clean
+        resp_for_tts = re.sub(r"<[^>]+>", "", resp_for_tts)
+        resp_for_tts = resp_for_tts.replace("**", "").replace("*", "")
+        resp_for_tts = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_for_tts, flags=re.UNICODE)
+        
+        voice_tts = "onyx" if voice_gender == "male" else "shimmer"
+        audio_path = await text_to_speech(resp_for_tts, voice=voice_tts)
+        
+        if audio_path:
+            from aiogram.types import FSInputFile
+            await cb.message.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
+            try:
+                os.remove(audio_path)
+            except:
+                pass
+        else:
+            # Fallback на текст
+            await cb.message.answer(
+                f"{display_text}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
+                reply_markup=keyboard
+            )
+    else:
+        # Текстовый ответ
+        await cb.message.answer(
+            f"{display_text}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
+            reply_markup=keyboard
+        )
 
 
 @router.callback_query(F.data.startswith("course:repeat:"))
@@ -1091,7 +1194,12 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     
     timer_task = asyncio.create_task(update_timer())
     
-    sys = TITUS_BASE + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
+    # Проверяем настройки голоса для выбора промпта
+    titus_settings_pre = redis_db.get_titus_settings(cb.from_user.id) or {}
+    voice_enabled_pre = bool(titus_settings_pre.get("voice_enabled", False))
+    base_prompt = TITUS_VOICE_BASE if voice_enabled_pre else TITUS_BASE
+    
+    sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Разбери подробно темы, которые были сложными: {topics_text}"}]
     
     # STREAMING для повторения
@@ -1174,10 +1282,40 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
         # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
         keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
         
-        await cb.message.answer(
-            f"{display_text}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
-            reply_markup=keyboard
-        )
+        # Проверяем настройки голоса
+        titus_settings = redis_db.get_titus_settings(cb.from_user.id) or {}
+        voice_enabled = bool(titus_settings.get("voice_enabled", False))
+        voice_gender = titus_settings.get("voice_gender", "male")
+        
+        if voice_enabled:
+            # === ГОЛОСОВОЙ ОТВЕТ ===
+            resp_for_tts = resp_clean
+            resp_for_tts = re.sub(r"<[^>]+>", "", resp_for_tts)
+            resp_for_tts = resp_for_tts.replace("**", "").replace("*", "")
+            resp_for_tts = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_for_tts, flags=re.UNICODE)
+            
+            voice_tts = "onyx" if voice_gender == "male" else "shimmer"
+            audio_path = await text_to_speech(resp_for_tts, voice=voice_tts)
+            
+            if audio_path:
+                from aiogram.types import FSInputFile
+                await cb.message.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
+                try:
+                    os.remove(audio_path)
+                except:
+                    pass
+            else:
+                # Fallback на текст
+                await cb.message.answer(
+                    f"{display_text}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
+                    reply_markup=keyboard
+                )
+        else:
+            # Текстовый ответ
+            await cb.message.answer(
+                f"{display_text}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
+                reply_markup=keyboard
+            )
     except Exception as e:
         timer_running = False
         timer_task.cancel()

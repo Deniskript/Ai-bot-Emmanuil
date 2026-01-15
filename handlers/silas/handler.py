@@ -27,7 +27,7 @@ import time
 
 from . import keyboards as kb
 from . import texts
-from .prompts import SILAS_SYSTEM, MOODS
+from .prompts import SILAS_SYSTEM, SILAS_VOICE_RULES, MOODS
 from .memory import build_memory_context
 
 router = Router()
@@ -353,6 +353,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         
         # Получаем настроение из кэша Redis (приоритет) или из БД
         cached_settings = redis_db.get_silas_settings_cache(msg.from_user.id)
+        voice_enabled = cached_settings.get('voice_enabled', False) if cached_settings else False
         if cached_settings and cached_settings.get('mood'):
             mood = cached_settings.get('mood')
             # Нормализация: 'hard' → 'pain'
@@ -377,6 +378,8 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         cnt = await db.inc_msg_counter(msg.from_user.id, 'silas')
         sys = SILAS_SYSTEM.format(mood=mood_text, duration=d['dur'], elapsed=el, remaining=rem, msg_count=cnt)
         sys += build_memory_context(mem)
+        if voice_enabled:
+            sys += "\n\n" + SILAS_VOICE_RULES
         
         if rem <= 5:
             sys += "\n\nОсталось мало времени — начинайте завершение."
@@ -494,10 +497,6 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         # Получаем кнопку для просмотра диалога
         keyboard = get_chat_button(conv_id, len(resp_html))
         
-        # Проверяем настройку голоса
-        cached_settings = redis_db.get_silas_settings_cache(msg.from_user.id)
-        voice_enabled = cached_settings.get('voice_enabled', False) if cached_settings else False
-        
         if voice_enabled:
             # === ГОЛОСОВОЙ ОТВЕТ ===
             # Используем мужской голос по умолчанию (как у Луки)
@@ -574,6 +573,7 @@ async def silas_voice(msg: Message, state: FSMContext):
 @router.message(SilasSt.session, F.photo)
 async def silas_photo(msg: Message, state: FSMContext):
     sec = 0 
+    st = await msg.answer(texts.STATUS_LOOKING.format(sec=0))
     
     running = True
     async def update_photo_counter():

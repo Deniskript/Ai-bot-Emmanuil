@@ -36,6 +36,11 @@ MODEL = os.getenv("MODEL", "anthropic/claude-sonnet-4.5")
 # OpenAI/ProxyAPI для Whisper
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# VseGPT (OpenAI-compatible API) для STT/TTS
+# Если VSEGPT_API_KEY не задан, пробуем использовать OPENAI_API_KEY (для обратной совместимости).
+VSEGPT_API_KEY = os.getenv("VSEGPT_API_KEY") or OPENAI_API_KEY
+VSEGPT_BASE_URL = os.getenv("VSEGPT_BASE_URL", "https://api.vsegpt.ru/v1")
+
 # Робокасса
 ROBOKASSA_LOGIN = os.getenv("ROBOKASSA_LOGIN")
 ROBOKASSA_PASS1 = os.getenv("ROBOKASSA_PASS1")

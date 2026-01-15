@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🃏 Таро</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #f6f2ff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 520px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { font-size: 26px; margin-bottom: 6px; }
+        .header p { font-size: 14px; color: #c5bde9; }
+        .card {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 14px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        }
+        .card-title { font-weight: 600; margin-bottom: 12px; }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            background: linear-gradient(135deg, #b25cff, #6a5cff);
+            margin-bottom: 8px;
+            transition: opacity 0.3s, transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:active {
+            transform: scale(0.98);
+            background: linear-gradient(135deg, #4caf50, #8bc34a) !important;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.45);
+        }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-primary {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            font-size: 15px;
+            padding: 14px;
+        }
+        .btn-primary.loading { animation: pulse 1.5s ease-in-out infinite; }
+        .btn.loading {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .btn.selected {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            box-shadow: 0 4px 16px rgba(76, 175, 80, 0.6);
+            transform: translateY(-2px);
+            position: relative;
+        }
+        .btn.selected::after {
+            content: '✅';
+            position: absolute;
+            right: 12px;
+            font-size: 16px;
+        }
+        .btn-back {
+            position: sticky !important;
+            bottom: 10px;
+            z-index: 999;
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.85) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(10, 10, 18, 0.6);
+            color: #f0f0ff;
+            margin-bottom: 10px;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: rgba(178, 92, 255, 0.5);
+        }
+        .result { white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
+        .note { font-size: 12px; color: #a7a7c6; margin-top: 6px; }
+        .hint { font-size: 12px; color: #9fb2cf; margin-bottom: 8px; padding-left: 4px; }
+        .placeholder {
+            text-align: center;
+            padding: 20px;
+            color: #a7a7c6;
+            font-size: 14px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .card-item {
+            height: 110px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            opacity: 0;
+            transform: translateY(16px) scale(0.96);
+        }
+        .card-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+        .card-item span {
+            font-size: 11px;
+            text-align: center;
+            padding: 4px 6px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 6px;
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 90%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .card-item::after {
+            content: "✨";
+            position: absolute;
+            right: 8px;
+            top: 6px;
+            font-size: 14px;
+            opacity: 0.6;
+        }
+        .card-flip {
+            animation: dealIn 0.7s ease forwards, flipIn 0.7s ease forwards;
+        }
+        @keyframes flipIn {
+            0% { transform: rotateY(90deg); opacity: 0; }
+            100% { transform: rotateY(0deg); opacity: 1; }
+        }
+        @keyframes dealIn {
+            0% { opacity: 0; transform: translateY(16px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .hint-compact {
+            font-size: 12px;
+            color: #efe6ff;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 90%;
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success { background: linear-gradient(135deg, #4caf50, #66bb6a); }
+        .toast.error { background: linear-gradient(135deg, #f44336, #e57373); }
+        
+        /* Onboarding */
+        .onboarding {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            color: #f6f2ff;
+        }
+        .onboarding strong { color: #ffffff; }
+        
+        /* Processing Animation */
+        .processing-animation {
+            text-align: center;
+            padding: 40px 20px;
+            animation: fadeIn 0.5s;
+        }
+        .pulse-circle {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            animation: pulse-glow 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; box-shadow: 0 0 30px rgba(76, 175, 80, 0.8); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .processing-animation p {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .processing-animation .sub {
+            font-size: 13px;
+            color: #b9b9d9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🃏 Таро</h1>
+            <p>Расклады, карта дня и анализ фото</p>
+        </div>
+
+        <div class="onboarding">
+            <strong>Подсказка:</strong> выберите быстрый расклад, задайте вопрос или загрузите фото.
+        </div>
+
+        <div class="card">
+            <div class="card-title">🎴 Быстрые расклады</div>
+            <button class="btn js-spread" onclick="getSpread('card_day', event)">Карта дня (1 карта)</button>
+            <button class="btn js-spread" onclick="getSpread('yes_no', event)">Да/Нет (3 карты)</button>
+            <button class="btn js-spread" onclick="getSpread('celtic', event)">Кельтский крест (10 карт)</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title">💭 Вопрос Таро</div>
+            <textarea id="tarot-question" rows="3" placeholder="Задайте свой вопрос картам..."></textarea>
+            <div class="hint">💡 Формулируйте вопрос чётко и конкретно</div>
+            <button class="btn btn-primary js-action" onclick="askQuestion(event)">Получить расклад</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📸 Анализ фото расклада</div>
+            <input type="file" id="photo-input" accept="image/*">
+            <div class="hint">🖼️ Фото должно быть чётким, карты видны полностью</div>
+            <button class="btn btn-primary js-action" onclick="analyzePhoto(event)">Проанализировать фото</button>
+            <p class="note">Фото карт должно быть без бликов и хорошо освещено</p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">✨ Результат</div>
+            <div class="gallery" id="card-gallery"></div>
+            <div class="result" id="result">
+                <div class="placeholder">🃏 Выберите расклад или задайте вопрос</div>
+            </div>
+        </div>
+
+        <button class="btn btn-secondary btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const userId = new URLSearchParams(window.location.search).get('user_id');
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 50);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function escapeHtml(value) {
+            return (value || '').replace(/[&<>"']/g, (match) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[match]));
+        }
+
+        function formatText(text) {
+            const escaped = escapeHtml(text);
+            const bullets = escaped.replace(/^\*\s+/gm, '• ');
+            const headings = bullets.replace(/^#{1,6}\s*(.+)$/gm, '<strong>$1</strong>');
+            const bolded = headings.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            const italic = bolded.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            const paragraphs = italic.split(/\n\n+/).map(p => p.replace(/\n/g, '<br>'));
+            return paragraphs.map(p => `<p>${p}</p>`).join('');
+        }
+
+        function setResult(text) {
+            const resultEl = document.getElementById('result');
+            if (text) {
+                resultEl.innerHTML = formatText(text);
+            } else {
+                resultEl.innerHTML = '<div class="placeholder">Нет данных</div>';
+            }
+        }
+
+        function showProcessing(message = 'Ваш расклад готовится...') {
+            const resultEl = document.getElementById('result');
+            resultEl.innerHTML = `
+                <div class="processing-animation">
+                    <div class="pulse-circle"></div>
+                    <p>🔮 ${message}</p>
+                    <p class="sub">✨ Подождите пожалуйста</p>
+                </div>
+            `;
+            // Плавный скролл к результату
+            setTimeout(() => {
+                resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        function setButtonLoading(btn, loading) {
+            if (loading) {
+                btn.disabled = true;
+                btn.classList.add('loading');
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner"></span> Загрузка...';
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                btn.innerHTML = btn.dataset.originalText;
+            }
+        }
+
+        function setActiveButton(btn, selector) {
+            document.querySelectorAll(selector).forEach(el => el.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        function renderCards(cards) {
+            const gallery = document.getElementById('card-gallery');
+            gallery.innerHTML = '';
+            if (!cards || !cards.length) return;
+            
+            cards.forEach((card, idx) => {
+                const el = document.createElement('div');
+                el.className = 'card-item card-flip';
+                el.style.animationDelay = `${idx * 0.12}s`;
+                
+                // Создаем изображение
+                const img = document.createElement('img');
+                const imageValue = card.image || '';
+                // Используем полный URL если это относительный путь
+                img.src = imageValue.startsWith('data:') ? imageValue : imageValue;
+                img.alt = card.name || 'Таро карта';
+                img.onerror = function() {
+                    // Fallback если картинка не загрузилась
+                    console.error('Failed to load image:', img.src);
+                    this.style.display = 'none';
+                    el.style.background = 'linear-gradient(135deg, rgba(178, 92, 255, 0.3), rgba(106, 92, 255, 0.2))';
+                };
+                el.appendChild(img);
+                
+                const span = document.createElement('span');
+                span.textContent = card.name || '';
+                el.appendChild(span);
+                
+                gallery.appendChild(el);
+            });
+        }
+
+        async function getSpread(type, event) {
+            const btn = event.target;
+            setActiveButton(btn, '.js-spread');
+            setButtonLoading(btn, true);
+            showProcessing('Ваш расклад готовится...');
+            
+            try {
+                const res = await fetch('/magic/tarot/spread', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, type })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    setResult(data.text);
+                    renderCards(data.cards);
+                    showToast('✅ Расклад готов', 'success');
+                } else {
+                    showToast(`❌ Ошибка: ${data.error || 'не удалось получить расклад'}`, 'error');
+                }
+            } catch (e) {
+                showToast('❌ Ошибка сети', 'error');
+            } finally {
+                setButtonLoading(btn, false);
+            }
+        }
+
+        async function askQuestion(event) {
+            const btn = event.target;
+            setActiveButton(btn, '.js-action');
+            const question = document.getElementById('tarot-question').value.trim();
+            
+            if (!question) {
+                showToast('❌ Введите вопрос', 'error');
+                return;
+            }
+            
+            setButtonLoading(btn, true);
+            showProcessing('Толкую карты...');
+            
+            try {
+                const res = await fetch('/magic/tarot/question', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, question })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    setResult(data.text);
+                    renderCards(data.cards);
+                    showToast('✅ Ответ получен', 'success');
+                } else {
+                    showToast(`❌ Ошибка: ${data.error || 'не удалось получить ответ'}`, 'error');
+                }
+            } catch (e) {
+                showToast('❌ Ошибка сети', 'error');
+            } finally {
+                setButtonLoading(btn, false);
+            }
+        }
+
+        async function analyzePhoto(event) {
+            const btn = event.target;
+            setActiveButton(btn, '.js-action');
+            const file = document.getElementById('photo-input').files[0];
+            
+            if (!file) {
+                showToast('❌ Загрузите фото', 'error');
+                return;
+            }
+            
+            setButtonLoading(btn, true);
+            showProcessing('Анализирую фото...');
+            
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const base64 = reader.result;
+                    const res = await fetch('/magic/tarot/photo', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: userId, image: base64 })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        setResult(data.text);
+                        renderCards([]);
+                        showToast('✅ Анализ завершён', 'success');
+                    } else {
+                        showToast(`❌ Ошибка: ${data.error || 'не удалось проанализировать фото'}`, 'error');
+                    }
+                } catch (e) {
+                    showToast('❌ Ошибка сети', 'error');
+                } finally {
+                    setButtonLoading(btn, false);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // История запросов удалена по требованиям
+    </script>
+</body>
+</html>

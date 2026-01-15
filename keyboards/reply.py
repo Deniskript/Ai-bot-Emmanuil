@@ -46,8 +46,8 @@ def back_kb():
 
 def study_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📝 Новый курс"), KeyboardButton(text="📂 Ваши курсы")],
-        [KeyboardButton(text="📚 Анализ видео")],
+        [KeyboardButton(text="📝 Новый курс"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/titus/settings?user_id={user_id}"))],
+        [KeyboardButton(text="📂 Ваши курсы"), KeyboardButton(text="📚 Анализ видео")],
         [KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
@@ -138,7 +138,20 @@ def lifestyle_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🎬 Вирусный разбор"), KeyboardButton(text="🌅 Режим дня")],
         [KeyboardButton(text="🎯 Трекер целей"), KeyboardButton(text="🧘 Ментальное")],
-        [KeyboardButton(text="💰 Финансы")],
+        [KeyboardButton(text="💰 Финансы"), KeyboardButton(text="🔮 Магия")],
+        [KeyboardButton(text="◀️ Назад")]
+    ], resize_keyboard=True)
+
+
+def magic_kb(user_id: int):
+    """Меню раздела Магия"""
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="✨ Гороскоп", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/horoscope?user_id={user_id}"))],
+        [KeyboardButton(text="🃏 Таро", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/tarot?user_id={user_id}"))],
+        [KeyboardButton(text="🔮 Гадания", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/divination?user_id={user_id}"))],
+        [KeyboardButton(text="💫 Нумерология", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/numerology?user_id={user_id}"))],
+        [KeyboardButton(text="🌙 Лунный календарь", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/moon?user_id={user_id}"))],
+        [KeyboardButton(text="⚡ Ритуалы дня", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/rituals?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 

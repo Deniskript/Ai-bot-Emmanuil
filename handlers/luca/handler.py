@@ -34,7 +34,7 @@ from .memory import (
     CHARS,
     CHAR_NAMES
 )
-from .prompts import SYSTEM_PROMPT
+from .prompts import SYSTEM_PROMPT, LUCA_VOICE_RULES, LUCA_VOICE_STYLE_SOUL, LUCA_VOICE_STYLE_MIND
 
 router = Router()
 
@@ -405,6 +405,11 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
 
 ВАЖНО: НЕ начинай ответ с приветствия если пользователь не здоровается первым. Отвечай по существу."""
 
+    # Если включены голосовые ответы в текстовом чате — делаем ответ speech-friendly
+    if user_settings.get('voice_enabled'):
+        voice_style = LUCA_VOICE_STYLE_SOUL if char_key == 'soul' else LUCA_VOICE_STYLE_MIND
+        system_prompt += f"\n\n{LUCA_VOICE_RULES}\n\n{voice_style}"
+
     if cnt >= 20:
         system_prompt += "\n\n⚡ Упомяни что-то из памяти о пользователе!"
         await db.reset_msg_counter(user_id, 'luca')
@@ -692,6 +697,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         user_settings = get_user_settings(user_id)
         char_key = user_settings['character']
         char_prompt = CHARS.get(char_key, CHARS['soul'])
+        voice_style = LUCA_VOICE_STYLE_SOUL if char_key == 'soul' else LUCA_VOICE_STYLE_MIND
         
         # Системный промпт с эмоциональностью
         system_prompt = f"""{LUCA_BASE}
@@ -700,7 +706,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
 {memory_context}
 
 ВАЖНО: НЕ начинай ответ с приветствия если пользователь не здоровается. Отвечай по существу.
-Отвечай живо и эмоционально, как в разговоре."""
+{LUCA_VOICE_RULES}
+{voice_style}"""
         
         # Формируем сообщения для API
         messages = [{"role": "system", "content": system_prompt}]

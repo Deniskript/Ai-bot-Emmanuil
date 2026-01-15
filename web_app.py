@@ -2,15 +2,73 @@
 """
 Веб-приложение для отображения диалогов
 """
-from flask import Flask, render_template_string, render_template, abort, jsonify, request
+from flask import Flask, render_template_string, render_template, abort, jsonify, request, send_from_directory
 import asyncio
 import logging
+import os
+from datetime import datetime
 from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens, DATABASE_PATH
+
+# Web App Domain для Telegram Mini Apps
+WEBAPP_DOMAIN = os.getenv("WEBAPP_DOMAIN", "http://localhost:5000")
 from database.postgres_db import init_pool, init_db, get_user_pair_session, create_pair_session, join_pair_session, get_pair_session, cancel_pair_session, get_user, create_user, get_all_user_pair_sessions, delete_pair_session_by_id, delete_all_user_pair_sessions, get_pair_session_with_names
 from database import redis_db
+from database import postgres_db
+from utils.openrouter import ask
+from utils.magic_calculations import (
+    destiny_number, name_number, day_number, personal_year_number, karma_number, reduce_number,
+    zodiac_sign, moon_phase_info, moon_day_advice, moon_month_calendar, moon_month_grid
+)
+from utils.magic_vision import analyze_image_with_prompt
+from prompts.magic_prompts import (
+    HOROSCOPE_SYSTEM_PROMPT, TAROT_SYSTEM_PROMPT, TAROT_PHOTO_PROMPT,
+    PALM_PROMPT, FACE_PROMPT, COFFEE_PROMPT, CRYSTAL_PROMPT, CANDLE_PROMPT,
+    RITUALS
+)
 import aiosqlite
 import html
 import re
+
+
+TAROT_CARDS = [
+    {"name": "Шут", "slug": "fool"},
+    {"name": "Маг", "slug": "magician"},
+    {"name": "Верховная Жрица", "slug": "high_priestess"},
+    {"name": "Императрица", "slug": "empress"},
+    {"name": "Император", "slug": "emperor"},
+    {"name": "Иерофант", "slug": "hierophant"},
+    {"name": "Влюблённые", "slug": "lovers"},
+    {"name": "Колесница", "slug": "chariot"},
+    {"name": "Сила", "slug": "strength"},
+    {"name": "Отшельник", "slug": "hermit"},
+    {"name": "Колесо Фортуны", "slug": "wheel_of_fortune"},
+    {"name": "Справедливость", "slug": "justice"},
+    {"name": "Повешенный", "slug": "hanged_man"},
+    {"name": "Смерть", "slug": "death"},
+    {"name": "Умеренность", "slug": "temperance"},
+    {"name": "Дьявол", "slug": "devil"},
+    {"name": "Башня", "slug": "tower"},
+    {"name": "Звезда", "slug": "star"},
+    {"name": "Луна", "slug": "moon"},
+    {"name": "Солнце", "slug": "sun"},
+    {"name": "Суд", "slug": "judgement"},
+    {"name": "Мир", "slug": "world"}
+]
+
+
+def draw_tarot_cards(count: int) -> list:
+    """Выбрать случайные карты Таро."""
+    import random
+    
+    chosen = random.sample(TAROT_CARDS, k=min(count, len(TAROT_CARDS)))
+    cards = []
+    for c in chosen:
+        # Используем полный URL с доменом для Telegram WebApp
+        cards.append({
+            "name": c["name"],
+            "image": f"{WEBAPP_DOMAIN}/assets/tarot/{c['slug']}.svg"
+        })
+    return cards
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +105,12 @@ def ensure_pool_initialized():
         print(f"⚠️ Failed to initialize PostgreSQL in web_app: {e}")
         import traceback
         traceback.print_exc()
+
+
+def run_async(coro):
+    """Запуск async функции в глобальном loop."""
+    loop = get_or_create_loop()
+    return loop.run_until_complete(coro)
 
 # Инициализируем при импорте
 ensure_pool_initialized()
@@ -473,6 +537,13 @@ def index():
     """
 
 
+@app.route('/assets/<path:filename>')
+def assets_static(filename: str):
+    """Статические файлы (assets)"""
+    base_dir = os.path.join(os.path.dirname(__file__), "assets")
+    return send_from_directory(base_dir, filename)
+
+
 @app.route('/webapp')
 def webapp():
     """Telegram Mini App - Личный кабинет"""
@@ -515,6 +586,13 @@ def silas_settings():
     """Telegram Mini App - Настройки Silas"""
     user_id = request.args.get('user_id', '')
     return render_template('silas_settings.html', user_id=user_id)
+
+
+@app.route('/titus/settings')
+def titus_settings():
+    """Telegram Mini App - Настройки Titus"""
+    user_id = request.args.get('user_id', '')
+    return render_template('titus_settings.html', user_id=user_id)
 
 
 @app.route('/luca/settings/save', methods=['POST'])
@@ -608,6 +686,539 @@ def silas_settings_load():
         
         return jsonify({'success': True, 'settings': settings})
             
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ========== TITUS SETTINGS ==========
+
+@app.route('/titus/settings/save', methods=['POST'])
+def titus_settings_save():
+    """API для сохранения настроек Titus в Redis"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        success = redis_db.set_titus_settings(
+            user_id=int(user_id),
+            voice_enabled=bool(data.get('voice_enabled', False)),
+            voice_gender=data.get('voice_gender') or 'male'
+        )
+
+        if success:
+            return jsonify({'success': True})
+        return jsonify({'success': False, 'error': 'Redis not available'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/titus/settings/load', methods=['GET'])
+def titus_settings_load():
+    """API для загрузки настроек Titus из Redis"""
+    try:
+        user_id = request.args.get('user_id')
+
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        settings = redis_db.get_titus_settings(int(user_id))
+        return jsonify({'success': True, 'settings': settings})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ========== MAGIC WEBAPP ==========
+
+@app.route('/magic/horoscope')
+def magic_horoscope():
+    """Telegram Mini App - Гороскоп"""
+    user_id = request.args.get('user_id', '')
+    return render_template('magic_horoscope.html', user_id=user_id)
+
+
+@app.route('/magic/tarot')
+def magic_tarot():
+    """Telegram Mini App - Таро"""
+    user_id = request.args.get('user_id', '')
+    return render_template('magic_tarot.html', user_id=user_id)
+
+
+@app.route('/magic/divination')
+def magic_divination():
+    """Telegram Mini App - Гадания"""
+    user_id = request.args.get('user_id', '')
+    return render_template('magic_divination.html', user_id=user_id)
+
+
+@app.route('/magic/numerology')
+def magic_numerology():
+    """Telegram Mini App - Нумерология"""
+    user_id = request.args.get('user_id', '')
+    return render_template('magic_numerology.html', user_id=user_id)
+
+
+@app.route('/magic/moon')
+def magic_moon():
+    """Telegram Mini App - Лунный календарь"""
+    user_id = request.args.get('user_id', '')
+    return render_template('magic_moon.html', user_id=user_id)
+
+
+@app.route('/magic/rituals')
+def magic_rituals():
+    """Telegram Mini App - Ритуалы дня"""
+    user_id = request.args.get('user_id', '')
+    return render_template('magic_rituals.html', user_id=user_id)
+
+
+@app.route('/magic/horoscope/save', methods=['POST'])
+def magic_horoscope_save():
+    """Сохранить профиль гороскопа"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        birth_date = data.get('birth_date')
+        if not birth_date:
+            return jsonify({'success': False, 'error': 'birth_date required'}), 400
+
+        # Конвертация даты если передана
+        if birth_date:
+            if not isinstance(birth_date, str) or not birth_date.strip():
+                return jsonify({'success': False, 'error': 'Неверный формат даты рождения'}), 400
+            try:
+                birth_date = datetime.strptime(birth_date.strip(), "%Y-%m-%d").date()
+            except Exception:
+                return jsonify({'success': False, 'error': 'Неверный формат даты рождения'}), 400
+
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_horoscope_profile(
+            user_id=int(user_id),
+            birth_date=birth_date,
+            birth_time=data.get('birth_time'),
+            birth_place=data.get('birth_place'),
+            notify_time=data.get('notify_time'),
+            tz_offset=int(data.get('tz_offset', 0))
+        ))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/horoscope/load', methods=['GET'])
+def magic_horoscope_load():
+    """Загрузить профиль гороскопа"""
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        ensure_pool_initialized()
+        profile = run_async(postgres_db.get_magic_horoscope_profile(int(user_id)))
+        return jsonify({'success': True, 'profile': profile or {}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/horoscope/predict', methods=['POST'])
+def magic_horoscope_predict():
+    """Получить прогноз"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        ftype = data.get('type', 'today')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        ensure_pool_initialized()
+        profile = run_async(postgres_db.get_magic_horoscope_profile(int(user_id)))
+        if not profile:
+            return jsonify({'success': False, 'error': 'profile not found'}), 400
+
+        zodiac = zodiac_sign(profile.get('birth_date', ''))
+        type_map = {
+            "today": "Гороскоп на сегодня",
+            "week": "Прогноз на неделю",
+            "compat": "Совместимость знаков",
+            "finance": "Финансовый гороскоп",
+            "love": "Любовный гороскоп",
+            "natal": "Натальная карта"
+        }
+        prompt = (
+            f"{type_map.get(ftype, 'Гороскоп')}. "
+            f"Знак зодиака: {zodiac}. "
+            f"Дата рождения: {profile.get('birth_date')}. "
+            f"Время рождения: {profile.get('birth_time')}. "
+            f"Место рождения: {profile.get('birth_place')}."
+        )
+
+        messages = [
+            {"role": "system", "content": HOROSCOPE_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+        text, _ = run_async(ask(messages, model="anthropic/claude-sonnet-4.5"))
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_horoscope_log(int(user_id), ftype, text))
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/tarot/spread', methods=['POST'])
+def magic_tarot_spread():
+    """Расклад Таро"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        spread_type = data.get('type', 'card_day')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        spread_map = {
+            "card_day": "Сделай расклад «Карта дня» (1 карта).",
+            "yes_no": "Сделай расклад «Да/Нет» (3 карты).",
+            "celtic": "Сделай расклад «Кельтский крест» (10 карт)."
+        }
+        cards_count = {"card_day": 1, "yes_no": 3, "celtic": 10}.get(spread_type, 1)
+        cards = draw_tarot_cards(cards_count)
+        card_names = ", ".join(c["name"] for c in cards)
+        messages = [
+            {"role": "system", "content": TAROT_SYSTEM_PROMPT},
+            {"role": "user", "content": f"{spread_map.get(spread_type, 'Сделай расклад Таро.')} Карты: {card_names}."}
+        ]
+        text, _ = run_async(ask(messages, model="anthropic/claude-sonnet-4.5"))
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_tarot_log(
+            user_id=int(user_id),
+            spread_type=spread_type,
+            question=None,
+            image_used=False,
+            result_text=text
+        ))
+        return jsonify({'success': True, 'text': text, 'cards': cards})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/tarot/question', methods=['POST'])
+def magic_tarot_question():
+    """Вопрос Таро"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        question = data.get('question', '').strip()
+        if not user_id or not question:
+            return jsonify({'success': False, 'error': 'user_id and question required'}), 400
+
+        cards = draw_tarot_cards(3)
+        card_names = ", ".join(c["name"] for c in cards)
+        messages = [
+            {"role": "system", "content": TAROT_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Вопрос: {question}. Сделай расклад и дай толкование. Карты: {card_names}."}
+        ]
+        text, _ = run_async(ask(messages, model="anthropic/claude-sonnet-4.5"))
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_tarot_log(
+            user_id=int(user_id),
+            spread_type="question",
+            question=question,
+            image_used=False,
+            result_text=text
+        ))
+        return jsonify({'success': True, 'text': text, 'cards': cards})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/tarot/photo', methods=['POST'])
+def magic_tarot_photo():
+    """Анализ фото расклада"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        image = data.get('image')
+        if not user_id or not image:
+            return jsonify({'success': False, 'error': 'user_id and image required'}), 400
+
+        text = run_async(analyze_image_with_prompt(image, TAROT_PHOTO_PROMPT))
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_tarot_log(
+            user_id=int(user_id),
+            spread_type="photo",
+            question=None,
+            image_used=True,
+            result_text=text
+        ))
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/divination/photo', methods=['POST'])
+def magic_divination_photo():
+    """Анализ фото для гаданий"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        image = data.get('image')
+        dtype = data.get('type', 'palm')
+        if not user_id or not image:
+            return jsonify({'success': False, 'error': 'user_id and image required'}), 400
+
+        prompt_map = {
+            "palm": PALM_PROMPT,
+            "face": FACE_PROMPT,
+            "coffee": COFFEE_PROMPT
+        }
+        prompt = prompt_map.get(dtype, PALM_PROMPT)
+        text = run_async(analyze_image_with_prompt(image, prompt))
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_divination_log(
+            user_id=int(user_id),
+            divination_type=dtype,
+            question=None,
+            image_used=True,
+            result_text=text
+        ))
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/divination/ask', methods=['POST'])
+def magic_divination_ask():
+    """Вопрос для гаданий"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        mode = data.get('mode', 'crystal')
+        question = data.get('question', '').strip()
+        if not user_id or not question:
+            return jsonify({'success': False, 'error': 'user_id and question required'}), 400
+
+        prompt_map = {
+            "crystal": CRYSTAL_PROMPT,
+            "candle": CANDLE_PROMPT
+        }
+        messages = [
+            {"role": "system", "content": prompt_map.get(mode, CRYSTAL_PROMPT)},
+            {"role": "user", "content": f"Вопрос: {question}"}
+        ]
+        text, _ = run_async(ask(messages, model="anthropic/claude-sonnet-4.5"))
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_divination_log(
+            user_id=int(user_id),
+            divination_type=mode,
+            question=question,
+            image_used=False,
+            result_text=text
+        ))
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/numerology/save', methods=['POST'])
+def magic_numerology_save():
+    """Сохранить профиль нумерологии"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        full_name = (data.get('full_name') or '').strip()
+        # Конвертация даты если передана
+        birth_date = data.get('birth_date')
+        if not full_name and not birth_date:
+            return jsonify({'success': False, 'error': 'full_name or birth_date required'}), 400
+        if birth_date:
+            if not isinstance(birth_date, str) or not birth_date.strip():
+                return jsonify({'success': False, 'error': 'Неверный формат даты рождения'}), 400
+            try:
+                birth_date = datetime.strptime(birth_date.strip(), "%Y-%m-%d").date()
+            except Exception:
+                return jsonify({'success': False, 'error': 'Неверный формат даты рождения'}), 400
+
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_numerology_profile(
+            user_id=int(user_id),
+            full_name=full_name or None,
+            birth_date=birth_date
+        ))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/numerology/load', methods=['GET'])
+def magic_numerology_load():
+    """Загрузить профиль нумерологии"""
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+        ensure_pool_initialized()
+        profile = run_async(postgres_db.get_magic_numerology_profile(int(user_id)))
+        return jsonify({'success': True, 'profile': profile or {}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/numerology/calc', methods=['POST'])
+def magic_numerology_calc():
+    """Расчёты нумерологии"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        calc_type = data.get('type')
+        partner_name = (data.get('partner_name') or '').strip()
+        partner_date = data.get('partner_birth_date')
+        if not user_id or not calc_type:
+            return jsonify({'success': False, 'error': 'user_id and type required'}), 400
+
+        ensure_pool_initialized()
+        profile = run_async(postgres_db.get_magic_numerology_profile(int(user_id))) or {}
+        full_name = profile.get('full_name') or ''
+        birth_date = profile.get('birth_date')
+
+        if calc_type in ("destiny", "name", "year", "karma") and (not full_name and not birth_date):
+            return jsonify({'success': False, 'error': 'profile not found'}), 400
+
+        meanings = {
+            1: "Лидерство, инициатива, сила воли.",
+            2: "Гармония, дипломатия, чувствительность.",
+            3: "Творчество, общение, вдохновение.",
+            4: "Стабильность, трудолюбие, порядок.",
+            5: "Свобода, перемены, энергия.",
+            6: "Забота, семья, ответственность.",
+            7: "Интуиция, мудрость, анализ.",
+            8: "Материальный успех, сила, власть.",
+            9: "Гуманизм, завершение, сострадание.",
+            11: "Мастер-число интуиции и вдохновения.",
+            22: "Мастер-число строителя больших целей.",
+            33: "Мастер-число служения и любви."
+        }
+
+        if calc_type == "destiny":
+            num = destiny_number(birth_date)
+            text = f"🔢 Число судьбы: {num}\n{meanings.get(num, '')}"
+        elif calc_type == "name":
+            num = name_number(full_name)
+            text = f"🔢 Число имени: {num}\n{meanings.get(num, '')}"
+        elif calc_type == "day":
+            num = day_number()
+            text = f"🔢 Число дня: {num}\n{meanings.get(num, '')}"
+        elif calc_type == "compat":
+            if not partner_name and not partner_date:
+                return jsonify({'success': False, 'error': 'partner data required'}), 400
+            num1 = destiny_number(birth_date)
+            num2 = destiny_number(partner_date) if partner_date else name_number(partner_name)
+            comp = reduce_number(num1 + num2) if num1 and num2 else 0
+            text = f"💑 Совместимость: {comp}\n{meanings.get(comp, '')}"
+        elif calc_type == "year":
+            num = personal_year_number(birth_date)
+            text = f"📅 Персональный год: {num}\n{meanings.get(num, '')}"
+        elif calc_type == "karma":
+            num = karma_number(birth_date, full_name)
+            text = f"🔮 Кармическое число: {num}\n{meanings.get(num, '')}"
+        else:
+            return jsonify({'success': False, 'error': 'unknown type'}), 400
+
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_numerology_log(int(user_id), calc_type, text))
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/moon/today', methods=['GET'])
+def magic_moon_today():
+    """Лунный день"""
+    try:
+        info = moon_phase_info()
+        advice = moon_day_advice(info["name"])
+        text = (
+            f"🌙 Фаза луны: {info['name']}\n"
+            f"{advice['good']}\n"
+            f"{advice['bad']}\n"
+            "\n💇 Стрижка: аккуратно, без резких перемен.\n"
+            "💅 Красота: мягкие уходовые процедуры.\n"
+            "🌱 Дела: лучше планировать и завершать."
+        )
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/moon/month', methods=['GET'])
+def magic_moon_month():
+    """Календарь на месяц"""
+    try:
+        grid = moon_month_grid()
+        text = "📅 Лунный календарь (ключевые фазы)\n\n" + moon_month_calendar()
+        return jsonify({'success': True, 'text': text, 'grid': grid})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/rituals/get', methods=['POST'])
+def magic_rituals_get():
+    """Получить ритуал"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        ritual_type = data.get('type')
+        if not user_id or not ritual_type:
+            return jsonify({'success': False, 'error': 'user_id and type required'}), 400
+
+        ritual = RITUALS.get(ritual_type)
+        if not ritual:
+            return jsonify({'success': False, 'error': 'ritual not found'}), 404
+        text = f"{ritual['title']}\n\n{ritual['text']}"
+        ensure_pool_initialized()
+        run_async(postgres_db.save_magic_ritual_log(int(user_id), ritual_type, text))
+        return jsonify({'success': True, 'text': text})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/magic/history/<string:kind>', methods=['GET'])
+def magic_history(kind: str):
+    """История запросов Магии"""
+    try:
+        user_id = request.args.get('user_id')
+        kind_filter = request.args.get('type')
+        date_from_raw = request.args.get('from')
+        date_to_raw = request.args.get('to')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        date_from = None
+        date_to = None
+        try:
+            if date_from_raw:
+                date_from = datetime.strptime(date_from_raw, "%Y-%m-%d").date()
+            if date_to_raw:
+                date_to = datetime.strptime(date_to_raw, "%Y-%m-%d").date()
+        except Exception:
+            date_from = None
+            date_to = None
+        ensure_pool_initialized()
+        items = run_async(postgres_db.list_magic_history(
+            int(user_id),
+            kind,
+            limit=30,
+            kind_filter=kind_filter or None,
+            date_from=date_from or None,
+            date_to=date_to or None
+        ))
+        return jsonify({'success': True, 'items': items})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

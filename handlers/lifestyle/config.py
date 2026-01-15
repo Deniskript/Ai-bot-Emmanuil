@@ -30,6 +30,10 @@ MODULES = {
     "finance": {
         "name": "💰 Финансы",
         "enabled": True
+    },
+    "magic": {
+        "name": "🔮 Магия",
+        "enabled": True
     }
 }
 
