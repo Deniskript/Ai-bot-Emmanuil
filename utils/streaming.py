@@ -68,35 +68,39 @@ async def stream_response(
             sentence_buffer += chunk
             now = asyncio.get_event_loop().time()
             
-            # При первом chunk - выключаем статус
+            # При первом chunk - выключаем статус и создаем сообщение
             if first_chunk:
                 first_chunk = False
                 await status.stop()
-                stream_msg = await message.answer("_Печатаю..._", parse_mode=None)
+                # Небольшая задержка чтобы статус удалился
+                await asyncio.sleep(0.1)
+                stream_msg = await message.answer(chunk, parse_mode=None)
+                displayed_text = chunk
+                last_update = now
+                continue
             
             # Обновляем текст блоками
             if stream_msg:
-                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
+                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')) or len(sentence_buffer) >= 30:
                     displayed_text += sentence_buffer
                     sentence_buffer = ""
                     
-                    if now - last_update >= 0.5:
+                    if now - last_update >= 0.8:
                         formatted = md_to_html(displayed_text)
                         try:
                             await stream_msg.edit_text(formatted + " ▌", parse_mode="HTML")
                             last_update = now
-                            await asyncio.sleep(0.3)
                         except:
                             pass
         
-        # Добавляем остаток
+        # Добавляем остаток и финальное обновление
         displayed_text += sentence_buffer
         resp = full_response.strip()
         
-        # Удаляем streaming сообщение
-        if stream_msg:
+        if stream_msg and displayed_text:
+            formatted = md_to_html(displayed_text)
             try:
-                await stream_msg.delete()
+                await stream_msg.edit_text(formatted, parse_mode="HTML")
             except:
                 pass
         
@@ -111,11 +115,6 @@ async def stream_response(
         # При ошибке — выключаем статус
         if first_chunk:
             await status.stop()
-        if stream_msg:
-            try:
-                await stream_msg.delete()
-            except:
-                pass
         raise e
 
 
