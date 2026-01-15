@@ -57,7 +57,6 @@ async def stream_response(
     
     try:
         # 2. Стриминг от OpenRouter
-        buffer = ""
         paragraph_count = 0
         last_paragraph_count = 0
         
@@ -66,10 +65,9 @@ async def stream_response(
                 continue
             
             full_response += chunk
-            buffer += chunk
             
             # Считаем абзацы (двойной перенос = новый абзац)
-            paragraph_count = buffer.count("\n\n")
+            paragraph_count = full_response.count("\n\n")
             
             # Обновляем каждые 2 абзаца
             if paragraph_count >= 2 and paragraph_count != last_paragraph_count and paragraph_count % 2 == 0:
@@ -77,11 +75,11 @@ async def stream_response(
                     await status.stop()
                     await asyncio.sleep(0.05)
                     first_chunk = False
-                    formatted = md_to_html(buffer)
+                    formatted = md_to_html(full_response)
                     stream_msg = await message.answer(formatted, parse_mode="HTML")
                 else:
                     if stream_msg:
-                        formatted = md_to_html(buffer)
+                        formatted = md_to_html(full_response)
                         try:
                             await stream_msg.edit_text(formatted, parse_mode="HTML")
                         except Exception:
@@ -92,11 +90,11 @@ async def stream_response(
         # Финальное обновление (весь оставшийся текст)
         if first_chunk:
             await status.stop()
-            if buffer:
-                formatted = md_to_html(buffer.strip())
+            if full_response:
+                formatted = md_to_html(full_response.strip())
                 stream_msg = await message.answer(formatted, parse_mode="HTML")
-        elif stream_msg and buffer:
-            formatted = md_to_html(buffer.strip())
+        elif stream_msg and full_response:
+            formatted = md_to_html(full_response.strip())
             try:
                 await stream_msg.edit_text(formatted, parse_mode="HTML")
             except Exception:
