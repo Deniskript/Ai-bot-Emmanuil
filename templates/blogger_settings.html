@@ -243,6 +243,17 @@
           <strong id="total-cover">25 000 токенов</strong>
         </div>
 
+        <div class="section-title">🅰️ Текст на изображении</div>
+        <div class="pill" style="margin-top:0;">
+          <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+            <input id="cover-allow-text" type="checkbox" style="margin-top:2px;">
+            <span>
+              <b>Добавлять текст поверх фона</b><br>
+              <span style="color:#666;">Текст будет без ошибок (рисуется ботом). Если текста слишком много — он станет мельче и перенесётся на строки.</span>
+            </span>
+          </label>
+        </div>
+
         <button class="btn btn-secondary" onclick="saveCover()">✅ Сохранить настройки</button>
         <button class="btn btn-primary" onclick="startCover()">▶️ Начать в боте</button>
         <div class="status" id="status-cover">✅ Сохранено</div>
@@ -301,6 +312,17 @@
           <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
           <div class="opt-price">25 000 токенов</div>
           <div class="opt-desc">Хорошо для визуалов и фонов</div>
+        </div>
+
+        <div class="section-title">🅰️ Текст на изображении</div>
+        <div class="pill" style="margin-top:0;">
+          <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+            <input id="pres-allow-text" type="checkbox" style="margin-top:2px;">
+            <span>
+              <b>Добавлять текст поверх фона</b><br>
+              <span style="color:#666;">Текст будет без ошибок (рисуется ботом). Если текста слишком много — он станет мельче и перенесётся на строки.</span>
+            </span>
+          </label>
         </div>
 
         <div class="total">
@@ -434,13 +456,16 @@
       const cp = getSelected('.cover-platform');
       const cm = getSelected('.cover-model');
       if (!cp || !cm) return;
+      const allowText = !!document.getElementById('cover-allow-text')?.checked;
       const payload = {
         blogger: {
+          last_subtype: 'cover',
           cover: {
             platform: cp.dataset.platform,
             size: cp.dataset.size,
             model: cm.dataset.model,
             price: parseInt(cm.dataset.price, 10),
+            allow_text: allowText,
           }
         }
       };
@@ -452,6 +477,7 @@
       const cp = getSelected('.cover-platform');
       const cm = getSelected('.cover-model');
       if (!cp || !cm) return;
+      const allowText = !!document.getElementById('cover-allow-text')?.checked;
       try { await saveCover(); } catch (e) {}
       tg.sendData(JSON.stringify({
         type: 'images_start',
@@ -461,6 +487,7 @@
         size: cp.dataset.size,
         model: cm.dataset.model,
         price: parseInt(cm.dataset.price, 10),
+        allow_text: allowText,
       }));
       tg.close();
     }
@@ -472,6 +499,7 @@
       if (!lm) return;
       const payload = {
         blogger: {
+          last_subtype: 'logo',
           logo: {
             style, color,
             model: lm.dataset.model,
@@ -504,13 +532,16 @@
       const pf = getSelected('.pres-format');
       const pm = getSelected('.pres-model');
       if (!pf || !pm) return;
+      const allowText = !!document.getElementById('pres-allow-text')?.checked;
       const payload = {
         blogger: {
+          last_subtype: 'presentation',
           presentation: {
             format: pf.dataset.format,
             size: pf.dataset.size,
             model: pm.dataset.model,
             price: parseInt(pm.dataset.price, 10),
+            allow_text: allowText,
           }
         }
       };
@@ -522,6 +553,7 @@
       const pf = getSelected('.pres-format');
       const pm = getSelected('.pres-model');
       if (!pf || !pm) return;
+      const allowText = !!document.getElementById('pres-allow-text')?.checked;
       try { await savePresentation(); } catch (e) {}
       tg.sendData(JSON.stringify({
         type: 'images_start',
@@ -531,12 +563,51 @@
         size: pf.dataset.size,
         model: pm.dataset.model,
         price: parseInt(pm.dataset.price, 10),
+        allow_text: allowText,
       }));
       tg.close();
     }
 
+    async function loadBloggerSettings() {
+      if (!userId) return;
+      try {
+        const resp = await fetch(`/api/image-settings/${userId}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const extra = data?.extra_settings || {};
+        const blogger = extra?.blogger || {};
+        if (blogger?.cover) {
+          const cp = document.querySelector(`.cover-platform[data-platform="${blogger.cover.platform}"]`);
+          if (cp) selectOne('.cover-platform', cp);
+          const cm = document.querySelector(`.cover-model[data-model="${blogger.cover.model}"]`);
+          if (cm) selectOne('.cover-model', cm);
+          const cb = document.getElementById('cover-allow-text');
+          if (cb) cb.checked = !!blogger.cover.allow_text;
+          updateCoverSelected();
+        }
+        if (blogger?.logo) {
+          const ls = document.querySelector(`.logo-style[data-style="${blogger.logo.style}"]`);
+          if (ls) selectOne('.logo-style', ls);
+          const lc = document.querySelector(`.logo-color[data-color="${blogger.logo.color}"]`);
+          if (lc) selectOne('.logo-color', lc);
+          const lm = document.querySelector(`.logo-model[data-model="${blogger.logo.model}"]`);
+          if (lm) selectOne('.logo-model', lm);
+        }
+        if (blogger?.presentation) {
+          const pf = document.querySelector(`.pres-format[data-format="${blogger.presentation.format}"]`);
+          if (pf) selectOne('.pres-format', pf);
+          const pm = document.querySelector(`.pres-model[data-model="${blogger.presentation.model}"]`);
+          if (pm) selectOne('.pres-model', pm);
+          const cb = document.getElementById('pres-allow-text');
+          if (cb) cb.checked = !!blogger.presentation.allow_text;
+        }
+        updateTotals();
+      } catch (e) {}
+    }
+
     // init
     loadBalance();
+    loadBloggerSettings();
     updateCoverSelected();
     updateTotals();
   </script>

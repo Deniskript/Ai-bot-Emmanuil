@@ -19,7 +19,7 @@ import os
 import json
 import asyncio
 import traceback
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import io
 from database import db
 from database.db import get_available_tokens as get_available_tokens_web, use_tokens_smart as use_tokens_smart_web
@@ -141,14 +141,170 @@ def _pretty_logo_color(color: str) -> str:
     return {"blue": "Синий", "red": "Красный", "green": "Зелёный", "yellow": "Жёлтый", "black": "Ч/Б"}.get(c, color or "—")
 
 
+async def _get_user_blogger_settings(user_id: int) -> dict:
+    """Настройки блогера из extra_settings.blogger (cover/logo/presentation)."""
+    from database.postgres_db import get_image_settings
+    settings = await get_image_settings(user_id)
+    extra = settings.get("extra_settings") or {}
+    blogger = extra.get("blogger") if isinstance(extra, dict) else None
+    return blogger if isinstance(blogger, dict) else {}
+
+
+def _load_font(size: int) -> ImageFont.ImageFont:
+    # Prefer DejaVu (usually present on Ubuntu)
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf",
+    ):
+        try:
+            return ImageFont.truetype(path, size=size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> list[str]:
+    words = (text or "").replace("\r", "").split()
+    if not words:
+        return []
+    lines: list[str] = []
+    cur: list[str] = []
+    for w in words:
+        test = (" ".join(cur + [w])).strip()
+        if not test:
+            continue
+        bbox = draw.textbbox((0, 0), test, font=font)
+        if bbox[2] <= max_width or not cur:
+            cur.append(w)
+        else:
+            lines.append(" ".join(cur))
+            cur = [w]
+    if cur:
+        lines.append(" ".join(cur))
+    return lines
+
+
+def _overlay_text_on_image(image_bytes: bytes, text: str, *, layout: str = "presentation") -> bytes:
+    """
+    Накладываем текст поверх изображения программно (без ошибок в тексте).
+    layout: presentation | cover
+    """
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+
+    pad = int(min(w, h) * 0.06)
+    box_w = int(w * 0.86)
+    box_h = int(h * (0.52 if layout == "presentation" else 0.42))
+    x0 = pad
+    y0 = pad if layout == "presentation" else int(h * 0.56)
+    x1, y1 = x0 + box_w, y0 + box_h
+
+    # background for readability
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    od.rounded_rectangle([x0, y0, x1, y1], radius=24, fill=(0, 0, 0, 110))
+    img = Image.alpha_composite(img, overlay)
+    draw = ImageDraw.Draw(img)
+
+    raw = (text or "").strip()
+    # make nicer multiline for numbered lists
+    if "\n" not in raw and any(s in raw for s in ("1.", "2.", "3.", "4.", "5.")):
+        raw = raw.replace(". ", ".\n")
+
+    # split title/body
+    parts = [p.strip() for p in raw.split("\n") if p.strip()]
+    title = parts[0] if parts else raw
+    body = "\n".join(parts[1:]) if len(parts) > 1 else ""
+
+    title_size = int(h * 0.055)
+    body_size = int(h * 0.034)
+
+    # Fit fonts if too big
+    for _ in range(18):
+        title_font = _load_font(max(14, title_size))
+        body_font = _load_font(max(12, body_size))
+        # measure wrapped lines
+        max_line_w = box_w - 2 * pad
+        t_lines = _wrap_text(draw, title, title_font, max_line_w)
+        b_lines: list[str] = []
+        if body:
+            for line in body.split("\n"):
+                b_lines.extend(_wrap_text(draw, line, body_font, max_line_w))
+        # height estimate
+        lh_t = int(title_font.size * 1.15) if hasattr(title_font, "size") else int(title_size * 1.15)
+        lh_b = int(body_font.size * 1.25) if hasattr(body_font, "size") else int(body_size * 1.25)
+        total_h = len(t_lines) * lh_t + (lh_b * max(0, len(b_lines))) + int(pad * 0.8)
+        if total_h <= box_h - pad:
+            break
+        title_size = int(title_size * 0.92)
+        body_size = int(body_size * 0.92)
+
+    cx, cy = x0 + pad, y0 + pad
+    stroke = max(2, int(h * 0.003))
+
+    for line in t_lines:
+        draw.text((cx, cy), line, font=title_font, fill=(255, 255, 255, 255),
+                  stroke_width=stroke, stroke_fill=(0, 0, 0, 140))
+        cy += int(title_font.size * 1.15) if hasattr(title_font, "size") else int(title_size * 1.15)
+
+    if body:
+        cy += int(pad * 0.4)
+        for line in b_lines:
+            draw.text((cx, cy), line, font=body_font, fill=(255, 255, 255, 230),
+                      stroke_width=max(1, stroke - 1), stroke_fill=(0, 0, 0, 120))
+            cy += int(body_font.size * 1.25) if hasattr(body_font, "size") else int(body_size * 1.25)
+
+    out = io.BytesIO()
+    img.convert("RGB").save(out, format="PNG")
+    out.seek(0)
+    return out.read()
+
+
 async def blogger_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Старт сценариев для блогеров: обложки/логотипы/презентации."""
     user_id = user_id or message.from_user.id
     data = await state.get_data()
+    # если пользователь нажал "Ещё дизайн" без WebApp payload — берём сохранённые настройки
+    if not data.get("blogger_subtype"):
+        saved = await _get_user_blogger_settings(user_id)
+        last = (saved.get("last_subtype") or "cover").strip().lower()
+        # merge last subtype settings into state defaults
+        if last == "cover":
+            s = saved.get("cover") if isinstance(saved.get("cover"), dict) else {}
+            await state.update_data(
+                blogger_subtype="cover",
+                blogger_platform=s.get("platform"),
+                blogger_size=s.get("size"),
+                blogger_allow_text=bool(s.get("allow_text")),
+                blogger_model=s.get("model"),
+                blogger_price=s.get("price"),
+            )
+        elif last == "logo":
+            s = saved.get("logo") if isinstance(saved.get("logo"), dict) else {}
+            await state.update_data(
+                blogger_subtype="logo",
+                blogger_style=s.get("style"),
+                blogger_color=s.get("color"),
+                blogger_model=s.get("model"),
+                blogger_price=s.get("price"),
+            )
+        else:
+            s = saved.get("presentation") if isinstance(saved.get("presentation"), dict) else {}
+            await state.update_data(
+                blogger_subtype="presentation",
+                blogger_format=s.get("format"),
+                blogger_size=s.get("size"),
+                blogger_allow_text=bool(s.get("allow_text")),
+                blogger_model=s.get("model"),
+                blogger_price=s.get("price"),
+            )
+        data = await state.get_data()
 
     subtype = (data.get("blogger_subtype") or "cover").strip().lower()
     price = int(data.get("blogger_price") or 0)
     model_key = data.get("blogger_model")
+    allow_text = bool(data.get("blogger_allow_text")) if subtype in ("presentation", "cover") else False
 
     tokens = await get_available_tokens_web(user_id)
     if price > 0 and tokens < price:
@@ -161,13 +317,18 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
     if subtype == "cover":
         platform = data.get("blogger_platform") or "instagram_post"
         size = data.get("blogger_size") or "1080x1080"
+        text_note = ""
+        if allow_text:
+            text_note = "\n\n🅰️ <b>Текст на изображении:</b> включён\n<i>Текст будет добавлен без ошибок. Если текста много — он станет мельче и перенесётся.</i>"
         await message.answer(
-            "📱 Обложка\n\n"
-            f"Платформа: {_pretty_cover_platform(platform)}\n"
-            f"Размер: {size}\n"
-            f"Стоимость: {_fmt_tokens(price)} токенов\n\n"
+            "<b>📱 Обложка</b>\n\n"
+            f"<b>Платформа:</b> {_pretty_cover_platform(platform)}\n"
+            f"<b>Размер:</b> {size}\n"
+            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов"
+            f"{text_note}\n\n"
             "📝 Напишите тему/идею обложки (1–2 предложения).",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+            parse_mode="HTML",
         )
         return
 
@@ -175,25 +336,31 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
         style = data.get("blogger_style") or "icon"
         color = data.get("blogger_color") or "green"
         await message.answer(
-            "🎨 Логотип\n\n"
-            f"Стиль: {_pretty_logo_style(style)}\n"
-            f"Цвет: {_pretty_logo_color(color)}\n"
-            f"Стоимость: {_fmt_tokens(price)} токенов\n\n"
+            "<b>🎨 Логотип</b>\n\n"
+            f"<b>Стиль:</b> {_pretty_logo_style(style)}\n"
+            f"<b>Цвет:</b> {_pretty_logo_color(color)}\n"
+            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
             "📝 Напишите идею/название бренда и сферу (например: «Coffee Wave, кофейня у моря»).",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+            parse_mode="HTML",
         )
         return
 
     # presentation
     fmt = data.get("blogger_format") or "9:16"
     size = data.get("blogger_size") or ("1080x1920" if fmt == "9:16" else "1920x1080")
+    text_note = ""
+    if allow_text:
+        text_note = "\n\n🅰️ <b>Текст на изображении:</b> включён\n<i>Текст будет добавлен без ошибок, но если он слишком длинный — станет мельче и перенесётся на строки.</i>"
     await message.answer(
-        "📄 Презентация\n\n"
-        f"Формат: {fmt}\n"
-        f"Размер: {size}\n"
-        f"Стоимость: {_fmt_tokens(price)} токенов\n\n"
-        "📝 Напишите тему слайда/презентации (например: «5 ошибок в маркетинге»).",
+        "<b>📄 Презентация</b>\n\n"
+        f"<b>Формат:</b> {fmt}\n"
+        f"<b>Размер:</b> {size}\n"
+        f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n"
+        f"{text_note}\n\n"
+        "📝 Напишите тему/текст для слайда (лучше: заголовок + до 6 пунктов).",
         reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+        parse_mode="HTML",
     )
 
 
@@ -239,6 +406,7 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
     subtype = (data.get("blogger_subtype") or "cover").strip().lower()
     price = int(data.get("blogger_price") or 0)
     model_key = data.get("blogger_model")
+    allow_text = bool(data.get("blogger_allow_text")) if subtype in ("presentation", "cover") else False
     model_id = _resolve_blogger_model(model_key)
     if not model_id:
         await message.answer("⚠️ Модель не поддерживается. Откройте настройки и выберите другую.", reply_markup=photo_kb(user_id))
@@ -261,9 +429,11 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             final_size = data.get("blogger_size") or "1080x1080"
             platform = data.get("blogger_platform") or "instagram_post"
             prompt = (
-                f"Create a high-quality social media cover for {platform}. "
+                f"Create a high-quality social media cover image for {platform}. "
                 f"Topic: {prompt_en}. "
-                "No text, no watermark, no logo. Strong composition, high contrast, clean style."
+                "Make it clearly relevant to the topic (use suitable symbols/illustrations/icons). "
+                "Leave clean empty space for a headline overlay, but DO NOT render any text. "
+                "Modern, high contrast, strong composition. No watermark, no logo."
             )
         elif subtype == "logo":
             final_size = "1024x1024"
@@ -278,14 +448,20 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             final_size = data.get("blogger_size") or "1080x1920"
             fmt = data.get("blogger_format") or "9:16"
             prompt = (
-                f"Create a presentation slide visual background. Format {fmt}. "
+                f"Create a presentation cover slide background (not abstract). Format {fmt}. "
                 f"Topic: {prompt_en}. "
-                "No text, no watermark. Clean gradients, modern, professional."
+                "Use clean layout and subtle iconography/illustrations that match the topic. "
+                "Leave empty areas for title and bullets, but DO NOT render any text. "
+                "Modern, professional, high quality. No watermark."
             )
 
         img_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=None)
         if final_size:
             img_bytes = _resize_to_exact(img_bytes, final_size)
+        if subtype == "cover" and allow_text:
+            img_bytes = _overlay_text_on_image(img_bytes, prompt_ru, layout="cover")
+        if subtype == "presentation" and allow_text:
+            img_bytes = _overlay_text_on_image(img_bytes, prompt_ru, layout="presentation")
 
         if price > 0:
             await use_tokens_smart_web(user_id, price, bot_name="images")
@@ -379,6 +555,7 @@ async def handle_images_webapp_data(message: Message, state: FSMContext):
             blogger_style=payload.get("style"),
             blogger_color=payload.get("color"),
             blogger_format=payload.get("format"),
+            blogger_allow_text=payload.get("allow_text"),
             blogger_model=payload.get("model"),
             blogger_price=payload.get("price"),
         )
