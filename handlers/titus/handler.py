@@ -142,7 +142,7 @@ async def create_course(msg: Message, state: FSMContext):
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": "Начни шаг 1"}]
     
     try:
-        resp = await stream_response(
+        resp, sent_msg = await stream_response(
             bot=bot,
             message=msg,
             messages=msgs,
@@ -176,6 +176,13 @@ async def create_course(msg: Message, state: FSMContext):
     
     if voice_enabled:
         # === ГОЛОСОВОЙ ОТВЕТ ===
+        # Удаляем текстовое сообщение от стриминга
+        if sent_msg:
+            try:
+                await sent_msg.delete()
+            except Exception:
+                pass
+        
         resp_for_tts = resp_clean
         resp_for_tts = re.sub(r"<[^>]+>", "", resp_for_tts)
         resp_for_tts = resp_for_tts.replace("**", "").replace("*", "")
@@ -191,13 +198,19 @@ async def create_course(msg: Message, state: FSMContext):
                 os.remove(audio_path)
             except:
                 pass
-    
-    # Добавляем информацию о шаге и клавиатуру (только если не голосовой режим)
-    if not voice_enabled:
-        await msg.answer(
-            f"<i>📓 Обучение • Шаг 1/{steps}</i>",
-            reply_markup=keyboard
-        )
+    else:
+        # === ТЕКСТОВЫЙ ОТВЕТ ===
+        # Добавляем информацию о шаге и клавиатуру к существующему сообщению
+        final_text = f"<i>📓 Обучение • Шаг 1/{steps}</i>"
+        
+        if sent_msg:
+            try:
+                await sent_msg.edit_reply_markup(reply_markup=keyboard)
+            except Exception:
+                # Если не удалось добавить кнопки - отправляем отдельное сообщение
+                await msg.answer(final_text, reply_markup=keyboard)
+        else:
+            await msg.answer(final_text, reply_markup=keyboard)
 
 
 @router.message(TitusSt.menu, F.text == "📂 Ваши курсы")
@@ -641,8 +654,9 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         
         if image_b64:
             resp, tok = await ask(msgs_to_send, model, image_b64)
+            sent_msg = None
         else:
-            resp = await stream_response(
+            resp, sent_msg = await stream_response(
                 bot=bot,
                 message=msg,
                 messages=msgs_to_send,
@@ -710,6 +724,13 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
 
         if voice_enabled:
             # === ГОЛОСОВОЙ ОТВЕТ ===
+            # Удаляем текстовое сообщение от стриминга
+            if sent_msg:
+                try:
+                    await sent_msg.delete()
+                except Exception:
+                    pass
+            
             # Под TTS: убираем HTML/эмодзи/служебные маркеры
             resp_clean = resp.replace("---NEXT---", "").strip()
             resp_clean = re.sub(r"<[^>]+>", "", resp_clean)  # теги
@@ -735,11 +756,20 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                     reply_markup=keyboard
                 )
         else:
+            # === ТЕКСТОВЫЙ ОТВЕТ ===
+            # Редактируем существующее сообщение
+            final_text = f"{display_text}\n\n<i>📓 Обучение{step_info}</i>"
+            
             await msg.answer("💬", reply_markup=reply.study_chat_kb())
-            await msg.answer(
-                f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
-                reply_markup=keyboard
-            )
+            
+            if sent_msg:
+                try:
+                    await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
+                except Exception:
+                    # Если не удалось отредактировать - отправляем новое
+                    await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+            else:
+                await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
 
 
 @router.message(TitusSt.chat, F.text)
@@ -810,7 +840,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Продолжи с шага {current_step}"}]
     
     try:
-        resp = await stream_response(
+        resp, sent_msg = await stream_response(
             bot=bot,
             message=cb.message,
             messages=msgs,
@@ -844,6 +874,13 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     
     if voice_enabled:
         # === ГОЛОСОВОЙ ОТВЕТ ===
+        # Удаляем текстовое сообщение от стриминга
+        if sent_msg:
+            try:
+                await sent_msg.delete()
+            except Exception:
+                pass
+        
         resp_for_tts = resp_clean
         resp_for_tts = re.sub(r"<[^>]+>", "", resp_for_tts)
         resp_for_tts = resp_for_tts.replace("**", "").replace("*", "")
@@ -859,13 +896,23 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
                 os.remove(audio_path)
             except:
                 pass
-    
-    # Добавляем информацию о шаге и клавиатуру (только если не голосовой режим)
-    if not voice_enabled:
-        await cb.message.answer(
-            f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
-            reply_markup=keyboard
-        )
+    else:
+        # === ТЕКСТОВЫЙ ОТВЕТ ===
+        # Добавляем клавиатуру к существующему сообщению
+        if sent_msg:
+            try:
+                await sent_msg.edit_reply_markup(reply_markup=keyboard)
+            except Exception:
+                # Если не удалось - отправляем отдельное сообщение с инфо
+                await cb.message.answer(
+                    f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
+                    reply_markup=keyboard
+                )
+        else:
+            await cb.message.answer(
+                f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
+                reply_markup=keyboard
+            )
 
 
 @router.callback_query(F.data.startswith("course:repeat:"))
@@ -908,7 +955,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Разбери подробно темы, которые были сложными: {topics_text}"}]
     
     try:
-        resp = await stream_response(
+        resp, sent_msg = await stream_response(
             bot=bot,
             message=cb.message,
             messages=msgs,
@@ -938,6 +985,13 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
         
         if voice_enabled:
             # === ГОЛОСОВОЙ ОТВЕТ ===
+            # Удаляем текстовое сообщение от стриминга
+            if sent_msg:
+                try:
+                    await sent_msg.delete()
+                except Exception:
+                    pass
+            
             resp_for_tts = resp_clean
             resp_for_tts = re.sub(r"<[^>]+>", "", resp_for_tts)
             resp_for_tts = resp_for_tts.replace("**", "").replace("*", "")
@@ -953,12 +1007,22 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                     os.remove(audio_path)
                 except:
                     pass
-        
-        # Добавляем информацию и клавиатуру (только если не голосовой режим)
-        if not voice_enabled:
-            await cb.message.answer(
-                f"<i>📓 Обучение • Повторение сложных тем</i>",
-                reply_markup=keyboard
-            )
+        else:
+            # === ТЕКСТОВЫЙ ОТВЕТ ===
+            # Добавляем клавиатуру к существующему сообщению
+            if sent_msg:
+                try:
+                    await sent_msg.edit_reply_markup(reply_markup=keyboard)
+                except Exception:
+                    # Если не удалось - отправляем отдельное сообщение
+                    await cb.message.answer(
+                        f"<i>📓 Обучение • Повторение сложных тем</i>",
+                        reply_markup=keyboard
+                    )
+            else:
+                await cb.message.answer(
+                    f"<i>📓 Обучение • Повторение сложных тем</i>",
+                    reply_markup=keyboard
+                )
     except Exception as e:
         await cb.message.answer(f"❌ Ошибка: {str(e)[:200]}", reply_markup=reply.study_chat_kb())

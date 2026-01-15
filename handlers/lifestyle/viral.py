@@ -232,7 +232,7 @@ async def process_text_advice(msg: Message, state: FSMContext):
         ]
         
         # Стриминг ответа через единый модуль
-        resp = await stream_response(
+        resp, sent_msg = await stream_response(
             bot=bot,
             message=msg,
             messages=messages,
@@ -270,12 +270,26 @@ async def process_text_advice(msg: Message, state: FSMContext):
         # Получаем кнопку диалога
         dialog_kb = get_chat_button(conv_id, len(resp))
         
-        # Отправляем короткое info-сообщение с токенами и кнопкой
-        await msg.answer(
-            f"<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>",
-            reply_markup=dialog_kb,
-            parse_mode="HTML"
-        )
+        # Добавляем кнопку и инфо о токенах к существующему сообщению
+        if sent_msg:
+            try:
+                # Добавляем footer с токенами к существующему тексту
+                current_text = sent_msg.text or ""
+                final_text = f"{current_text}\n\n<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>"
+                await sent_msg.edit_text(final_text, reply_markup=dialog_kb, parse_mode="HTML")
+            except Exception:
+                # Если не удалось отредактировать - отправляем отдельное info-сообщение
+                await msg.answer(
+                    f"<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>",
+                    reply_markup=dialog_kb,
+                    parse_mode="HTML"
+                )
+        else:
+            await msg.answer(
+                f"<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>",
+                reply_markup=dialog_kb,
+                parse_mode="HTML"
+            )
         
     except Exception as e:
         print(f"Viral text advice error: {e}")

@@ -19,9 +19,11 @@ async def stream_response(
     status_type: str = "text",
     system_prompt: str = None,
     max_tokens: int = 4000
-) -> str:
+) -> tuple[str, Message | None]:
     """
     Единая функция стриминга с автоматическим статусом.
+    
+    Возвращает: (текст_ответа, отправленное_сообщение)
     """
     
     chat_id = message.chat.id
@@ -91,20 +93,20 @@ async def stream_response(
                 except Exception:
                     pass
             else:
-                await message.answer(formatted, parse_mode="HTML")
+                stream_msg = await message.answer(formatted, parse_mode="HTML")
         else:
             # Фолбэк: стриминг не дал текста — обычный запрос
             fallback_text, _ = await ask(messages, model, max_tokens=max_tokens)
             fallback_text = (fallback_text or "").strip()
             if fallback_text:
                 formatted = md_to_html(fallback_text)
-                await message.answer(formatted, parse_mode="HTML")
-                return fallback_text
+                fallback_msg = await message.answer(formatted, parse_mode="HTML")
+                return fallback_text, fallback_msg
             else:
-                await message.answer("Не удалось получить ответ. Попробуйте ещё раз.")
-                return ""
+                error_msg = await message.answer("Не удалось получить ответ. Попробуйте ещё раз.")
+                return "", error_msg
         
-        return full_response.strip()
+        return full_response.strip(), stream_msg
         
     except Exception as e:
         if not status_stopped:
@@ -118,9 +120,11 @@ async def stream_magic_response(
     prompt: str,
     magic_type: str = "tarot",
     model: str = "anthropic/claude-sonnet-4.5"
-) -> str:
+) -> tuple[str, Message | None]:
     """
     Стриминг для магических функций.
+    
+    Возвращает: (текст_ответа, отправленное_сообщение)
     """
     
     MAGIC_PROMPTS = {

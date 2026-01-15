@@ -436,7 +436,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     else:
         # Единый стриминг
         try:
-            resp = await stream_response(
+            resp, sent_msg = await stream_response(
                 bot=bot,
                 message=msg,
                 messages=messages,
@@ -495,6 +495,13 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
 
     if user_settings['voice_enabled']:
         # === ГОЛОСОВОЙ ОТВЕТ ===
+        # Удаляем текстовое сообщение от стриминга
+        if sent_msg:
+            try:
+                await sent_msg.delete()
+            except Exception:
+                pass
+        
         voice_tts = VOICE_MAP.get(user_settings['voice_gender'], "onyx")
         
         # Очищаем текст от markdown для TTS
@@ -526,7 +533,17 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     else:
         # === ТЕКСТОВЫЙ ОТВЕТ ===
         footer = texts.RESPONSE_FOOTER.format(char_name=char_name)
-        await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+        final_text = f"{display_text}{footer}"
+        
+        # Редактируем существующее сообщение вместо отправки нового
+        if sent_msg:
+            try:
+                await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
+            except Exception:
+                # Если не удалось отредактировать - отправляем новое
+                await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+        else:
+            await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
 
 
 @router.message(LukaSt.chat, F.text)

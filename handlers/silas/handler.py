@@ -396,8 +396,9 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         
         if image_b64:
             resp, tok = await ask(msgs, model, image_b64)
+            sent_msg = None
         else:
-            resp = await stream_response(
+            resp, sent_msg = await stream_response(
                 bot=bot,
                 message=msg,
                 messages=msgs,
@@ -450,6 +451,13 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         
         if voice_enabled:
             # === ГОЛОСОВОЙ ОТВЕТ ===
+            # Удаляем текстовое сообщение от стриминга
+            if sent_msg:
+                try:
+                    await sent_msg.delete()
+                except Exception:
+                    pass
+            
             # Используем мужской голос по умолчанию (как у Луки)
             voice_tts = "onyx"  # Мужской голос OpenAI TTS
             
@@ -478,8 +486,18 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
                 # Fallback на текст
                 await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
         else:
-            # Отправляем текстовый ответ
-            await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+            # === ТЕКСТОВЫЙ ОТВЕТ ===
+            # Редактируем существующее сообщение вместо отправки нового
+            final_text = f"{display_text}{footer}"
+            
+            if sent_msg:
+                try:
+                    await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
+                except Exception:
+                    # Если не удалось отредактировать - отправляем новое
+                    await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+            else:
+                await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
 
 @router.message(SilasSt.session, F.text)
 async def silas_text(msg: Message, state: FSMContext):
