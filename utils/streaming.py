@@ -54,54 +54,52 @@ async def stream_response(
     first_chunk = True
     stream_msg = None
     full_response = ""
-    buffer = ""
-    last_update = asyncio.get_event_loop().time()
     
     try:
         # 2. Стриминг от OpenRouter
+        buffer = ""
+        paragraph_count = 0
+        last_paragraph_count = 0
+        
         async for chunk in ask_stream(messages, model, max_tokens=max_tokens):
             if not chunk:
                 continue
             
             full_response += chunk
             buffer += chunk
-            now = asyncio.get_event_loop().time()
             
-            # При первом chunk - выключаем статус и создаем сообщение
-            if first_chunk:
-                first_chunk = False
-                await status.stop()
-                await asyncio.sleep(0.05)
-                stream_msg = await message.answer(chunk, parse_mode=None)
-                last_update = now
-                continue
+            # Считаем абзацы (двойной перенос = новый абзац)
+            paragraph_count = buffer.count("\n\n")
             
-            # Обновляем экран каждые 30 символов или 0.5 секунды
-            if stream_msg and buffer:
-                should_update = (
-                    len(buffer) >= 30 or 
-                    now - last_update >= 0.5 or
-                    '\n' in buffer[-5:]
-                )
-                
-                if should_update:
-                    formatted = md_to_html(full_response)
-                    try:
-                        await stream_msg.edit_text(formatted + " ▌", parse_mode="HTML")
-                        buffer = ""
-                        last_update = now
-                        await asyncio.sleep(0.05)
-                    except Exception as e:
-                        # Игнорируем ошибки "message not modified"
-                        if "message is not modified" not in str(e).lower():
+            # Обновляем каждые 2 абзаца
+            if paragraph_count >= 2 and paragraph_count != last_paragraph_count and paragraph_count % 2 == 0:
+                if first_chunk:
+                    await status.stop()
+                    await asyncio.sleep(0.05)
+                    first_chunk = False
+                    formatted = md_to_html(buffer)
+                    stream_msg = await message.answer(formatted, parse_mode="HTML")
+                else:
+                    if stream_msg:
+                        formatted = md_to_html(buffer)
+                        try:
+                            await stream_msg.edit_text(formatted, parse_mode="HTML")
+                        except Exception:
                             pass
+                
+                last_paragraph_count = paragraph_count
         
-        # Финальное обновление без курсора
-        if stream_msg and full_response:
-            formatted = md_to_html(full_response.strip())
+        # Финальное обновление (весь оставшийся текст)
+        if first_chunk:
+            await status.stop()
+            if buffer:
+                formatted = md_to_html(buffer.strip())
+                stream_msg = await message.answer(formatted, parse_mode="HTML")
+        elif stream_msg and buffer:
+            formatted = md_to_html(buffer.strip())
             try:
                 await stream_msg.edit_text(formatted, parse_mode="HTML")
-            except:
+            except Exception:
                 pass
         
         # Если не было ни одного chunk
