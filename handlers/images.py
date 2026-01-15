@@ -1,7 +1,17 @@
 from aiogram import Router, F
-from aiogram.types import Message, BufferedInputFile, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from aiogram.types import (
+    Message,
+    BufferedInputFile,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    WebAppInfo,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.exceptions import TelegramNetworkError
 from keyboards.reply import photo_kb, bots_menu_kb
 import aiohttp
 import base64
@@ -12,58 +22,179 @@ import traceback
 from PIL import Image
 import io
 from database import db
+from database.db import get_available_tokens as get_available_tokens_web, use_tokens_smart as use_tokens_smart_web
 from loader import bot
 
 router = Router()
 
-PROXYAPI_KEY = os.getenv("OPENAI_API_KEY", "")
-API_URL = "https://api.proxyapi.ru/openai/v1/images/generations"
-EDIT_API_URL = "https://api.proxyapi.ru/openai/v1/images/edits"
-# UPSCALE_API_URL удален - ProxyAPI не поддерживает отдельный upscale endpoint
-
-# Важно: НЕ хранить ключи в коде/чате. Для VseGPT (в будущем) используем env: VSEGPT_API_KEY.
+# VseGPT
 VSEGPT_API_KEY = os.getenv("VSEGPT_API_KEY", "")
 VSEGPT_VIDEO_BASE_URL = os.getenv("VSEGPT_VIDEO_BASE_URL", "https://api.vsegpt.ru/v1/video")
+VSEGPT_BASE_URL = os.getenv("VSEGPT_BASE_URL", "https://api.vsegpt.ru/v1")
+VSEGPT_IMAGES_URL = f"{VSEGPT_BASE_URL}/images/generations"
 
 # Дефолтные модели (используются если у пользователя нет настроек)
 DEFAULT_MODELS = {
-    "create": {"name": "📷 Создание", "model": "gpt-image-1-mini", "quality": "medium", "price": 8000, "time": "20-40 сек"},
-    "upscale": {"name": "🎨 Улучшение качества", "model": "auto_max", "quality": "hd", "price": 33000, "time": "40-60 сек"},
-    "edit": {"name": "✏️ Редактор", "model": "gpt-image-1.5", "quality": "medium", "price": 15000, "time": "30-50 сек"}
+    # Create (text->image)
+    "create": {"name": "📷 Создание", "model": "img-flux/schnell", "price": 3600, "time": "15-40 сек"},
+    # Upscale (img->img)
+    "upscale": {"name": "🎨 Улучшение качества", "model": "img2img-recraft/v3-upscale-crisp", "price": 1600, "time": "20-60 сек"},
+    # Edit (img->img)
+    "edit": {"name": "✏️ Редактор", "model": "img2img-flux/kontext-pro-edit", "price": 15000, "time": "20-60 сек"},
 }
 
-# Конфигурация моделей для API
-MODEL_CONFIGS = {
-    # Создание
-    "gpt-image-1-mini": {"api_model": "gpt-image-1", "quality": "low", "size": "1024x1024"},
-    "gpt-image-1": {"api_model": "gpt-image-1", "quality": "medium", "size": "1024x1024"},
-    "gpt-image-1.5": {"api_model": "gpt-image-1", "quality": "high", "size": "1024x1024"},
-    "gpt-image-1.5-hd": {"api_model": "gpt-image-1", "quality": "hd", "size": "1024x1024"},
-    
-    # Upscale - ТОЛЬКО поддерживаемые размеры ProxyAPI /edits endpoint
-    "standard_1024": {"api_model": "gpt-image-1", "quality": "hd", "size": "1024x1024"},
-    "wide_1536": {"api_model": "gpt-image-1", "quality": "hd", "size": "1536x1024"},
-    "tall_1536": {"api_model": "gpt-image-1", "quality": "hd", "size": "1024x1536"},
-    "auto_max": {"api_model": "gpt-image-1", "quality": "hd", "size": "auto"},
-    
-    # Редактирование
-    # "gpt-image-1" уже определен выше
-    # "gpt-image-1.5" уже определен выше
+# Legacy mappings: старые значения в БД -> новые VseGPT model_id
+LEGACY_MODEL_MAP = {
+    "create": {
+        "gpt-image-1-mini": "img-flux/schnell",
+        "gpt-image-1": "img-flux/flux-2",
+        "gpt-image-1.5": "img-flux/kontext-pro",
+        "gpt-image-1.5-hd": "img-flux/kontext-max",
+    },
+    "edit": {
+        "gpt-image-1": "img2img-flux/kontext-pro-edit",
+        "gpt-image-1.5": "img2img-flux/kontext-max-edit",
+    },
+    "upscale": {
+        "standard_1024": "img2img-recraft/v3-upscale-crisp",
+        "wide_1536": "img2img-recraft/v3-upscale-crisp",
+        "tall_1536": "img2img-recraft/v3-upscale-crisp",
+        "auto_max": "img2img-recraft/v3-upscale-crisp",
+    },
 }
 
-async def convert_to_png(image_bytes: bytes) -> bytes:
-    """Конвертирует изображение в PNG формат с альфа-каналом (RGBA)"""
+def _convert_to_jpeg(image_bytes: bytes) -> bytes:
+    """VseGPT img2img обычно принимает data:image/jpeg;base64,..."""
     image = Image.open(io.BytesIO(image_bytes))
-    
-    # Конвертируем в RGBA (с альфа-каналом) - API требует именно этот формат
-    if image.mode != 'RGBA':
-        image = image.convert('RGBA')
-    
-    # Сохраняем как PNG
-    output = io.BytesIO()
-    image.save(output, format='PNG')
-    output.seek(0)
-    return output.read()
+    if image.mode not in ("RGB",):
+        image = image.convert("RGB")
+    out = io.BytesIO()
+    image.save(out, format="JPEG", quality=95, optimize=True)
+    out.seek(0)
+    return out.read()
+
+
+def _resize_to_exact(image_bytes: bytes, size: str) -> bytes:
+    """Center-crop to aspect ratio, then resize to exact WxH."""
+    try:
+        w, h = size.lower().split("x")
+        target_w, target_h = int(w), int(h)
+    except Exception:
+        return image_bytes
+
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    src_w, src_h = img.size
+    target_ratio = target_w / target_h
+    src_ratio = src_w / src_h
+
+    if src_ratio > target_ratio:
+        # too wide -> crop width
+        new_w = int(src_h * target_ratio)
+        left = (src_w - new_w) // 2
+        img = img.crop((left, 0, left + new_w, src_h))
+    else:
+        # too tall -> crop height
+        new_h = int(src_w / target_ratio)
+        top = (src_h - new_h) // 2
+        img = img.crop((0, top, src_w, top + new_h))
+
+    img = img.resize((target_w, target_h), Image.LANCZOS)
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    out.seek(0)
+    return out.read()
+
+
+def _resolve_blogger_model(model_key: str) -> str | None:
+    """Web key -> VseGPT model_id."""
+    key = (model_key or "").strip().lower()
+    if key in ("flux-1.1", "flux-1_1", "flux1.1"):
+        return "img-flux/schnell"
+    if key in ("flux-pro", "fluxpro", "flux_pro"):
+        return "img-flux/flux-2"
+    if key in ("flux-max", "fluxmax", "flux_max"):
+        return "img-flux/kontext-max"
+    if key in ("midjourney", "mj"):
+        # В VseGPT API "Midjourney" недоступен как image model_id — используем лучший доступный аналог.
+        return "img-flux/kontext-max"
+    # allow passing raw VseGPT model_id
+    return model_key
+
+
+def _pretty_cover_platform(platform: str) -> str:
+    p = (platform or "").strip().lower()
+    return {
+        "instagram_post": "Instagram Пост",
+        "instagram_story": "Instagram Сторис",
+        "youtube": "YouTube",
+        "telegram": "Telegram",
+    }.get(p, platform or "—")
+
+
+def _pretty_logo_style(style: str) -> str:
+    s = (style or "").strip().lower()
+    return {"text": "Текст", "icon": "Иконка", "combo": "Комбо"}.get(s, style or "—")
+
+
+def _pretty_logo_color(color: str) -> str:
+    c = (color or "").strip().lower()
+    return {"blue": "Синий", "red": "Красный", "green": "Зелёный", "yellow": "Жёлтый", "black": "Ч/Б"}.get(c, color or "—")
+
+
+async def blogger_start(message: Message, state: FSMContext, user_id: int | None = None):
+    """Старт сценариев для блогеров: обложки/логотипы/презентации."""
+    user_id = user_id or message.from_user.id
+    data = await state.get_data()
+
+    subtype = (data.get("blogger_subtype") or "cover").strip().lower()
+    price = int(data.get("blogger_price") or 0)
+    model_key = data.get("blogger_model")
+
+    tokens = await get_available_tokens_web(user_id)
+    if price > 0 and tokens < price:
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    await state.set_state(ImageStates.waiting_blogger_prompt)
+
+    if subtype == "cover":
+        platform = data.get("blogger_platform") or "instagram_post"
+        size = data.get("blogger_size") or "1080x1080"
+        await message.answer(
+            "📱 Обложка\n\n"
+            f"Платформа: {_pretty_cover_platform(platform)}\n"
+            f"Размер: {size}\n"
+            f"Стоимость: {_fmt_tokens(price)} токенов\n\n"
+            "📝 Напишите тему/идею обложки (1–2 предложения).",
+            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+        )
+        return
+
+    if subtype == "logo":
+        style = data.get("blogger_style") or "icon"
+        color = data.get("blogger_color") or "green"
+        await message.answer(
+            "🎨 Логотип\n\n"
+            f"Стиль: {_pretty_logo_style(style)}\n"
+            f"Цвет: {_pretty_logo_color(color)}\n"
+            f"Стоимость: {_fmt_tokens(price)} токенов\n\n"
+            "📝 Напишите идею/название бренда и сферу (например: «Coffee Wave, кофейня у моря»).",
+            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+        )
+        return
+
+    # presentation
+    fmt = data.get("blogger_format") or "9:16"
+    size = data.get("blogger_size") or ("1080x1920" if fmt == "9:16" else "1920x1080")
+    await message.answer(
+        "📄 Презентация\n\n"
+        f"Формат: {fmt}\n"
+        f"Размер: {size}\n"
+        f"Стоимость: {_fmt_tokens(price)} токенов\n\n"
+        "📝 Напишите тему слайда/презентации (например: «5 ошибок в маркетинге»).",
+        reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+    )
 
 
 async def get_user_model_settings(user_id: int, action: str) -> dict:
@@ -73,13 +204,12 @@ async def get_user_model_settings(user_id: int, action: str) -> dict:
     settings = await get_image_settings(user_id)
     
     model_key = settings.get(f"{action}_model", DEFAULT_MODELS[action]["model"])
+    # Миграция "на лету" старых значений (Proxy/OpenAI keys) -> VseGPT model_id
+    model_id = LEGACY_MODEL_MAP.get(action, {}).get(model_key, model_key)
     price = settings.get(f"{action}_price", DEFAULT_MODELS[action]["price"])
-    config = MODEL_CONFIGS.get(model_key, MODEL_CONFIGS["gpt-image-1-mini"])
     
     return {
-        "model": config["api_model"],
-        "quality": config["quality"],
-        "size": config["size"],
+        "model": model_id,  # VseGPT model_id
         "price": price,
         "name": DEFAULT_MODELS[action]["name"],
         "time": DEFAULT_MODELS[action]["time"],
@@ -90,24 +220,112 @@ class ImageStates(StatesGroup):
     waiting_create_prompt = State()
     waiting_upscale_photo = State()
     waiting_for_photo_with_caption = State()  # Новое состояние: фото с подписью в одном сообщении
+    waiting_process_photo = State()
+    waiting_blogger_prompt = State()
     waiting_video_confirm = State()
     waiting_video_text = State()
     waiting_video_photo = State()
 
 
-@router.message(F.text.in_(["📷 Фото", "📸 Фото"]))
+@router.message(ImageStates.waiting_blogger_prompt, F.text)
+async def blogger_process_prompt(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    prompt_ru = (message.text or "").strip()
+    if len(prompt_ru) < 3:
+        await message.answer("⚠️ Слишком коротко. Опишите подробнее.")
+        return
+
+    data = await state.get_data()
+    subtype = (data.get("blogger_subtype") or "cover").strip().lower()
+    price = int(data.get("blogger_price") or 0)
+    model_key = data.get("blogger_model")
+    model_id = _resolve_blogger_model(model_key)
+    if not model_id:
+        await message.answer("⚠️ Модель не поддерживается. Откройте настройки и выберите другую.", reply_markup=photo_kb(user_id))
+        await state.clear()
+        return
+
+    tokens = await get_available_tokens_web(user_id)
+    if price > 0 and tokens < price:
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    status = await message.answer("🎨 Генерирую... 20–60 сек")
+    try:
+        prompt_en = await _to_english(prompt_ru)
+
+        final_size = None
+
+        if subtype == "cover":
+            final_size = data.get("blogger_size") or "1080x1080"
+            platform = data.get("blogger_platform") or "instagram_post"
+            prompt = (
+                f"Create a high-quality social media cover for {platform}. "
+                f"Topic: {prompt_en}. "
+                "No text, no watermark, no logo. Strong composition, high contrast, clean style."
+            )
+        elif subtype == "logo":
+            final_size = "1024x1024"
+            style = data.get("blogger_style") or "icon"
+            color = data.get("blogger_color") or "green"
+            prompt = (
+                f"Design a modern logo. Style: {style}. Color scheme: {color}. "
+                f"Brand idea: {prompt_en}. "
+                "Minimal, vector-like, clean shapes, white background, no watermark."
+            )
+        else:  # presentation
+            final_size = data.get("blogger_size") or "1080x1920"
+            fmt = data.get("blogger_format") or "9:16"
+            prompt = (
+                f"Create a presentation slide visual background. Format {fmt}. "
+                f"Topic: {prompt_en}. "
+                "No text, no watermark. Clean gradients, modern, professional."
+            )
+
+        img_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=None)
+        if final_size:
+            img_bytes = _resize_to_exact(img_bytes, final_size)
+
+        if price > 0:
+            await use_tokens_smart_web(user_id, price, bot_name="images")
+        new_balance = await get_available_tokens_web(user_id)
+
+        await status.delete()
+        await message.answer_photo(
+            BufferedInputFile(img_bytes, filename="blogger.png"),
+            caption=(
+                "✅ <b>Готово!</b>\n\n"
+                f"💰 Списано: {_fmt_tokens(price)} токенов\n"
+                f"💳 Остаток: {_fmt_tokens(new_balance)} токенов"
+            ),
+            reply_markup=_done_inline_kb("blogger"),
+            parse_mode="HTML",
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("blogger"),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        await state.clear()
+
+
+@router.message(F.text.in_(["🎨 Творчество", "📷 Фото", "📸 Фото"]))
 async def photo_menu(message: Message):
-    """Показать меню фото"""
-    tokens = await db.get_available_tokens(message.from_user.id)
+    """Показать меню творчества (WebApp-кнопки)"""
+    tokens = await get_available_tokens_web(message.from_user.id)
     
     await message.answer(
-        f"📷 <b>Генерация изображений</b>\n\n"
+        f"🎨 <b>Творчество</b>\n\n"
         f"💰 Баланс: <b>{tokens:,}</b> токенов\n\n"
-        f"📷 <b>Создать</b> — создать фото по тексту\n"
-        f"🎨 <b>4K Фото</b> — улучшить ваше фото до 4K\n"
-        f"✏️ <b>Редактор</b> — изменить фото по команде\n"
-        f"🎬 <b>Видео</b> — фото/текст → видео (настройки в ⚙️)\n"
-        f"⚙️ <b>Настройки</b> — параметры на сайте",
+        f"🎬 <b>Видео</b> — настройки и запуск\n"
+        f"📷 <b>Фото</b> — создание / 4K / редактор\n"
+        f"📱 <b>Блогерам</b> — обложки / логотипы / презентации\n"
+        f"🎭 <b>Креатив</b> — стили / мемы / эффекты\n\n"
+        f"Нажмите нужную кнопку — откроются настройки.",
         reply_markup=photo_kb(message.from_user.id),
         parse_mode="HTML"
     )
@@ -132,6 +350,12 @@ async def handle_images_webapp_data(message: Message, state: FSMContext):
     if action == "create":
         await create_photo_start(message, state)
     elif action == "upscale":
+        # дополнительная настройка "соотношение" из WebApp (если передали)
+        try:
+            if "upscale_size" in payload:
+                await state.update_data(upscale_size=payload.get("upscale_size"))
+        except Exception:
+            pass
         await upscale_photo_start(message, state)
     elif action == "edit":
         await editor_start(message, state)
@@ -139,6 +363,26 @@ async def handle_images_webapp_data(message: Message, state: FSMContext):
         # Запуск из веба — сразу в сценарий (без промежуточного подтверждения)
         await state.update_data(video_direct_start=True)
         await video_start(message, state)
+    elif action == "process":
+        # Запуск обработки фото из веба
+        await state.update_data(
+            process_action=payload.get("process_action"),
+            process_model=payload.get("model"),
+            process_price=payload.get("price"),
+        )
+        await process_start(message, state)
+    elif action == "blogger":
+        await state.update_data(
+            blogger_subtype=payload.get("subtype"),
+            blogger_platform=payload.get("platform"),
+            blogger_size=payload.get("size"),
+            blogger_style=payload.get("style"),
+            blogger_color=payload.get("color"),
+            blogger_format=payload.get("format"),
+            blogger_model=payload.get("model"),
+            blogger_price=payload.get("price"),
+        )
+        await blogger_start(message, state)
     else:
         await message.answer("⚠️ Неизвестное действие. Откройте ⚙️ Настройки и попробуйте снова.", reply_markup=photo_kb(message.from_user.id))
 
@@ -199,6 +443,171 @@ async def _get_user_video_settings(user_id: int) -> dict:
     base = _default_video_settings()
     base.update(video)
     return base
+
+
+def _has_cyrillic(text: str) -> bool:
+    return any('\u0400' <= char <= '\u04FF' for char in (text or ""))
+
+
+async def _to_english(text: str) -> str:
+    """
+    Переводим на английский (если есть кириллица) — модели для видео чаще лучше реагируют на EN.
+    Если deep_translator не установлен/ошибка — вернем исходный текст.
+    """
+    if not text:
+        return ""
+    if not _has_cyrillic(text):
+        return text
+    try:
+        from deep_translator import GoogleTranslator
+        return GoogleTranslator(source='ru', target='en').translate(text)
+    except Exception:
+        return text
+
+
+async def _vsegpt_images_generate(*, model_id: str, prompt: str, image_bytes: bytes | None = None) -> bytes:
+    """
+    Унифицированный вызов VseGPT /v1/images/generations:
+    - text->image: image_bytes=None
+    - img2img/edit/upscale: image_bytes=bytes, передаем как data:image/jpeg;base64,...
+    """
+    if not VSEGPT_API_KEY:
+        raise Exception("VSEGPT_API_KEY не установлен в .env")
+
+    headers = {"Authorization": f"Bearer {VSEGPT_API_KEY}", "Content-Type": "application/json"}
+
+    payload: dict = {
+        "model": model_id,
+        "prompt": prompt,
+        "response_format": "b64_json",
+    }
+    if image_bytes is not None:
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        payload["image_url"] = f"data:image/jpeg;base64,{b64}"
+
+    # transient errors do happen on VseGPT side; retry a few times
+    transient = {429, 500, 501, 502, 503, 504}
+    last_err: str | None = None
+
+    # fallback model chain (if given model is unstable/unavailable)
+    fallbacks: list[str] = []
+    if model_id == "img-flux/kontext-max":
+        fallbacks = ["img-flux/kontext-pro", "img-flux/flux-2", "img-flux/schnell"]
+    elif model_id == "img-flux/kontext-pro":
+        fallbacks = ["img-flux/flux-2", "img-flux/schnell"]
+
+    candidates = [model_id] + [m for m in fallbacks if m and m != model_id]
+
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
+        for mi, mid in enumerate(candidates):
+            payload["model"] = mid
+            for attempt in range(3):
+                async with session.post(VSEGPT_IMAGES_URL, headers=headers, json=payload) as resp:
+                    text = await resp.text()
+                    if resp.status == 200:
+                        data = json.loads(text) if text else {}
+                        break
+
+                    last_err = f"VseGPT image error {resp.status}: {text[:300]}"
+                    if resp.status not in transient:
+                        raise Exception(last_err)
+
+                # backoff before retry
+                await asyncio.sleep(1.0 * (2 ** attempt))
+            else:
+                # exhausted retries for this model, try next candidate if any
+                continue
+
+            # success for this model, proceed to parse
+            break
+        else:
+            # exhausted all candidates
+            raise Exception(
+                (last_err or "VseGPT: неизвестная ошибка")
+                + "\n\nПохоже, это временная проблема на стороне VseGPT. Попробуйте ещё раз через 1–2 минуты."
+            )
+
+    # OpenAI-like response: {"data":[{"b64_json": "..."}]}
+    d0 = (data.get("data") or [{}])[0] if isinstance(data, dict) else {}
+    if isinstance(d0, dict) and d0.get("b64_json"):
+        return base64.b64decode(d0["b64_json"])
+    if isinstance(d0, dict) and d0.get("url"):
+        # fallback: download
+        url = d0["url"]
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
+            async with session.get(url) as r:
+                return await r.read()
+
+    raise Exception("VseGPT: пустой/непонятный ответ изображения")
+
+
+async def _build_video_prompt(
+    *,
+    mode: str,
+    user_text: str,
+    tier: str,
+    aspect_ratio: str,
+    seconds: int,
+    audio: bool,
+    has_image: bool
+) -> str:
+    """
+    Унифицированная структура промпта для video моделей.
+    Цель: повысить управляемость (стабильность персонажей/объектов), убрать артефакты, добавить motion-описание.
+    """
+    mode = (mode or "photo_to_video").lower()
+    tier = (tier or "econom").lower()
+    aspect_ratio = aspect_ratio or "16:9"
+    seconds = int(seconds or 5)
+
+    base_request = (user_text or "").strip()
+    base_request_en = (await _to_english(base_request)).strip()
+
+    # Небольшой “каркас” для движения/качества. Для econom — проще, чтобы не “перегружать”.
+    motion = {
+        "animate_photo": "Subtle natural motion: gentle parallax, slight camera push-in, minor ambient movement. Keep faces and details stable.",
+        "photo_to_video": "Cinematic motion: smooth camera movement, natural dynamics, stable subject. Keep the main person/object identity unchanged.",
+        "text_to_video": "Cinematic scene with smooth camera movement, coherent motion, consistent characters and objects."
+    }.get(mode, "Cinematic, smooth motion, consistent details.")
+
+    # Аудио: по умолчанию — только окружение, без речи.
+    audio_line = ""
+    if audio:
+        audio_line = "Audio: matching ambient sounds/music only. No spoken words unless explicitly requested."
+
+    constraints = [
+        f"Duration: {seconds}s.",
+        f"Aspect ratio: {aspect_ratio}.",
+        "No subtitles, no on-screen text, no logos, no watermarks.",
+        "Avoid flicker, distortion, sudden morphing, extra limbs, duplicate faces.",
+        "Maintain consistent lighting and style throughout the clip."
+    ]
+    if has_image:
+        constraints.insert(0, "Use the provided image as the main reference. Preserve identity, face, clothing, and composition.")
+
+    # Если пользователь не написал ничего — делаем безопасный дефолт
+    if not base_request_en:
+        if mode == "animate_photo":
+            base_request_en = "Animate the photo naturally."
+        elif mode == "photo_to_video":
+            base_request_en = "Create a short video based on the photo."
+        else:
+            base_request_en = "Create a short cinematic video."
+
+    # Собираем промпт
+    # Для econom убираем часть ограничений (чтобы не “съедать” лимиты/качество)
+    if tier == "econom":
+        constraints = constraints[:4]
+
+    prompt_parts = [
+        base_request_en,
+        motion,
+        audio_line,
+        "Constraints: " + " ".join([c for c in constraints if c])
+    ]
+
+    final_prompt = "\n".join([p for p in prompt_parts if p])
+    return final_prompt[:2000]
 
 
 async def _vsegpt_generate_video_and_wait(
@@ -272,7 +681,79 @@ async def _vsegpt_generate_video_and_wait(
         raise Exception("VseGPT: таймаут ожидания видео")
 
 def _video_settings_url(user_id: int) -> str:
-    return f"https://soul-bot.ru/images/settings?user_id={user_id}"
+    return f"https://soul-bot.ru/creativity/video?user_id={user_id}"
+
+def _pretty_video_mode(mode: str) -> str:
+    mode = (mode or "").lower()
+    return {
+        "photo_to_video": "Фото → Видео",
+        "text_to_video": "Текст → Видео",
+        "animate_photo": "Анимация фото",
+    }.get(mode, mode or "—")
+
+
+def _pretty_video_tier(tier: str) -> str:
+    tier = (tier or "").lower()
+    return {
+        "econom": "Эконом",
+        "standard": "Стандарт",
+        "premium": "Премиум",
+    }.get(tier, tier or "—")
+
+
+def _pretty_aspect(aspect: str) -> str:
+    aspect = (aspect or "").strip()
+    return {
+        "16:9": "16:9 (широкий)",
+        "9:16": "9:16 (вертикальный)",
+        "1:1": "1:1 (квадрат)",
+        "4:3": "4:3",
+        "3:4": "3:4",
+    }.get(aspect, aspect or "—")
+
+
+def _fmt_tokens(n: int) -> str:
+    return f"{int(n):,}".replace(",", " ")
+
+
+def _flow_done_kb(kind: str) -> ReplyKeyboardMarkup:
+    """Кнопки закрытия сценария после результата."""
+    kind = (kind or "").lower()
+    label = {
+        "create": "🔁 Создать ещё",
+        "upscale": "🔁 Улучшить ещё",
+        "edit": "🔁 Редактировать ещё",
+        "video": "🔁 Ещё видео",
+        "process": "🔁 Обработать ещё",
+        "blogger": "🔁 Ещё дизайн",
+    }.get(kind, "🔁 Ещё раз")
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=label), KeyboardButton(text="✅ Завершить")],
+            [KeyboardButton(text="🎨 Творчество")],
+        ],
+        resize_keyboard=True
+    )
+
+
+def _done_inline_kb(kind: str) -> InlineKeyboardMarkup:
+    """Inline-кнопки под результатом (видны сразу под медиа)."""
+    kind = (kind or "").lower()
+    label = {
+        "create": "🔁 Создать ещё",
+        "upscale": "🔁 Улучшить ещё",
+        "edit": "🔁 Редактировать ещё",
+        "video": "🔁 Ещё видео",
+        "process": "🔁 Обработать ещё",
+        "blogger": "🔁 Ещё дизайн",
+    }.get(kind, "🔁 Ещё раз")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=label, callback_data=f"flow_again:{kind}"),
+            InlineKeyboardButton(text="✅ Завершить", callback_data="flow_finish"),
+        ]
+    ])
+
 
 
 def _video_menu_kb(user_id: int) -> ReplyKeyboardMarkup:
@@ -298,12 +779,12 @@ async def _enter_video_flow(message: Message, state: FSMContext, video_settings:
 
 
 @router.message(F.text == "🎬 Видео")
-async def video_start(message: Message, state: FSMContext):
-    user_id = message.from_user.id
+async def video_start(message: Message, state: FSMContext, user_id: int | None = None):
+    user_id = user_id or message.from_user.id
     video_settings = await _get_user_video_settings(user_id)
 
     # Проверяем баланс
-    tokens = await db.get_available_tokens(user_id)
+    tokens = await get_available_tokens_web(user_id)
     price = int(video_settings.get("price") or 0)
     if price > 0 and tokens < price:
         await message.answer("❌ Недостаточно токенов! Пополните баланс.")
@@ -316,17 +797,21 @@ async def video_start(message: Message, state: FSMContext):
     seconds = video_settings.get("seconds", 5)
     price = int(video_settings.get("price") or 0)
 
+    mode_h = _pretty_video_mode(mode)
+    tier_h = _pretty_video_tier(tier)
+    aspect_h = _pretty_aspect(aspect)
+
     # Если пришли из веба с “Начать в боте” — стартуем сразу
     data = await state.get_data()
     if data.get("video_direct_start"):
         await state.update_data(video_direct_start=False)
         await message.answer(
             "🎬 <b>Видео</b>\n\n"
-            f"Режим: <b>{mode}</b>\n"
-            f"Уровень: <b>{tier}</b>\n"
-            f"Аудио: <b>{audio}</b>\n"
-            f"Формат: <b>{aspect}</b> • <b>{seconds}</b> сек\n"
-            f"Стоимость: <b>{price:,}</b> токенов\n",
+            f"🧩 Режим: <b>{mode_h}</b>\n"
+            f"💎 Уровень: <b>{tier_h}</b>\n"
+            f"🔊 Аудио: <b>{audio}</b>\n"
+            f"📐 Формат: <b>{aspect_h}</b> • <b>{seconds}</b> сек\n"
+            f"💳 Стоимость: <b>{_fmt_tokens(price)}</b> токенов\n",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
             parse_mode="HTML"
         )
@@ -336,12 +821,12 @@ async def video_start(message: Message, state: FSMContext):
     await state.set_state(ImageStates.waiting_video_confirm)
     await message.answer(
         "🎬 <b>Видео</b>\n\n"
-        f"Текущие настройки:\n"
-        f"• Режим: <b>{mode}</b>\n"
-        f"• Уровень: <b>{tier}</b>\n"
-        f"• Аудио: <b>{audio}</b>\n"
-        f"• Формат: <b>{aspect}</b> • <b>{seconds}</b> сек\n"
-        f"• Стоимость: <b>{price:,}</b> токенов\n\n"
+        f"Текущие настройки:\n\n"
+        f"🧩 Режим: <b>{mode_h}</b>\n"
+        f"💎 Уровень: <b>{tier_h}</b>\n"
+        f"🔊 Аудио: <b>{audio}</b>\n"
+        f"📐 Формат: <b>{aspect_h}</b> • <b>{seconds}</b> сек\n"
+        f"💳 Стоимость: <b>{_fmt_tokens(price)}</b> токенов\n\n"
         "Нажмите <b>▶️ Начать видео</b> или измените настройки.",
         reply_markup=_video_menu_kb(user_id),
         parse_mode="HTML"
@@ -365,7 +850,7 @@ async def process_video_text(message: Message, state: FSMContext):
 
     video_settings = await _get_user_video_settings(user_id)
     price = int(video_settings.get("price") or 0)
-    tokens = await db.get_available_tokens(user_id)
+    tokens = await get_available_tokens_web(user_id)
     if price > 0 and tokens < price:
         await message.answer("❌ Недостаточно токенов! Пополните баланс.")
         await state.clear()
@@ -376,21 +861,35 @@ async def process_video_text(message: Message, state: FSMContext):
     try:
         model_id = _resolve_vsegpt_video_model_id(video_settings)
         aspect_ratio = video_settings.get("aspect_ratio") or "16:9"
+        final_prompt = await _build_video_prompt(
+            mode=video_settings.get("mode"),
+            user_text=prompt,
+            tier=video_settings.get("tier"),
+            aspect_ratio=aspect_ratio,
+            seconds=int(video_settings.get("seconds") or 5),
+            audio=bool(video_settings.get("audio", False)),
+            has_image=False
+        )
         vbytes = await _vsegpt_generate_video_and_wait(
             model_id=model_id,
-            prompt=prompt,
+            prompt=final_prompt,
             image_bytes=None,
             aspect_ratio=aspect_ratio
         )
 
-        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await db.get_available_tokens(user_id)
+        await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await get_available_tokens_web(user_id)
 
         video_file = BufferedInputFile(vbytes, filename="video.mp4")
         await message.answer_video(
             video_file,
-            caption=f"✅ <b>Видео готово!</b>\n\n💰 Списано: {price:,} токенов\n💳 Остаток: {new_balance:,}",
-            reply_markup=photo_kb(user_id),
+            caption=f"✅ <b>Видео готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("video"),
+            parse_mode="HTML"
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("video"),
             parse_mode="HTML"
         )
         await status.delete()
@@ -407,17 +906,16 @@ async def process_video_photo(message: Message, state: FSMContext):
     video_settings = await _get_user_video_settings(user_id)
     price = int(video_settings.get("price") or 0)
 
-    tokens = await db.get_available_tokens(user_id)
+    tokens = await get_available_tokens_web(user_id)
     if price > 0 and tokens < price:
         await message.answer("❌ Недостаточно токенов! Пополните баланс.")
         await state.clear()
         return
 
-    # caption -> подсказка, иначе общий промпт
-    prompt = (message.caption or "").strip()
-    if not prompt:
-        mode = video_settings.get("mode", "photo_to_video")
-        prompt = "Animate this image." if mode == "animate_photo" else "Generate a video based on this image."
+    # caption -> запрос пользователя (что должно происходить), иначе дефолт
+    user_caption = (message.caption or "").strip()
+    if not user_caption:
+        user_caption = ""
 
     status = await message.answer("🎬 Генерирую видео... Это может занять 1–6 минут.")
     try:
@@ -428,21 +926,35 @@ async def process_video_photo(message: Message, state: FSMContext):
 
         model_id = _resolve_vsegpt_video_model_id(video_settings)
         aspect_ratio = video_settings.get("aspect_ratio") or "16:9"
+        final_prompt = await _build_video_prompt(
+            mode=video_settings.get("mode"),
+            user_text=user_caption,
+            tier=video_settings.get("tier"),
+            aspect_ratio=aspect_ratio,
+            seconds=int(video_settings.get("seconds") or 5),
+            audio=bool(video_settings.get("audio", False)),
+            has_image=True
+        )
         vbytes = await _vsegpt_generate_video_and_wait(
             model_id=model_id,
-            prompt=prompt,
+            prompt=final_prompt,
             image_bytes=image_bytes,
             aspect_ratio=aspect_ratio
         )
 
-        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await db.get_available_tokens(user_id)
+        await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await get_available_tokens_web(user_id)
 
         video_file = BufferedInputFile(vbytes, filename="video.mp4")
         await message.answer_video(
             video_file,
-            caption=f"✅ <b>Видео готово!</b>\n\n💰 Списано: {price:,} токенов\n💳 Остаток: {new_balance:,}",
-            reply_markup=photo_kb(user_id),
+            caption=f"✅ <b>Видео готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("video"),
+            parse_mode="HTML"
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("video"),
             parse_mode="HTML"
         )
         await status.delete()
@@ -454,11 +966,12 @@ async def process_video_photo(message: Message, state: FSMContext):
 
 
 @router.message(F.text == "📷 Создать")
-async def create_photo_start(message: Message, state: FSMContext):
+async def create_photo_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Начать создание фото"""
-    tokens = await db.get_available_tokens(message.from_user.id)
+    uid = user_id or message.from_user.id
+    tokens = await get_available_tokens_web(uid)
     
-    model = await get_user_model_settings(message.from_user.id, 'create')
+    model = await get_user_model_settings(uid, 'create')
     if tokens < model['price']:
         await message.answer("❌ Недостаточно токенов! Пополните баланс.")
         return
@@ -478,11 +991,12 @@ async def create_photo_start(message: Message, state: FSMContext):
 
 
 @router.message(F.text == "🎨 4K Фото")
-async def upscale_photo_start(message: Message, state: FSMContext):
+async def upscale_photo_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Начать upscale фото"""
-    tokens = await db.get_available_tokens(message.from_user.id)
+    uid = user_id or message.from_user.id
+    tokens = await get_available_tokens_web(uid)
     
-    model = await get_user_model_settings(message.from_user.id, 'upscale')
+    model = await get_user_model_settings(uid, 'upscale')
     if tokens < model['price']:
         await message.answer("❌ Недостаточно токенов! Пополните баланс.")
         return
@@ -492,19 +1006,21 @@ async def upscale_photo_start(message: Message, state: FSMContext):
     cancel_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True)
     
     await message.answer(
-        "🎨 <b>Улучшение фото до 4K</b>\n\n"
-        "Отправьте фото которое хотите улучшить",
+        "✨ <b>Улучшение качества</b>\n\n"
+        "📸 Отправьте фото, которое хотите улучшить.\n"
+        "Я постараюсь сохранить лицо и похожесть максимально.",
         reply_markup=cancel_kb,
         parse_mode="HTML"
     )
 
 
 @router.message(F.text == "✏️ Редактор")
-async def editor_start(message: Message, state: FSMContext):
+async def editor_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Начать редактирование - фото с подписью в одном сообщении"""
-    tokens = await db.get_available_tokens(message.from_user.id)
+    uid = user_id or message.from_user.id
+    tokens = await get_available_tokens_web(uid)
     
-    model = await get_user_model_settings(message.from_user.id, 'edit')
+    model = await get_user_model_settings(uid, 'edit')
     if tokens < model['price']:
         await message.answer("❌ Недостаточно токенов! Пополните баланс.")
         return
@@ -532,11 +1048,227 @@ async def editor_start(message: Message, state: FSMContext):
     )
 
 
+async def _get_user_process_settings(user_id: int) -> dict:
+    """Получить настройки 'Обработка' из extra_settings.photo.process."""
+    from database.postgres_db import get_image_settings
+    settings = await get_image_settings(user_id)
+    extra = settings.get("extra_settings") or {}
+    photo = extra.get("photo") if isinstance(extra, dict) else None
+    process = photo.get("process") if isinstance(photo, dict) else None
+    if not isinstance(process, dict):
+        # дефолт: удалить фон, эконом
+        return {
+            "action": "remove_background",
+            "model": "img2img-aitransform/background-change",
+            "price": 19800,
+        }
+    return {
+        "action": process.get("action", "remove_background"),
+        "model": process.get("model", "img2img-aitransform/background-change"),
+        "price": int(process.get("price") or 19800),
+    }
+
+
+async def process_start(message: Message, state: FSMContext, user_id: int | None = None):
+    """Старт сценария 'Обработка' (настройки в Web, контент в боте)."""
+    user_id = user_id or message.from_user.id
+
+    # Если пришло из WebApp — приоритет у payload
+    data = await state.get_data()
+    proc_action = data.get("process_action")
+    proc_model = data.get("process_model")
+    proc_price = data.get("process_price")
+    if not (proc_action and proc_model and proc_price is not None):
+        s = await _get_user_process_settings(user_id)
+        proc_action, proc_model, proc_price = s["action"], s["model"], s["price"]
+        await state.update_data(process_action=proc_action, process_model=proc_model, process_price=proc_price)
+
+    tokens = await get_available_tokens_web(user_id)
+    if int(proc_price) > 0 and tokens < int(proc_price):
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    await state.set_state(ImageStates.waiting_process_photo)
+    cancel_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True)
+
+    action_h = {
+        "remove_background": "🖼 Удалить фон",
+        "remove_text": "🧽 Удалить текст",
+        "remove_object": "🪄 Удалить объект",
+    }.get(proc_action, proc_action)
+
+    extra_hint = ""
+    if proc_action == "remove_object":
+        extra_hint = "\n\n📝 <b>Важно:</b> отправьте фото <b>с подписью</b> — что именно убрать.\nНапример: <code>удали бутылку справа</code>"
+    if proc_action == "remove_background":
+        extra_hint = "\n\n📝 <b>Можно с подписью:</b> какой фон сделать.\nНапример: <code>белый фон</code>, <code>прозрачный фон</code>, <code>уютная кухня</code>"
+
+    await message.answer(
+        "🧰 <b>Обработка фото</b>\n\n"
+        f"Действие: <b>{action_h}</b>\n"
+        f"Стоимость: <b>{_fmt_tokens(proc_price)}</b> токенов\n\n"
+        "📸 Отправьте фото для обработки."
+        f"{extra_hint}",
+        reply_markup=cancel_kb,
+        parse_mode="HTML",
+    )
+
+
+@router.message(ImageStates.waiting_process_photo, F.photo)
+async def process_process_photo(message: Message, state: FSMContext):
+    """Применить обработку к фото."""
+    user_id = message.from_user.id
+    data = await state.get_data()
+    proc_action = (data.get("process_action") or "").strip()
+    model_id = data.get("process_model")
+    price = int(data.get("process_price") or 0)
+
+    tokens = await get_available_tokens_web(user_id)
+    if price > 0 and tokens < price:
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    caption = (message.caption or "").strip()
+    if proc_action == "remove_object" and len(caption) < 3:
+        await message.answer("⚠️ Добавьте подпись к фото: что именно убрать (например: <code>удали бутылку справа</code>)", parse_mode="HTML")
+        return
+
+    status = await message.answer("🧰 Обрабатываю фото... 20–60 сек")
+    try:
+        photo = message.photo[-1]
+        file = await bot.get_file(photo.file_id)
+        photo_data = await bot.download_file(file.file_path)
+        image_bytes_raw = photo_data.read()
+        jpeg_bytes = _convert_to_jpeg(image_bytes_raw)
+
+        user_text = caption
+        user_en = await _to_english(user_text) if user_text else ""
+
+        if proc_action == "remove_background":
+            bg = user_en.strip()
+            if not bg:
+                bg = "plain white background"
+            prompt = (
+                f"Replace the background with: {bg}. "
+                "Keep the main subject intact. Preserve identity, face, age, and main features. "
+                "No text, no watermark."
+            )
+        elif proc_action == "remove_text":
+            prompt = (
+                "Remove all text, captions, watermarks, and logos. Reconstruct the background naturally. "
+                "Preserve identity and face. No new text."
+            )
+        else:  # remove_object
+            prompt = (
+                f"Remove the following object(s) from the image: {user_en}. "
+                "Fill the removed area naturally (inpainting). "
+                "Preserve the person's identity, face, age, and main features. "
+                "No text, no watermark."
+            )
+
+        out_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=jpeg_bytes)
+
+        await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await get_available_tokens_web(user_id)
+
+        await status.delete()
+        await message.answer_photo(
+            BufferedInputFile(out_bytes, filename="processed.png"),
+            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("process"),
+            parse_mode="HTML",
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("process"),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await status.edit_text(f"❌ Ошибка обработки:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        await state.clear()
+
+
 @router.message(F.text == "🛑 Отменить")
 async def cancel_operation(message: Message, state: FSMContext):
     """Отменить операцию"""
     await state.clear()
     await message.answer("❌ Операция отменена", reply_markup=photo_kb(message.from_user.id))
+
+
+@router.message(F.text.in_(["🔁 Создать ещё", "🔁 Улучшить ещё", "🔁 Редактировать ещё", "🔁 Ещё видео", "🔁 Обработать ещё", "🔁 Ещё дизайн"]))
+async def flow_again(message: Message, state: FSMContext):
+    """Повторить сценарий после результата."""
+    await state.clear()
+    t = message.text or ""
+    if "Улучшить" in t:
+        await upscale_photo_start(message, state)
+        return
+    if "Редактировать" in t:
+        await editor_start(message, state)
+        return
+    if "Ещё видео" in t:
+        await video_start(message, state)
+        return
+    if "Обработать" in t:
+        await process_start(message, state)
+        return
+    if "дизайн" in t.lower():
+        await blogger_start(message, state)
+        return
+    await create_photo_start(message, state)
+
+
+@router.message(F.text == "✅ Завершить")
+async def finish_flow(message: Message, state: FSMContext):
+    """Явно закрыть сценарий и вернуть в общее меню."""
+    await state.clear()
+    await message.answer("🎨 Творчество", reply_markup=photo_kb(message.from_user.id))
+
+
+@router.callback_query(F.data.startswith("flow_again:"))
+async def cb_flow_again(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await state.clear()
+    kind = (cb.data.split(":", 1)[1] if cb.data else "").strip().lower()
+    if kind == "upscale":
+        await upscale_photo_start(cb.message, state, user_id=cb.from_user.id)
+        return
+    if kind == "edit":
+        await editor_start(cb.message, state, user_id=cb.from_user.id)
+        return
+    if kind == "video":
+        await video_start(cb.message, state, user_id=cb.from_user.id)
+        return
+    if kind == "process":
+        await process_start(cb.message, state, user_id=cb.from_user.id)
+        return
+    if kind == "blogger":
+        await blogger_start(cb.message, state, user_id=cb.from_user.id)
+        return
+    await create_photo_start(cb.message, state, user_id=cb.from_user.id)
+
+
+@router.callback_query(F.data == "flow_finish")
+async def cb_flow_finish(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await state.clear()
+    await cb.message.answer("🎨 Творчество", reply_markup=photo_kb(cb.from_user.id))
+
+
+# Backward-compat: старые callback_data из прошлых сообщений
+@router.callback_query(F.data == "img_create_again")
+async def cb_legacy_create_again(cb: CallbackQuery, state: FSMContext):
+    cb.data = "flow_again:create"
+    await cb_flow_again(cb, state)
+
+
+@router.callback_query(F.data == "img_finish")
+async def cb_legacy_finish(cb: CallbackQuery, state: FSMContext):
+    cb.data = "flow_finish"
+    await cb_flow_finish(cb, state)
 
 
 @router.message(F.text == "◀️ Назад")
@@ -554,7 +1286,7 @@ async def process_create(message: Message, state: FSMContext):
     if not message.text:
         return
     
-    tokens = await db.get_available_tokens(message.from_user.id)
+    tokens = await get_available_tokens_web(message.from_user.id)
     model = await get_user_model_settings(message.from_user.id, 'create')
     
     if tokens < model['price']:
@@ -562,7 +1294,12 @@ async def process_create(message: Message, state: FSMContext):
         await state.clear()
         return
     
-    prompt = message.text
+    prompt_ru = message.text
+    prompt_en = await _to_english(prompt_ru)
+    prompt = (
+        f"{prompt_en}\n\n"
+        "High quality. No text, no watermark, no logo. Natural details."
+    )
     
     status = await message.answer(
         f"🎨 <b>{model['name']}...</b>\n\n"
@@ -572,43 +1309,28 @@ async def process_create(message: Message, state: FSMContext):
     )
     
     try:
-        headers = {"Authorization": f"Bearer {PROXYAPI_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": model['model'],
-            "prompt": prompt,
-            "size": model['size'],
-            "quality": model['quality'],
-            "n": 1
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(API_URL, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=180)) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    raise Exception(f"API Error {resp.status}: {error}")
-                
-                result = await resp.json()
-                
-                if 'b64_json' in result.get('data', [{}])[0]:
-                    image_data = base64.b64decode(result['data'][0]['b64_json'])
-                elif 'url' in result.get('data', [{}])[0]:
-                    image_url = result['data'][0]['url']
-                    async with session.get(image_url) as img_resp:
-                        image_data = await img_resp.read()
-                else:
-                    raise Exception("Unknown response format")
+        image_data = await _vsegpt_images_generate(
+            model_id=model["model"],
+            prompt=prompt,
+            image_bytes=None
+        )
         
         photo = BufferedInputFile(image_data, filename="created.png")
         
         # Используем единую систему токенов (поддержка подписок)
-        await db.use_tokens_smart(message.from_user.id, model['price'], bot_name='images')
-        new_balance = await db.get_available_tokens(message.from_user.id)
+        await use_tokens_smart_web(message.from_user.id, model['price'], bot_name='images')
+        new_balance = await get_available_tokens_web(message.from_user.id)
         
         await status.delete()
         await message.answer_photo(
             photo,
-            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {model['price']:,}\n💳 Остаток: {new_balance:,}",
-            reply_markup=photo_kb(message.from_user.id),
+            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(model['price'])} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("create"),
+            parse_mode="HTML"
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("create"),
             parse_mode="HTML"
         )
         
@@ -622,7 +1344,7 @@ async def process_create(message: Message, state: FSMContext):
 @router.message(ImageStates.waiting_upscale_photo, F.photo)
 async def process_upscale(message: Message, state: FSMContext):
     """Улучшить фото до 4K"""
-    tokens = await db.get_available_tokens(message.from_user.id)
+    tokens = await get_available_tokens_web(message.from_user.id)
     model = await get_user_model_settings(message.from_user.id, 'upscale')
     
     if tokens < model['price']:
@@ -633,85 +1355,60 @@ async def process_upscale(message: Message, state: FSMContext):
     photo = message.photo[-1]
     
     status = await message.answer(
-        f"🎨 <b>{model['name']}...</b>\n\n"
+        "✨ <b>Улучшение качества</b>\n\n"
         f"⏱ ~{model['time']}\n"
-        f"<i>Улучшаю качество фото...</i>",
+        "<i>Улучшаю фото без изменения лица...</i>",
         parse_mode="HTML"
     )
     
     try:
-        # Скачиваем фото
         file = await bot.get_file(photo.file_id)
-        file_path = file.file_path
-        
-        # Скачиваем изображение
-        photo_data = await bot.download_file(file_path)
-        # download_file возвращает BytesIO, read() - синхронный метод (не async!)
+        photo_data = await bot.download_file(file.file_path)
         image_bytes_raw = photo_data.read()
-        
-        # Конвертируем в PNG (ProxyAPI /edits принимает только PNG)
-        image_bytes = await convert_to_png(image_bytes_raw)
-        
-        headers = {
-            "Authorization": f"Bearer {PROXYAPI_KEY}"
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            # ProxyAPI /edits поддерживает только: 1024x1024, 1536x1024, 1024x1536, auto
-            # Все размеры из MODEL_CONFIGS теперь поддерживаются, проверка не нужна
-            target_size = model['size']  # Уже содержит только поддерживаемые размеры: 1024x1024, 1536x1024, 1024x1536, auto
-            
-            # ВСЕГДА используем /edits endpoint для работы с существующими изображениями
-            # /generations не поддерживает работу с существующими изображениями
-            # ProxyAPI /edits принимает ТОЛЬКО PNG формат
-            form_data = aiohttp.FormData()
-            form_data.add_field('image', image_bytes, filename='photo.png', content_type='image/png')
-            form_data.add_field('prompt', f'Upscale and enhance this image to maximum quality. Improve sharpness, clarity, details, and overall quality. Maintain the original composition and style.')
-            form_data.add_field('n', '1')
-            form_data.add_field('size', target_size)  # Используем размер из MODEL_CONFIGS (всегда поддерживается)
-            
-            headers_form = {"Authorization": f"Bearer {PROXYAPI_KEY}"}
-            
-            try:
-                # Используем edits endpoint (единственный способ работать с существующими изображениями)
-                async with session.post(EDIT_API_URL, headers=headers_form, data=form_data, timeout=aiohttp.ClientTimeout(total=180)) as edit_resp:
-                    if edit_resp.status == 200:
-                        result = await edit_resp.json()
-                    else:
-                        error_text = await edit_resp.text()
-                        raise Exception(f"Edits API Error {edit_resp.status}: {error_text[:500]}")
-            except Exception as e:
-                # Если edits endpoint не работает, выбрасываем ошибку
-                # /generations не может улучшить существующее изображение
-                error_msg = str(e)
-                print(f"❌ [Upscale Error] {error_msg}")
-                traceback.print_exc()
-                raise Exception(f"Не удалось улучшить изображение: {error_msg}")
-            
-            # Обрабатываем ответ
-            if not result.get('data') or len(result.get('data', [])) == 0:
-                raise Exception("Empty response from API")
-            
-            if 'b64_json' in result['data'][0]:
-                image_data = base64.b64decode(result['data'][0]['b64_json'])
-            elif 'url' in result['data'][0]:
-                image_url = result['data'][0]['url']
-                async with session.get(image_url) as img_resp:
-                    image_data = await img_resp.read()
-            else:
-                raise Exception(f"Unknown response format: {result}")
+
+        jpeg_bytes = _convert_to_jpeg(image_bytes_raw)
+
+        data = await state.get_data()
+        size_key = (data.get("upscale_size") or "auto").strip()
+
+        size_hint = ""
+        if size_key == "1:1":
+            size_hint = "Keep a square framing (1:1) if you need to crop."
+        elif size_key == "16:9":
+            size_hint = "Keep a wide framing (16:9) if you need to crop."
+        elif size_key == "9:16":
+            size_hint = "Keep a vertical framing (9:16) if you need to crop."
+
+        # Upscale prompt: улучшить качество, но НЕ менять лицо/похожесть
+        prompt = (
+            "Upscale and enhance this image. Improve sharpness, clarity, details, and overall quality. "
+            "Preserve identity, face, age, and main features. Do not change the person's likeness. "
+            "No text, no watermark. "
+            f"{size_hint}"
+        )
+
+        image_data = await _vsegpt_images_generate(
+            model_id=model["model"],
+            prompt=prompt,
+            image_bytes=jpeg_bytes
+        )
         
         photo_result = BufferedInputFile(image_data, filename="upscaled.png")
         
         # Списываем токены
-        await db.use_tokens_smart(message.from_user.id, model['price'], bot_name='images')
-        new_balance = await db.get_available_tokens(message.from_user.id)
+        await use_tokens_smart_web(message.from_user.id, model['price'], bot_name='images')
+        new_balance = await get_available_tokens_web(message.from_user.id)
         
         await status.delete()
         await message.answer_photo(
             photo_result,
-            caption=f"✅ <b>Фото улучшено до 4K!</b>\n\n💰 Списано: {model['price']:,}\n💳 Остаток: {new_balance:,}",
-            reply_markup=photo_kb(message.from_user.id),
+            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(model['price'])} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("upscale"),
+            parse_mode="HTML"
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("upscale"),
             parse_mode="HTML"
         )
         
@@ -735,7 +1432,7 @@ async def photo_without_caption(message: Message, state: FSMContext):
         "1. Нажмите 📎 (скрепка)\n"
         "2. Выберите фото\n"
         "3. <b>Напишите подпись</b> перед отправкой\n"
-        "   Например: <code>add smile</code>\n"
+        "   Например: <code>добавь улыбку</code>\n"
         "4. Отправьте\n\n"
         "💡 Подпись пишется в поле под фото перед отправкой!",
         parse_mode="HTML"
@@ -790,7 +1487,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
     model = await get_user_model_settings(user_id, 'edit')
     
     # Проверяем баланс
-    tokens = await db.get_available_tokens(user_id)
+    tokens = await get_available_tokens_web(user_id)
     if tokens < model['price']:
         await message.answer(
             f"❌ <b>Недостаточно токенов</b>\n\n"
@@ -802,140 +1499,81 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
         await state.clear()
         return
     
-    status_msg = await message.answer(
-        "✏️ <b>Редактирую фото...</b>\n\n"
-        f"📝 Команда: <i>{edit_command}</i>\n"
-        "⏱ Подождите 30-60 секунд",
-        parse_mode="HTML"
-    )
+    status_msg = None
+    try:
+        status_msg = await message.answer(
+            "✏️ <b>Редактирую фото...</b>\n\n"
+            f"📝 Команда: <i>{edit_command}</i>\n"
+            "⏱ Подождите 30-60 секунд",
+            parse_mode="HTML"
+        )
+    except TelegramNetworkError:
+        # Если Telegram не ответил на status-сообщение — продолжаем работу без него
+        status_msg = None
     
     try:
-        # Скачиваем фото из сообщения
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
         photo_data = await bot.download_file(file.file_path)
         image_bytes_raw = photo_data.read()
-        
-        print(f"📝 Фото: {len(image_bytes_raw)} байт")
-        
-        # Конвертируем в PNG RGBA
-        image_bytes = await convert_to_png(image_bytes_raw)
-        
-        # Переводим промпт на английский если нужно
-        has_cyrillic = any('\u0400' <= char <= '\u04FF' for char in edit_command)
-        
-        if has_cyrillic:
-            try:
-                from deep_translator import GoogleTranslator
-                translated_prompt = GoogleTranslator(source='ru', target='en').translate(edit_command)
-                print(f"🔍 [DEBUG] Переведено: '{edit_command}' → '{translated_prompt}'")
-                english_prompt = f"Edit this image: {translated_prompt}. Follow the instruction precisely."
-            except ImportError:
-                simple_translations = {
-                    'улыбка': 'smile', 'улыбнуться': 'smile', 'улыбнулся': 'smiling',
-                    'фон': 'background', 'задний фон': 'background',
-                    'море': 'sea', 'океан': 'ocean',
-                    'ночь': 'night', 'ночной': 'night',
-                    'добавь': 'add', 'добавить': 'add',
-                    'убери': 'remove', 'удалить': 'remove',
-                    'сделай': 'make', 'сделать': 'make',
-                    'человек': 'person', 'человека': 'person',
-                    'на фото': 'in the photo', 'на изображении': 'in the image'
-                }
-                translated_prompt = edit_command.lower()
-                for ru, en in simple_translations.items():
-                    translated_prompt = translated_prompt.replace(ru, en)
-                
-                if translated_prompt == edit_command.lower():
-                    english_prompt = f"Edit this image according to the user's request: {edit_command}. Make the requested changes precisely."
-                else:
-                    english_prompt = f"Edit this image: {translated_prompt}. Follow the instruction precisely."
-                print(f"🔍 [DEBUG] Простой перевод: '{edit_command}' → '{english_prompt}'")
-            except Exception as e:
-                print(f"⚠️ [WARNING] Ошибка перевода: {e}. Используем общий промпт.")
-                english_prompt = f"Edit this image according to the user's request: {edit_command}. Make the requested changes precisely."
-        else:
-            english_prompt = f"Edit this image: {edit_command}. Follow the instruction precisely."
-        
-        # API запрос
-        headers = {"Authorization": f"Bearer {PROXYAPI_KEY}"}
-        
-        print(f"📝 API: {EDIT_API_URL}")
-        print(f"📝 Prompt: {english_prompt}")
-        
-        async with aiohttp.ClientSession() as session:
-            form_data = aiohttp.FormData()
-            form_data.add_field('image', image_bytes, filename='photo.png', content_type='image/png')
-            form_data.add_field('prompt', english_prompt)
-            form_data.add_field('model', model['model'])
-            form_data.add_field('n', '1')
-            form_data.add_field('size', model['size'])
-            
-            async with session.post(EDIT_API_URL, headers=headers, data=form_data, timeout=aiohttp.ClientTimeout(total=120)) as resp:
-                response_text = await resp.text()
-                print(f"📝 Status: {resp.status}")
-                print(f"📝 Response (FULL): {response_text}")
-                print(f"=" * 60)
-                
-                if resp.status != 200:
-                    error_msg = response_text[:200]
-                    raise Exception(f"API Error: {error_msg}")
-                
-                result = json.loads(response_text)
-                print(f"📝 Parsed result keys: {list(result.keys())}")
-                print(f"📝 Result has 'data': {'data' in result}")
-                if 'data' in result:
-                    print(f"📝 Data length: {len(result['data'])}")
-                    if len(result['data']) > 0:
-                        print(f"📝 First item keys: {list(result['data'][0].keys())}")
-                
-                if 'data' in result and len(result['data']) > 0:
-                    image_data = result['data'][0]
-                    
-                    print(f"📝 Image data keys: {list(image_data.keys())}")
-                    
-                    if 'b64_json' in image_data:
-                        print(f"📝 Using b64_json (size: {len(image_data['b64_json'])} chars)")
-                        img_bytes = base64.b64decode(image_data['b64_json'])
-                    elif 'url' in image_data:
-                        print(f"📝 Downloading from URL: {image_data['url'][:100]}...")
-                        async with session.get(image_data['url']) as img_resp:
-                            img_bytes = await img_resp.read()
-                            print(f"📝 Downloaded image size: {len(img_bytes)} bytes")
-                    else:
-                        raise Exception(f"Нет изображения в ответе. Keys: {list(image_data.keys())}")
-                    
-                    # Отправляем результат
-                    result_photo = BufferedInputFile(img_bytes, filename="edited.png")
-                    
-                    # Списываем токены
-                    await db.use_tokens_smart(user_id, model['price'], bot_name='images')
-                    new_balance = await db.get_available_tokens(user_id)
-                    
-                    await message.answer_photo(
-                        result_photo,
-                        caption=f"✅ <b>Готово!</b>\n\n"
-                                f"📝 Команда: <i>{edit_command}</i>\n"
-                                f"💰 Списано: {model['price']:,} токенов\n"
-                                f"💳 Остаток: {new_balance:,}",
-                        reply_markup=photo_kb(user_id),
-                        parse_mode="HTML"
-                    )
-                    
-                    await status_msg.delete()
-                else:
-                    raise Exception("Пустой ответ от API")
+
+        jpeg_bytes = _convert_to_jpeg(image_bytes_raw)
+
+        # Переводим запрос пользователя на EN (лучше управляемость/стабильность)
+        cmd_en = await _to_english(edit_command)
+        english_prompt = (
+            f"{cmd_en}\n\n"
+            "Important: preserve identity, face, age, skin tone, and main facial features. "
+            "Make only the requested changes. Do not change the person's likeness. "
+            "No text, no watermark."
+        )
+
+        img_bytes = await _vsegpt_images_generate(
+            model_id=model["model"],
+            prompt=english_prompt,
+            image_bytes=jpeg_bytes
+        )
+
+        result_photo = BufferedInputFile(img_bytes, filename="edited.png")
+
+        await use_tokens_smart_web(user_id, model['price'], bot_name='images')
+        new_balance = await get_available_tokens_web(user_id)
+
+        await message.answer_photo(
+            result_photo,
+            caption=(
+                f"✅ <b>Готово!</b>\n\n"
+                f"📝 Команда: <i>{edit_command}</i>\n"
+                f"💰 Списано: {_fmt_tokens(model['price'])} токенов\n"
+                f"💳 Остаток: {_fmt_tokens(new_balance)} токенов"
+            ),
+            reply_markup=_done_inline_kb("edit"),
+            parse_mode="HTML"
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("edit"),
+            parse_mode="HTML"
+        )
+        if status_msg:
+            await status_msg.delete()
                     
     except Exception as e:
         print(f"❌ ОШИБКА: {e}")
         traceback.print_exc()
         
-        await status_msg.edit_text(
-            f"❌ <b>Ошибка редактирования</b>\n\n"
-            f"<code>{str(e)[:150]}</code>\n\n"
-            f"💡 Попробуйте другую команду или фото",
-            parse_mode="HTML"
-        )
+        if status_msg:
+            await status_msg.edit_text(
+                f"❌ <b>Ошибка редактирования</b>\n\n"
+                f"<code>{str(e)[:150]}</code>\n\n"
+                f"💡 Попробуйте другую команду или фото",
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(
+                f"❌ <b>Ошибка редактирования</b>\n\n<code>{str(e)[:150]}</code>",
+                parse_mode="HTML"
+            )
     
     await state.clear()
 

@@ -14,7 +14,7 @@ def main_kb(user_id: int):
 def bots_menu_kb():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="💬 Диалог"), KeyboardButton(text="🛋️ Психолог")],
-        [KeyboardButton(text="📚 Обучение"), KeyboardButton(text="📸 Фото")],
+        [KeyboardButton(text="📚 Обучение"), KeyboardButton(text="🎨 Творчество")],
         [KeyboardButton(text="🍎 Здоровье"), KeyboardButton(text="🏃 Лайфстайл")],
         [KeyboardButton(text="◀️ Главное меню")]
     ], resize_keyboard=True)
@@ -194,16 +194,23 @@ def finance_menu_kb():
     )
 
 # ============================================
-# === ГЕНЕРАЦИЯ ФОТО ===
+# === ТВОРЧЕСТВО (Фото/Видео/Блогерам/Креатив) ===
 # ============================================
 
-def photo_kb(user_id: int):
+def creativity_kb(user_id: int):
+    """Меню творчества: каждая кнопка сразу открывает WebApp"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📷 Создать"), KeyboardButton(text="✏️ Редактор")],
-        [KeyboardButton(text="🎨 4K Фото"), KeyboardButton(text="🎬 Видео")],
-        [KeyboardButton(text="⚙️ Настройки", web_app=WebAppInfo(url=f"https://soul-bot.ru/images/settings?user_id={user_id}"))],
+        [KeyboardButton(text="🎬 Видео", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/video?user_id={user_id}")),
+         KeyboardButton(text="📷 Фото", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/photo?user_id={user_id}"))],
+        [KeyboardButton(text="📱 Блогерам", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/blogger?user_id={user_id}")),
+         KeyboardButton(text="🎭 Креатив", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/creative?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
+
+
+# Backward-compat alias: старые места в коде вызывают photo_kb()
+def photo_kb(user_id: int):
+    return creativity_kb(user_id)
 
 # ============================================
 # === ГОЛОСОВОЙ РЕЖИМ ===

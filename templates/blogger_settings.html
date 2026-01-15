@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soul Bot - Блогерам</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .header {
+      color: #fff;
+      margin-bottom: 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .title { font-size: 22px; font-weight: 900; }
+    .balance-badge {
+      background: rgba(255,255,255,0.16);
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 999px;
+      padding: 8px 12px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      white-space: nowrap;
+    }
+    .balance-amount { font-weight: 900; }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    }
+
+    /* Табы — в столбец 1/2/3 (чтобы не съезжали) */
+    .tabs {
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .tab {
+      padding: 14px;
+      border-radius: 12px;
+      border: 2px solid #e9ecef;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+      min-height: 78px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      text-align:left;
+    }
+    .tab:hover { border-color:#667eea; background:#f8f9ff; }
+    .tab.active { border-color:#667eea; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); }
+    .tab-title { font-weight: 900; color:#333; font-size:15px; margin-bottom:4px; }
+    .tab-desc { color:#666; font-size:12.5px; line-height:1.3; }
+
+    .hint { font-size: 13px; color:#666; line-height:1.45; margin-bottom:14px; }
+    .section-title { font-weight: 900; color:#333; margin: 12px 0 8px; }
+
+    .option {
+      padding: 14px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .option:hover { border-color:#667eea; background:#f8f9ff; }
+    .option.selected { border-color:#667eea; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); }
+    .opt-name { font-weight: 900; font-size: 15px; color:#333; margin-bottom:4px; }
+    .opt-price { color:#667eea; font-weight: 900; font-size:13px; margin-bottom:4px; }
+    .opt-desc { font-size:13px; color:#666; line-height:1.4; }
+
+    /* Платформы 2x2: 12 / 34 */
+    .grid4 { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 720px) {
+      .grid4 { grid-template-columns: repeat(4, 1fr); }
+      .tabs { grid-template-columns: repeat(3, 1fr); } /* на широких можно в ряд */
+    }
+    .mini {
+      padding: 12px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      cursor: pointer;
+      text-align:center;
+      user-select:none;
+      min-height: 82px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:6px;
+    }
+    .mini.selected { border-color:#667eea; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); }
+    .mini .m1 { font-weight: 900; color:#333; font-size:13px; }
+    .mini .m2 { font-size:12px; color:#666; }
+
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:#f0f8ff;
+      border-left: 4px solid #667eea;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color:#333;
+      margin-top: 10px;
+    }
+
+    .total {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f0f8ff;
+      border-left: 4px solid #667eea;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .total strong { color:#667eea; font-size:16px; }
+
+    .btn {
+      width:100%;
+      padding:14px;
+      border:none;
+      border-radius:12px;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btn-secondary { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color:#fff; margin-top:10px; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:#fff; margin-top:12px; }
+    .status {
+      padding: 12px;
+      background: #d4edda;
+      color: #155724;
+      border-radius: 10px;
+      text-align: center;
+      margin-top: 12px;
+      display:none;
+    }
+    .status.show { display:block; }
+    .btn-back {
+      width:100%;
+      padding:14px;
+      background:#fff;
+      color:#667eea;
+      border:2px solid #667eea;
+      border-radius:12px;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+      margin-top:14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">📱 Блогерам</div>
+      <div class="balance-badge">💰 Баланс: <span class="balance-amount" id="balance">0</span></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="cover">
+          <div class="tab-title">🧩 Обложки</div>
+          <div class="tab-desc">Соцсети и размеры</div>
+        </div>
+        <div class="tab" data-tab="logo">
+          <div class="tab-title">🎨 Логотипы</div>
+          <div class="tab-desc">Иконка/текст</div>
+        </div>
+        <div class="tab" data-tab="presentation">
+          <div class="tab-title">📄 Презентации</div>
+          <div class="tab-desc">Слайды/визуалы</div>
+        </div>
+      </div>
+
+      <!-- COVER -->
+      <div class="panel" id="panel-cover">
+        <div class="hint">Выберите платформу и модель. В боте вы напишете идею/тему — и получите готовую обложку.</div>
+
+        <div class="section-title">📌 Платформа</div>
+        <div class="grid4">
+          <div class="mini cover-platform selected" data-platform="instagram_post" data-size="1080x1080">
+            <div class="m1">📸 Insta</div>
+            <div class="m2">Пост<br>1080×1080</div>
+          </div>
+          <div class="mini cover-platform" data-platform="instagram_story" data-size="1080x1920">
+            <div class="m1">📱 Insta</div>
+            <div class="m2">Сторис<br>1080×1920</div>
+          </div>
+          <div class="mini cover-platform" data-platform="youtube" data-size="1280x720">
+            <div class="m1">📺 YouTube</div>
+            <div class="m2">1280×720</div>
+          </div>
+          <div class="mini cover-platform" data-platform="telegram" data-size="800x400">
+            <div class="m1">✈️ TG</div>
+            <div class="m2">800×400</div>
+          </div>
+        </div>
+
+        <div class="pill" id="cover-selected">✅ Выбрано: Instagram Пост (1080×1080)</div>
+
+        <div class="section-title">💎 Модель</div>
+        <div class="option cover-model" data-model="flux-1.1" data-price="15000">
+          <div class="opt-name">💰 Эконом — FLUX 1.1</div>
+          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-desc">Для быстрых обложек</div>
+        </div>
+        <div class="option cover-model selected" data-model="flux-pro" data-price="25000">
+          <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
+          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-desc">Оптимально по качеству</div>
+        </div>
+        <div class="option cover-model" data-model="flux-max" data-price="45000">
+          <div class="opt-name">👑 Премиум — FLUX Max</div>
+          <div class="opt-price">45 000 токенов</div>
+          <div class="opt-desc">Максимальное качество и детализация</div>
+        </div>
+
+        <div class="total">
+          <div>💵 Итого:</div>
+          <strong id="total-cover">25 000 токенов</strong>
+        </div>
+
+        <button class="btn btn-secondary" onclick="saveCover()">✅ Сохранить настройки</button>
+        <button class="btn btn-primary" onclick="startCover()">▶️ Начать в боте</button>
+        <div class="status" id="status-cover">✅ Сохранено</div>
+      </div>
+
+      <!-- LOGO -->
+      <div class="panel" id="panel-logo" style="display:none;">
+        <div class="hint">Выберите стиль и цвет. В боте вы напишете идею — и получите варианты логотипа.</div>
+
+        <div class="section-title">🧩 Стиль</div>
+        <div class="grid4" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="mini logo-style" data-style="text"><div class="m1">🔤 Текст</div><div class="m2">wordmark</div></div>
+          <div class="mini logo-style selected" data-style="icon"><div class="m1">🎨 Иконка</div><div class="m2">icon</div></div>
+          <div class="mini logo-style" data-style="combo"><div class="m1">🏷 Комбо</div><div class="m2">icon+text</div></div>
+        </div>
+
+        <div class="section-title">🎨 Цвет</div>
+        <div class="grid4" style="grid-template-columns: repeat(5, 1fr);">
+          <div class="mini logo-color" data-color="blue"><div class="m1">🔵</div><div class="m2">синий</div></div>
+          <div class="mini logo-color" data-color="red"><div class="m1">🔴</div><div class="m2">красный</div></div>
+          <div class="mini logo-color selected" data-color="green"><div class="m1">🟢</div><div class="m2">зелёный</div></div>
+          <div class="mini logo-color" data-color="yellow"><div class="m1">🟡</div><div class="m2">жёлтый</div></div>
+          <div class="mini logo-color" data-color="black"><div class="m1">⚫</div><div class="m2">ч/б</div></div>
+        </div>
+
+        <div class="section-title">💎 Модель</div>
+        <div class="option logo-model selected" data-model="flux-pro" data-price="25000">
+          <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
+          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-desc">Чёткие формы, чистый стиль</div>
+        </div>
+
+        <div class="total">
+          <div>💵 Итого:</div>
+          <strong id="total-logo">25 000 токенов</strong>
+        </div>
+
+        <button class="btn btn-secondary" onclick="saveLogo()">✅ Сохранить настройки</button>
+        <button class="btn btn-primary" onclick="startLogo()">▶️ Начать в боте</button>
+        <div class="status" id="status-logo">✅ Сохранено</div>
+      </div>
+
+      <!-- PRESENTATION -->
+      <div class="panel" id="panel-presentation" style="display:none;">
+        <div class="hint">Выберите формат. В боте напишете тему — и получите визуал/обложку для слайда.</div>
+
+        <div class="section-title">📐 Формат</div>
+        <div class="grid4" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="mini pres-format" data-format="16:9" data-size="1920x1080"><div class="m1">📐 16:9</div><div class="m2">стандарт</div></div>
+          <div class="mini pres-format selected" data-format="9:16" data-size="1080x1920"><div class="m1">📱 9:16</div><div class="m2">мобайл</div></div>
+          <div class="mini pres-format" data-format="1:1" data-size="1080x1080"><div class="m1">⬛ 1:1</div><div class="m2">квадрат</div></div>
+        </div>
+
+        <div class="section-title">💎 Модель</div>
+        <div class="option pres-model selected" data-model="flux-pro" data-price="25000">
+          <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
+          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-desc">Хорошо для визуалов и фонов</div>
+        </div>
+
+        <div class="total">
+          <div>💵 Итого:</div>
+          <strong id="total-pres">25 000 токенов</strong>
+        </div>
+
+        <button class="btn btn-secondary" onclick="savePresentation()">✅ Сохранить настройки</button>
+        <button class="btn btn-primary" onclick="startPresentation()">▶️ Начать в боте</button>
+        <div class="status" id="status-pres">✅ Сохранено</div>
+      </div>
+    </div>
+
+    <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
+
+    function formatTokens(num) {
+      return (num || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+
+    function parseUserId() {
+      let userId = tg.initDataUnsafe?.user?.id;
+      if (!userId && tg.initData) {
+        try {
+          const params = new URLSearchParams(tg.initData);
+          const userStr = params.get('user');
+          if (userStr) userId = JSON.parse(userStr).id;
+        } catch (e) {}
+      }
+      if (!userId) userId = new URLSearchParams(window.location.search).get('user_id');
+      return userId ? parseInt(userId, 10) : null;
+    }
+    const userId = parseUserId();
+
+    function setTab(tab) {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      const el = document.querySelector(`.tab[data-tab="${tab}"]`);
+      if (el) el.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+      const panel = document.getElementById(`panel-${tab}`);
+      if (panel) panel.style.display = 'block';
+    }
+    document.getElementById('tabs')?.addEventListener('click', (e) => {
+      const t = e.target.closest?.('.tab');
+      if (!t) return;
+      setTab(t.dataset.tab);
+    });
+
+    function selectOne(selector, el) {
+      document.querySelectorAll(selector).forEach(x => x.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+
+    document.addEventListener('click', (e) => {
+      const cp = e.target.closest?.('.cover-platform');
+      if (cp) { selectOne('.cover-platform', cp); updateCoverSelected(); }
+      const cm = e.target.closest?.('.cover-model');
+      if (cm) { selectOne('.cover-model', cm); updateTotals(); }
+
+      const ls = e.target.closest?.('.logo-style');
+      if (ls) selectOne('.logo-style', ls);
+      const lc = e.target.closest?.('.logo-color');
+      if (lc) selectOne('.logo-color', lc);
+      const lm = e.target.closest?.('.logo-model');
+      if (lm) { selectOne('.logo-model', lm); updateTotals(); }
+
+      const pf = e.target.closest?.('.pres-format');
+      if (pf) selectOne('.pres-format', pf);
+      const pm = e.target.closest?.('.pres-model');
+      if (pm) { selectOne('.pres-model', pm); updateTotals(); }
+    });
+
+    function getSelected(selector) {
+      return document.querySelector(`${selector}.selected`);
+    }
+
+    function showSaved(id) {
+      const el = document.getElementById(id);
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    async function loadBalance() {
+      if (!userId) return;
+      try {
+        const resp = await fetch(`/api/image-settings/${userId}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.balance !== undefined) document.getElementById('balance').textContent = formatTokens(data.balance);
+      } catch (e) {}
+    }
+
+    function updateCoverSelected() {
+      const cp = getSelected('.cover-platform');
+      if (!cp) return;
+      const platform = cp.dataset.platform;
+      const size = cp.dataset.size;
+      const pretty = {
+        instagram_post: "Instagram Пост",
+        instagram_story: "Instagram Сторис",
+        youtube: "YouTube",
+        telegram: "Telegram",
+      }[platform] || platform;
+      document.getElementById('cover-selected').textContent = `✅ Выбрано: ${pretty} (${size})`;
+    }
+
+    function updateTotals() {
+      const c = getSelected('.cover-model');
+      if (c) document.getElementById('total-cover').textContent = `${formatTokens(parseInt(c.dataset.price,10))} токенов`;
+      const l = getSelected('.logo-model');
+      if (l) document.getElementById('total-logo').textContent = `${formatTokens(parseInt(l.dataset.price,10))} токенов`;
+      const p = getSelected('.pres-model');
+      if (p) document.getElementById('total-pres').textContent = `${formatTokens(parseInt(p.dataset.price,10))} токенов`;
+    }
+
+    async function saveExtra(extraPatch) {
+      const resp = await fetch('/api/image-settings/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, action: 'blogger', extra_settings: extraPatch })
+      });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || !result.success) throw new Error(result.error || 'save failed');
+    }
+
+    async function saveCover() {
+      const cp = getSelected('.cover-platform');
+      const cm = getSelected('.cover-model');
+      if (!cp || !cm) return;
+      const payload = {
+        blogger: {
+          cover: {
+            platform: cp.dataset.platform,
+            size: cp.dataset.size,
+            model: cm.dataset.model,
+            price: parseInt(cm.dataset.price, 10),
+          }
+        }
+      };
+      await saveExtra(payload);
+      showSaved('status-cover');
+    }
+
+    async function startCover() {
+      const cp = getSelected('.cover-platform');
+      const cm = getSelected('.cover-model');
+      if (!cp || !cm) return;
+      try { await saveCover(); } catch (e) {}
+      tg.sendData(JSON.stringify({
+        type: 'images_start',
+        action: 'blogger',
+        subtype: 'cover',
+        platform: cp.dataset.platform,
+        size: cp.dataset.size,
+        model: cm.dataset.model,
+        price: parseInt(cm.dataset.price, 10),
+      }));
+      tg.close();
+    }
+
+    async function saveLogo() {
+      const style = getSelected('.logo-style')?.dataset.style || 'icon';
+      const color = getSelected('.logo-color')?.dataset.color || 'green';
+      const lm = getSelected('.logo-model');
+      if (!lm) return;
+      const payload = {
+        blogger: {
+          logo: {
+            style, color,
+            model: lm.dataset.model,
+            price: parseInt(lm.dataset.price, 10),
+          }
+        }
+      };
+      await saveExtra(payload);
+      showSaved('status-logo');
+    }
+
+    async function startLogo() {
+      const style = getSelected('.logo-style')?.dataset.style || 'icon';
+      const color = getSelected('.logo-color')?.dataset.color || 'green';
+      const lm = getSelected('.logo-model');
+      if (!lm) return;
+      try { await saveLogo(); } catch (e) {}
+      tg.sendData(JSON.stringify({
+        type: 'images_start',
+        action: 'blogger',
+        subtype: 'logo',
+        style, color,
+        model: lm.dataset.model,
+        price: parseInt(lm.dataset.price, 10),
+      }));
+      tg.close();
+    }
+
+    async function savePresentation() {
+      const pf = getSelected('.pres-format');
+      const pm = getSelected('.pres-model');
+      if (!pf || !pm) return;
+      const payload = {
+        blogger: {
+          presentation: {
+            format: pf.dataset.format,
+            size: pf.dataset.size,
+            model: pm.dataset.model,
+            price: parseInt(pm.dataset.price, 10),
+          }
+        }
+      };
+      await saveExtra(payload);
+      showSaved('status-pres');
+    }
+
+    async function startPresentation() {
+      const pf = getSelected('.pres-format');
+      const pm = getSelected('.pres-model');
+      if (!pf || !pm) return;
+      try { await savePresentation(); } catch (e) {}
+      tg.sendData(JSON.stringify({
+        type: 'images_start',
+        action: 'blogger',
+        subtype: 'presentation',
+        format: pf.dataset.format,
+        size: pf.dataset.size,
+        model: pm.dataset.model,
+        price: parseInt(pm.dataset.price, 10),
+      }));
+      tg.close();
+    }
+
+    // init
+    loadBalance();
+    updateCoverSelected();
+    updateTotals();
+  </script>
+</body>
+</html>
+

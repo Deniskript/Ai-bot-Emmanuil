@@ -922,6 +922,36 @@ def images_settings():
         return f"Error: {e}", 500
 
 
+@app.route('/creativity/video')
+def creativity_video_settings():
+    """Telegram Mini App - Настройки видео (отдельная страница)"""
+    try:
+        return render_template('video_settings.html')
+    except Exception as e:
+        print(f"Error loading video settings: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/creativity/photo')
+def creativity_photo_settings():
+    """Telegram Mini App - Настройки фото (отдельная страница)"""
+    try:
+        return render_template('photo_settings.html')
+    except Exception as e:
+        print(f"Error loading photo settings: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/creativity/blogger')
+def creativity_blogger_settings():
+    """Telegram Mini App - Настройки для блогеров (отдельная страница)"""
+    try:
+        return render_template('blogger_settings.html')
+    except Exception as e:
+        print(f"Error loading blogger settings: {e}")
+        return f"Error: {e}", 500
+
+
 @app.route('/api/image-settings/<int:user_id>')
 def get_image_settings_api(user_id: int):
     """Получить настройки изображений и баланс"""
@@ -1013,12 +1043,21 @@ def save_image_settings_api():
             current[f"{action}_model"] = model
             current[f"{action}_price"] = price
 
+        def deep_merge(dst: dict, src: dict) -> dict:
+            """Глубокое merge для nested extra_settings (чтобы не затирать photo.*)."""
+            for k, v in (src or {}).items():
+                if isinstance(v, dict) and isinstance(dst.get(k), dict):
+                    dst[k] = deep_merge(dst.get(k, {}), v)
+                else:
+                    dst[k] = v
+            return dst
+
         # Обновляем расширенные настройки (merge)
         if isinstance(extra_patch, dict) and extra_patch:
             existing_extra = current.get("extra_settings") or {}
             if not isinstance(existing_extra, dict):
                 existing_extra = {}
-            existing_extra.update(extra_patch)
+            existing_extra = deep_merge(existing_extra, extra_patch)
             current["extra_settings"] = existing_extra
         
         logger.info(f"🔵 [Image Settings] Saving settings: {current}")

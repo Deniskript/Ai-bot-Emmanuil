@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul Bot - Видео</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container { max-width: 650px; margin: 0 auto; }
+
+        .header {
+            color: white;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .balance-badge {
+            background: rgba(255,255,255,0.16);
+            border: 1px solid rgba(255,255,255,0.28);
+            border-radius: 999px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .balance-amount {
+            font-weight: 800;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+        }
+
+        /* Режимы — вертикально, чтобы не "съезжало" на мобилках */
+        .modes {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .mode {
+            padding: 14px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .mode:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .mode.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        }
+
+        .mode-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .mode-title {
+            font-weight: 900;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .badge {
+            font-size: 12px;
+            font-weight: 800;
+            color: #667eea;
+            background: #f0f8ff;
+            border: 1px solid #dbeafe;
+            padding: 4px 10px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .hint {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.45;
+            margin-bottom: 14px;
+        }
+
+        .section-title {
+            font-weight: 800;
+            color: #333;
+            margin: 12px 0 8px;
+        }
+
+        .option {
+            padding: 14px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .option.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        }
+
+        .opt-name {
+            font-weight: 800;
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .opt-price {
+            color: #667eea;
+            font-weight: 800;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .opt-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            outline: none;
+        }
+
+        .toggle {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 14px;
+            color: #333;
+            margin-top: 10px;
+        }
+
+        .total {
+            margin-top: 14px;
+            padding: 12px;
+            border-radius: 12px;
+            background: #f0f8ff;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .total strong {
+            color: #667eea;
+            font-size: 16px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-top: 12px;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            margin-top: 10px;
+        }
+
+        .status {
+            padding: 12px;
+            background: #d4edda;
+            color: #155724;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 12px;
+            display: none;
+        }
+        .status.show { display: block; }
+
+        .btn-back {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">🎬 Видео</div>
+            <div class="balance-badge">
+                💰 Баланс: <span class="balance-amount" id="balance">0</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="modes" id="modes">
+                <div class="mode active" data-mode="text_to_video">
+                    <div class="mode-top">
+                        <div class="mode-title">🚀 Текст → Видео</div>
+                        <div class="badge">описание → ролик</div>
+                    </div>
+                    <div class="opt-desc" style="margin-top:6px;">Опишите сцену текстом — получаете видео</div>
+                </div>
+                <div class="mode" data-mode="photo_to_video">
+                    <div class="mode-top">
+                        <div class="mode-title">⚡ Фото → Видео</div>
+                        <div class="badge">оживить фото</div>
+                    </div>
+                    <div class="opt-desc" style="margin-top:6px;">Загружаете фото (можно с подписью) — получаете ролик</div>
+                </div>
+                <div class="mode" data-mode="animate_photo">
+                    <div class="mode-top">
+                        <div class="mode-title">✨ Анимация фото</div>
+                        <div class="badge">плавно</div>
+                    </div>
+                    <div class="opt-desc" style="margin-top:6px;">Мягкая анимация без резких “морфингов”</div>
+                </div>
+            </div>
+
+            <div class="hint">
+                Выберите режим и уровень качества. Запуск и отправка контента — в боте.
+            </div>
+
+            <div class="section-title">💰 Уровень</div>
+            <div class="option video-tier selected" data-tier="econom">
+                <div class="opt-name">🔥 Эконом (LTX)</div>
+                <div class="opt-price" data-tier-price>0 токенов</div>
+                <div class="opt-desc">Быстро и недорого • лучше для тестов</div>
+            </div>
+            <div class="option video-tier" data-tier="standard">
+                <div class="opt-name">⭐ Стандарт (Veo Fast)</div>
+                <div class="opt-price" data-tier-price>0 токенов</div>
+                <div class="opt-desc">Хорошее качество • можно включить аудио</div>
+            </div>
+            <div class="option video-tier" data-tier="premium">
+                <div class="opt-name">👑 Премиум (Sora / Kling)</div>
+                <div class="opt-price" data-tier-price>0 токенов</div>
+                <div class="opt-desc">Максимальное качество (дороже)</div>
+            </div>
+
+            <label class="toggle">
+                <input type="checkbox" id="audio" style="transform: scale(1.1);">
+                🔊 Аудио (если поддерживается уровнем)
+            </label>
+
+            <div class="row">
+                <div>
+                    <div class="hint" style="margin: 0 0 6px;">📐 Соотношение</div>
+                    <select id="aspect">
+                        <option value="16:9">16:9</option>
+                        <option value="9:16">9:16</option>
+                        <option value="1:1">1:1</option>
+                    </select>
+                </div>
+                <div>
+                    <div class="hint" style="margin: 0 0 6px;">⏱ Длительность</div>
+                    <select id="seconds">
+                        <option value="4">4 сек</option>
+                        <option value="5" selected>5 сек</option>
+                        <option value="8">8 сек</option>
+                        <option value="10">10 сек</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="total">
+                <div>💵 Итого:</div>
+                <strong id="totalTokens">0 токенов</strong>
+            </div>
+
+            <button class="btn btn-secondary" onclick="saveVideo()">✅ Сохранить настройки</button>
+            <button class="btn btn-primary" onclick="startInBot()">🎬 Начать в боте</button>
+            <div class="status" id="status">✅ Сохранено</div>
+        </div>
+
+        <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        function formatTokens(num) {
+            return (num || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function parseUserId() {
+            let userId = tg.initDataUnsafe?.user?.id;
+            if (!userId && tg.initData) {
+                try {
+                    const params = new URLSearchParams(tg.initData);
+                    const userStr = params.get('user');
+                    if (userStr) userId = JSON.parse(userStr).id;
+                } catch (e) {}
+            }
+            if (!userId) {
+                const urlParams = new URLSearchParams(window.location.search);
+                userId = urlParams.get('user_id');
+            }
+            return userId ? parseInt(userId, 10) : null;
+        }
+
+        const userId = parseUserId();
+
+        // Монетизация:
+        // - базовые стоимости держим в "рублях" только как внутренняя шкала
+        // - 1 рубль = 1000 токенов
+        // - пользователь платит с маржой x2
+        const RUB_TO_TOKENS = 1000;
+        const MARKUP_X = 2;
+        const VIDEO_PRICING_RUB = {
+            econom: {
+                text_to_video: { base: 12 },
+                photo_to_video: { base: 12 },
+                animate_photo: { base: 12 },
+            },
+            standard: {
+                text_to_video: { no_audio: 99, with_audio: 149 },
+                photo_to_video: { no_audio: 159, with_audio: 239 },
+                animate_photo: { no_audio: 159, with_audio: 239 },
+            },
+            premium: {
+                text_to_video: { s4: 99, s8: 198 },
+                // Kling i2v (в рублях): 5s ~89.9 / 10s ~179.9
+                photo_to_video: { s5: 89.9, s10: 179.9 },
+                animate_photo: { s5: 89.9, s10: 179.9 },
+            }
+        };
+
+        function getMode() {
+            return document.querySelector('.mode.active')?.dataset.mode || 'text_to_video';
+        }
+
+        function getTier() {
+            return document.querySelector('.video-tier.selected')?.dataset.tier || 'econom';
+        }
+
+        function computePriceTokens({ mode, tier, audio, seconds }) {
+            tier = tier || 'econom';
+            mode = mode || 'text_to_video';
+            seconds = parseInt(seconds || 5, 10);
+
+            if (tier === 'econom') {
+                const rub = (VIDEO_PRICING_RUB.econom[mode]?.base ?? 12);
+                return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+            }
+            if (tier === 'standard') {
+                const m = VIDEO_PRICING_RUB.standard[mode] || VIDEO_PRICING_RUB.standard.photo_to_video;
+                const rub = audio ? m.with_audio : m.no_audio;
+                return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+            }
+
+            // premium
+            if (mode === 'text_to_video') {
+                const rub = seconds >= 8 ? VIDEO_PRICING_RUB.premium.text_to_video.s8 : VIDEO_PRICING_RUB.premium.text_to_video.s4;
+                return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+            }
+            const rub = seconds >= 10 ? VIDEO_PRICING_RUB.premium.photo_to_video.s10 : VIDEO_PRICING_RUB.premium.photo_to_video.s5;
+            return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+        }
+
+        function updateTierPricesUI() {
+            const mode = getMode();
+            const isText = mode === 'text_to_video';
+
+            // Ограничение длительности для text->video: 4/8
+            const secondsSelect = document.getElementById('seconds');
+            if (secondsSelect) {
+                const allowed = isText ? ['4','8'] : ['4','5','8','10'];
+                const current = secondsSelect.value;
+                secondsSelect.innerHTML = allowed.map(v => {
+                    const label = `${v} сек`;
+                    const sel = (v === current) ? ' selected' : '';
+                    return `<option value="${v}"${sel}>${label}</option>`;
+                }).join('');
+                if (!allowed.includes(current)) secondsSelect.value = allowed[0];
+            }
+
+            // Обновляем видимые цены на уровнях (в токенах, уже с маржой)
+            const tiers = [
+                { key: 'econom', el: document.querySelector('.video-tier[data-tier="econom"]') },
+                { key: 'standard', el: document.querySelector('.video-tier[data-tier="standard"]') },
+                { key: 'premium', el: document.querySelector('.video-tier[data-tier="premium"]') },
+            ];
+
+            const audio = document.getElementById('audio')?.checked || false;
+            const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
+
+            tiers.forEach(t => {
+                const priceEl = t.el?.querySelector('[data-tier-price]');
+                if (!priceEl) return;
+
+                if (t.key === 'econom') {
+                    const tokens = computePriceTokens({ mode, tier: 'econom', audio, seconds });
+                    priceEl.textContent = `${formatTokens(tokens)} токенов`;
+                    return;
+                }
+                if (t.key === 'standard') {
+                    const tokens = computePriceTokens({ mode, tier: 'standard', audio, seconds });
+                    priceEl.textContent = `${formatTokens(tokens)} токенов`;
+                    return;
+                }
+                // premium
+                const tokens = computePriceTokens({ mode, tier: 'premium', audio, seconds });
+                priceEl.textContent = `${formatTokens(tokens)} токенов`;
+            });
+
+            updateTotal();
+        }
+
+        function updateTotal() {
+            const mode = getMode();
+            const tier = getTier();
+            const audio = document.getElementById('audio')?.checked || false;
+            const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
+            const tokens = computePriceTokens({ mode, tier, audio, seconds });
+            document.getElementById('totalTokens').textContent = `${formatTokens(tokens)} токенов`;
+            return tokens;
+        }
+
+        function selectTier(tier) {
+            document.querySelectorAll('.video-tier').forEach(x => x.classList.remove('selected'));
+            const el = document.querySelector(`.video-tier[data-tier="${tier}"]`);
+            if (el) el.classList.add('selected');
+            updateTotal();
+        }
+
+        function selectMode(mode) {
+            document.querySelectorAll('.mode').forEach(x => x.classList.remove('active'));
+            const el = document.querySelector(`.mode[data-mode="${mode}"]`);
+            if (el) el.classList.add('active');
+            updateTierPricesUI();
+        }
+
+        document.getElementById('modes')?.addEventListener('click', (e) => {
+            const modeEl = e.target.closest?.('.mode');
+            if (!modeEl) return;
+            selectMode(modeEl.dataset.mode);
+        });
+
+        document.addEventListener('click', (e) => {
+            const tier = e.target.closest?.('.video-tier');
+            if (!tier) return;
+            selectTier(tier.dataset.tier);
+        });
+
+        document.getElementById('audio')?.addEventListener('change', updateTierPricesUI);
+        document.getElementById('aspect')?.addEventListener('change', updateTotal);
+        document.getElementById('seconds')?.addEventListener('change', updateTierPricesUI);
+
+        async function loadSettings() {
+            if (!userId) return;
+            try {
+                const resp = await fetch(`/api/image-settings/${userId}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.balance !== undefined) document.getElementById('balance').textContent = formatTokens(data.balance);
+
+                const v = data.extra_settings?.video;
+                if (v) {
+                    if (v.mode) selectMode(v.mode);
+                    if (v.tier) selectTier(v.tier);
+                    if (v.audio !== undefined) document.getElementById('audio').checked = !!v.audio;
+                    if (v.aspect_ratio) document.getElementById('aspect').value = v.aspect_ratio;
+                    if (v.seconds) document.getElementById('seconds').value = String(v.seconds);
+                }
+                updateTierPricesUI();
+            } catch (e) {}
+        }
+
+        async function saveVideo() {
+            if (!userId) {
+                alert('Ошибка: не удалось определить пользователя');
+                return;
+            }
+            const mode = getMode();
+            const tier = getTier();
+            const audio = document.getElementById('audio')?.checked || false;
+            const aspect_ratio = document.getElementById('aspect')?.value || '16:9';
+            const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
+            const price = computePriceTokens({ mode, tier, audio, seconds });
+
+            const resp = await fetch('/api/image-settings/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    action: 'video',
+                    extra_settings: {
+                        video: { mode, tier, audio, aspect_ratio, seconds, price }
+                    }
+                })
+            });
+
+            const result = await resp.json().catch(() => ({}));
+            if (resp.ok && result.success) {
+                const el = document.getElementById('status');
+                el.classList.add('show');
+                setTimeout(() => el.classList.remove('show'), 2500);
+            } else {
+                alert('Ошибка сохранения: ' + (result.error || 'Unknown'));
+            }
+        }
+
+        async function startInBot() {
+            if (!userId) {
+                alert('Ошибка: не удалось определить пользователя');
+                return;
+            }
+            const mode = getMode();
+            const tier = getTier();
+            const audio = document.getElementById('audio')?.checked || false;
+            const aspect_ratio = document.getElementById('aspect')?.value || '16:9';
+            const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
+            const price = computePriceTokens({ mode, tier, audio, seconds });
+
+            try { await saveVideo(); } catch (e) {}
+
+            // Совместимость: текущий бот слушает type=images_start + action=video.
+            const payload = {
+                type: 'images_start',
+                action: 'video',
+                mode,
+                tier,
+                audio,
+                seconds,
+                aspect_ratio,
+                price
+            };
+            try {
+                tg.sendData(JSON.stringify(payload));
+                tg.close();
+            } catch (e) {
+                alert('Не удалось передать данные в бот');
+            }
+        }
+
+        // init
+        loadSettings();
+        updateTierPricesUI();
+    </script>
+</body>
+</html>
