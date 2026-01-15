@@ -267,15 +267,11 @@ async def process_text_advice(msg: Message, state: FSMContext):
         
         new_balance = await db.get_available_tokens(user_id)
         
-        # Конвертируем в HTML
-        resp_html = md_to_html(resp)
-        
         # Получаем кнопку диалога
-        dialog_kb = get_chat_button(conv_id, len(resp_html))
+        dialog_kb = get_chat_button(conv_id, len(resp))
         
-        # Отправляем финальный ответ с кнопкой
+        # Отправляем короткое info-сообщение с токенами и кнопкой
         await msg.answer(
-            f"{resp_html}\n\n"
             f"<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>",
             reply_markup=dialog_kb,
             parse_mode="HTML"
