@@ -166,9 +166,6 @@ async def create_course(msg: Message, state: FSMContext):
     last_messages[msg.from_user.id] = {"text": resp_clean, "course": cname, "step": 1}
     cleanup_cache(last_messages)  # Предотвращаем утечку памяти
     
-    # Проверяем, нужно ли превью
-    needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
-    
     # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
     keyboard = get_titus_keyboard(conv_id, len(resp_clean), msg.from_user.id)
     
@@ -194,16 +191,11 @@ async def create_course(msg: Message, state: FSMContext):
                 os.remove(audio_path)
             except:
                 pass
-        else:
-            # Fallback на текст
-            await msg.answer(
-                f"{display_text}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
-                reply_markup=keyboard
-            )
-    else:
-        # Текстовый ответ
+    
+    # Добавляем информацию о шаге и клавиатуру (только если не голосовой режим)
+    if not voice_enabled:
         await msg.answer(
-            f"{display_text}\n\n<i>📓 Обучение • Шаг 1/{steps}</i>",
+            f"<i>📓 Обучение • Шаг 1/{steps}</i>",
             reply_markup=keyboard
         )
 
@@ -829,25 +821,22 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     except Exception as e:
         print(f"Stream error in course_continue: {e}")
         raise
-    
+
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
-    
+
     await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
     await db.increment_requests(cb.from_user.id)
-    
+
     # Сохраняем в систему диалогов
     conv_id = await save_message(cb.from_user.id, 'assistant', resp_clean, 'titus')
-    
+
     last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
     cleanup_cache(last_messages)  # Предотвращаем утечку памяти
-    
-    # Проверяем, нужно ли превью
-    needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
-    
+
     # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
     keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
-    
+
     # Проверяем настройки голоса
     titus_settings = redis_db.get_titus_settings(cb.from_user.id) or {}
     voice_enabled = bool(titus_settings.get("voice_enabled", False))
@@ -870,16 +859,11 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
                 os.remove(audio_path)
             except:
                 pass
-        else:
-            # Fallback на текст
-            await cb.message.answer(
-                f"{display_text}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
-                reply_markup=keyboard
-            )
-    else:
-        # Текстовый ответ
+    
+    # Добавляем информацию о шаге и клавиатуру (только если не голосовой режим)
+    if not voice_enabled:
         await cb.message.answer(
-            f"{display_text}\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
+            f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
             reply_markup=keyboard
         )
 
@@ -944,9 +928,6 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
         last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
-        # Проверяем, нужно ли превью
-        needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
-        
         # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
         keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
         
@@ -972,16 +953,11 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                     os.remove(audio_path)
                 except:
                     pass
-            else:
-                # Fallback на текст
-                await cb.message.answer(
-                    f"{display_text}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
-                    reply_markup=keyboard
-                )
-        else:
-            # Текстовый ответ
+        
+        # Добавляем информацию и клавиатуру (только если не голосовой режим)
+        if not voice_enabled:
             await cb.message.answer(
-                f"{display_text}\n\n<i>📓 Обучение • Повторение сложных тем</i>",
+                f"<i>📓 Обучение • Повторение сложных тем</i>",
                 reply_markup=keyboard
             )
     except Exception as e:
