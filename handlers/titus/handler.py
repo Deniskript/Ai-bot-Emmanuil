@@ -7,7 +7,7 @@ import json
 import base64
 import asyncio
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
@@ -362,7 +362,13 @@ async def video_analysis_start(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.video_analysis)
     await msg.answer(
         texts.VIDEO_ANALYSIS_START,
-        reply_markup=reply.back_kb()
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="📂 Мои конспекты", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/video-notes?user_id={msg.from_user.id}"))],
+                [KeyboardButton(text="◀️ Назад")],
+            ],
+            resize_keyboard=True
+        )
     )
 
 
@@ -376,12 +382,19 @@ async def video_analysis_back(msg: Message, state: FSMContext):
 async def video_analysis_process(msg: Message, state: FSMContext):
     from youtube_transcript_api import YouTubeTranscriptApi
     import re as regex
+    import time
+    
+    user_id = msg.from_user.id
+    start_time = time.time()
+    print(f"[VIDEO] Начало анализа для пользователя {user_id}")
     
     # Проверка токенов
-    remaining = await db.get_available_tokens(msg.from_user.id)
+    remaining = await db.get_available_tokens(user_id)
     if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(user_id))
         return
+    
+    print(f"[VIDEO] Токены проверены: {time.time() - start_time:.2f}с")
     
     # Извлечение video_id из ссылки
     video_id = None
@@ -401,26 +414,35 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         await msg.answer(texts.VIDEO_ANALYSIS_INVALID_LINK, reply_markup=reply.back_kb())
         return
     
+    print(f"[VIDEO] Video ID извлечён: {video_id}, время: {time.time() - start_time:.2f}с")
+    
     status = await msg.answer(texts.VIDEO_ANALYSIS_EXTRACTING)
     
     try:
         # Получаем субтитры
+        print(f"[VIDEO] Начало загрузки субтитров: {time.time() - start_time:.2f}с")
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        print(f"[VIDEO] Субтитры получены: {time.time() - start_time:.2f}с")
         
         # Пытаемся получить русские или английские субтитры
         transcript = None
         try:
             transcript = transcript_list.find_transcript(['ru', 'en'])
+            print(f"[VIDEO] Найдены субтитры: {time.time() - start_time:.2f}с")
         except:
             transcript = transcript_list.find_generated_transcript(['ru', 'en'])
+            print(f"[VIDEO] Найдены автосубтитры: {time.time() - start_time:.2f}с")
         
         if not transcript:
-            await status.edit_text("❌ У этого видео нет субтитров", reply_markup=reply.back_kb())
+            print(f"[VIDEO] Субтитры не найдены: {time.time() - start_time:.2f}с")
+            await status.edit_text("❌ У этого видео нет субтитров")
             return
         
         # Получаем текст
+        print(f"[VIDEO] Начало загрузки текста субтитров: {time.time() - start_time:.2f}с")
         captions = transcript.fetch()
         full_text = " ".join([entry['text'] for entry in captions])
+        print(f"[VIDEO] Текст получен ({len(full_text)} символов): {time.time() - start_time:.2f}с")
         
         # Ограничиваем длину (макс 50к символов)
         if len(full_text) > 50000:
@@ -429,6 +451,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         await status.edit_text(f"✅ Субтитры получены ({len(full_text)} символов)\n⏳ Анализирую...")
         
         # Анализ через Gemini Flash (дешёвая модель)
+        print(f"[VIDEO] Начало AI анализа: {time.time() - start_time:.2f}с")
         analysis_prompt = f"""Проанализируй это видео по субтитрам и составь структурированный конспект:
 
 {full_text}
@@ -442,42 +465,59 @@ async def video_analysis_process(msg: Message, state: FSMContext):
 Формат: структурированно, с эмодзи, понятно."""
         
         resp, tok = await ask([{"role": "user", "content": analysis_prompt}], VIDEO_ANALYSIS_MODEL)
+        print(f"[VIDEO] AI анализ завершён: {time.time() - start_time:.2f}с")
         
         await status.delete()
         
         resp_clean = clean_response(resp)
         
         # Списываем токены
-        await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
-        await db.increment_requests(msg.from_user.id)
+        print(f"[VIDEO] Списание токенов: {time.time() - start_time:.2f}с")
+        await db.use_tokens_smart(user_id, tok, 'titus')
+        await db.increment_requests(user_id)
         
         # Сохраняем в систему диалогов
-        conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
+        print(f"[VIDEO] Сохранение в диалоги: {time.time() - start_time:.2f}с")
+        conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
+
+        # Сохраняем конспект в PostgreSQL (для WebApp "Мои конспекты")
+        try:
+            print(f"[VIDEO] Сохранение в PostgreSQL: {time.time() - start_time:.2f}с")
+            from database.postgres_db import add_video_note
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            title = f"YouTube {video_id}"
+            await add_video_note(user_id, title=title, url=url, text=resp_clean, source="YouTube")
+        except Exception as e:
+            print(f"[VIDEO] Ошибка сохранения в PostgreSQL: {e}")
         
         # Сохраняем в last_messages
-        last_messages[msg.from_user.id] = {"text": resp_clean, "course": "Анализ видео", "step": 1}
+        last_messages[user_id] = {"text": resp_clean, "course": "Анализ видео", "step": 1}
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
         # Проверяем, нужно ли превью
         needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
         
         # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
-        keyboard = get_titus_keyboard(conv_id, len(resp_clean), msg.from_user.id)
+        keyboard = get_titus_keyboard(conv_id, len(resp_clean), user_id)
         
+        print(f"[VIDEO] Отправка результата пользователю: {time.time() - start_time:.2f}с")
         await msg.answer(
             f"📚 <b>Анализ видео</b>\n\n{display_text}",
             reply_markup=keyboard
         )
         
         await state.set_state(TitusSt.menu)
-        await msg.answer(texts.VIDEO_ANALYSIS_COMPLETED, reply_markup=reply.study_kb(msg.from_user.id))
+        await msg.answer(texts.VIDEO_ANALYSIS_COMPLETED, reply_markup=reply.study_kb(user_id))
+        
+        print(f"[VIDEO] ✅ ГОТОВО! Общее время: {time.time() - start_time:.2f}с")
         
     except Exception as e:
         error_msg = str(e)
+        print(f"[VIDEO] ❌ ОШИБКА на {time.time() - start_time:.2f}с: {error_msg}")
         if "Subtitles are disabled" in error_msg or "transcript" in error_msg.lower():
-            await status.edit_text(texts.VIDEO_ANALYSIS_NO_SUBTITLES, reply_markup=reply.back_kb())
+            await status.edit_text(texts.VIDEO_ANALYSIS_NO_SUBTITLES)
         else:
-            await status.edit_text(f"❌ Ошибка: {error_msg[:200]}", reply_markup=reply.back_kb())
+            await status.edit_text(f"❌ Ошибка: {error_msg[:200]}")
 
 
 @router.message(TitusSt.menu, F.text == "🔍 Помощь")

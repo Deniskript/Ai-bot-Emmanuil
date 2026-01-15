@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soul Bot - Креатив</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0ea5e9 0%, #a855f7 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 740px; margin: 0 auto; }
+    .header {
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom: 16px;
+    }
+    .title { font-size: 22px; font-weight: 900; }
+    .balance-badge {
+      background: rgba(255,255,255,0.16);
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 999px;
+      padding: 8px 12px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      white-space: nowrap;
+    }
+    .balance-amount { font-weight: 900; }
+    .card {
+      background:#fff;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    }
+    /* Tabs */
+    .tabs { display:grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+    @media (min-width: 720px) { .tabs { grid-template-columns: repeat(3, 1fr); } }
+    .tab {
+      padding: 14px;
+      border-radius: 12px;
+      border: 2px solid #e9ecef;
+      background:#fff;
+      cursor:pointer;
+      transition: all 0.2s;
+      user-select:none;
+      min-height: 78px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      text-align:left;
+    }
+    .tab:hover { border-color:#0ea5e9; background:#f0fbff; }
+    .tab.active { border-color:#0ea5e9; background: linear-gradient(135deg, #0ea5e915 0%, #a855f715 100%); }
+    .tab-title { font-weight: 900; color:#333; font-size:15px; margin-bottom:4px; }
+    .tab-desc { color:#666; font-size:12.5px; line-height:1.3; }
+
+    .hint { font-size: 13px; color:#666; line-height:1.45; margin-bottom:14px; }
+    .section-title { font-weight: 900; color:#333; margin: 12px 0 8px; }
+
+    .grid3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .grid4 { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 720px) { .grid4 { grid-template-columns: repeat(4, 1fr); } }
+
+    .mini {
+      padding: 12px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      cursor: pointer;
+      user-select:none;
+      min-height: 82px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      text-align:center;
+      gap:6px;
+    }
+    .mini.selected { border-color:#0ea5e9; background: linear-gradient(135deg, #0ea5e915 0%, #a855f715 100%); }
+    .mini .m1 { font-weight: 900; color:#333; font-size:13px; }
+    .mini .m2 { font-size:12px; color:#666; }
+
+    .option {
+      padding: 14px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      cursor:pointer;
+      transition: all 0.2s;
+    }
+    .option:hover { border-color:#0ea5e9; background:#f0fbff; }
+    .option.selected { border-color:#0ea5e9; background: linear-gradient(135deg, #0ea5e915 0%, #a855f715 100%); }
+    .opt-name { font-weight: 900; font-size: 15px; color:#333; margin-bottom:4px; }
+    .opt-price { color:#0ea5e9; font-weight: 900; font-size:13px; margin-bottom:4px; }
+    .opt-desc { font-size:13px; color:#666; line-height:1.4; }
+
+    .pill {
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      background:#f0fbff;
+      border-left: 4px solid #0ea5e9;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color:#333;
+      margin-top: 10px;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 14px;
+      outline: none;
+      resize: vertical;
+    }
+    textarea:focus { border-color:#0ea5e9; }
+
+    .total {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f0fbff;
+      border-left: 4px solid #0ea5e9;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .total strong { color:#0ea5e9; font-size:16px; }
+    .btn {
+      width:100%;
+      padding:14px;
+      border:none;
+      border-radius:12px;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btn-secondary { background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%); color:#fff; margin-top:10px; }
+    .btn-primary { background: linear-gradient(135deg, #0ea5e9 0%, #a855f7 100%); color:#fff; margin-top:12px; }
+    .status {
+      padding: 12px;
+      background: #d4edda;
+      color: #155724;
+      border-radius: 10px;
+      text-align:center;
+      margin-top: 12px;
+      display:none;
+    }
+    .status.show { display:block; }
+    .btn-back {
+      width:100%;
+      padding:14px;
+      background:#fff;
+      color:#0ea5e9;
+      border:2px solid #0ea5e9;
+      border-radius:12px;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+      margin-top:14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">🎭 Креатив</div>
+      <div class="balance-badge">💰 Баланс: <span class="balance-amount" id="balance">0</span></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="style">
+          <div class="tab-title">🎨 Стили</div>
+          <div class="tab-desc">Применить к фото</div>
+        </div>
+        <div class="tab" data-tab="meme">
+          <div class="tab-title">😂 Мемы</div>
+          <div class="tab-desc">Создать/шаблон</div>
+        </div>
+        <div class="tab" data-tab="effect">
+          <div class="tab-title">🎪 Эффекты</div>
+          <div class="tab-desc">Огонь/магия…</div>
+        </div>
+      </div>
+
+      <!-- STYLE -->
+      <div class="panel" id="panel-style">
+        <div class="hint">Загрузите фото в боте — получите результат в выбранном стиле.</div>
+
+        <div class="section-title">🎨 Выберите стиль</div>
+        <div class="grid3">
+          <div class="mini style-preset selected" data-style="anime"><div class="m1">🎌 Аниме</div><div class="m2">японская анимация</div></div>
+          <div class="mini style-preset" data-style="oil"><div class="m1">🖼 Масло</div><div class="m2">живопись</div></div>
+          <div class="mini style-preset" data-style="pixel"><div class="m1">👾 Пиксель</div><div class="m2">8-bit</div></div>
+          <div class="mini style-preset" data-style="3d"><div class="m1">🎮 3D</div><div class="m2">рендер</div></div>
+          <div class="mini style-preset" data-style="neon"><div class="m1">✨ Неон</div><div class="m2">свечение</div></div>
+          <div class="mini style-preset" data-style="retro"><div class="m1">🌅 Ретро</div><div class="m2">плёнка</div></div>
+        </div>
+        <div class="pill">
+          ✅ Выбрано: <b id="style-selected">Аниме</b>
+          <span style="color:#666;" id="style-desc">Превратит фото в стиль японской анимации</span>
+        </div>
+
+        <div class="section-title">✏️ Свой стиль</div>
+        <div class="pill" style="margin-top:0;">
+          <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer; width:100%;">
+            <input id="style-custom-enabled" type="checkbox" style="margin-top:2px;">
+            <span style="width:100%;">
+              <b>Описать стиль текстом</b><br>
+              <span style="color:#666;">Например: “в стиле Ван Гога, яркие мазки, звёздная ночь…”</span>
+            </span>
+          </label>
+        </div>
+        <div id="style-custom-wrap" style="display:none; margin-top:10px;">
+          <textarea id="style-custom-text" placeholder="📝 Опишите стиль..."></textarea>
+        </div>
+
+        <div class="section-title">💎 Модель</div>
+        <div class="option style-model" data-model="econom" data-price="10000">
+          <div class="opt-name">💰 Эконом — FLUX schnell</div>
+          <div class="opt-price">10 000 токенов</div>
+          <div class="opt-desc">Быстро и просто</div>
+        </div>
+        <div class="option style-model selected" data-model="standard" data-price="15000">
+          <div class="opt-name">⭐ Стандарт — FLUX 1.1</div>
+          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-desc">Лучшее качество/сходство</div>
+        </div>
+        <div class="option style-model" data-model="premium" data-price="25000">
+          <div class="opt-name">👑 Премиум — FLUX Pro</div>
+          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-desc">Максимум деталей</div>
+        </div>
+
+        <div class="total"><div>💵 Итого:</div><strong id="total-style">15 000 токенов</strong></div>
+        <button class="btn btn-secondary" onclick="saveStyle()">✅ Сохранить настройки</button>
+        <button class="btn btn-primary" onclick="startStyle()">▶️ Начать в боте</button>
+        <div class="status" id="status-style">✅ Сохранено</div>
+      </div>
+
+      <!-- MEME -->
+      <div class="panel" id="panel-meme" style="display:none;">
+        <div class="hint">Сделаем мем: либо новый по идее, либо на популярном шаблоне. Текст будет без ошибок (рисуется ботом).</div>
+
+        <div class="section-title">🧩 Режим</div>
+        <div class="option meme-mode selected" data-mode="create">
+          <div class="opt-name">🆕 Создать новый мем</div>
+          <div class="opt-desc">Опишите идею в боте — AI сделает картинку</div>
+        </div>
+        <div class="option meme-mode" data-mode="template">
+          <div class="opt-name">📋 Использовать шаблон</div>
+          <div class="opt-desc">Выберите шаблон + введите верх/низ</div>
+        </div>
+
+        <div id="meme-template-wrap" style="display:none;">
+          <div class="section-title">🖼 Шаблон</div>
+          <div class="grid4">
+            <div class="mini meme-template" data-template="grumpy_cat"><div class="m1">🐱 Grumpy</div><div class="m2">Cat</div></div>
+            <div class="mini meme-template selected" data-template="doge"><div class="m1">🐕 Doge</div><div class="m2">&nbsp;</div></div>
+            <div class="mini meme-template" data-template="hide_pain"><div class="m1">👴 Hide</div><div class="m2">Pain</div></div>
+            <div class="mini meme-template" data-template="think"><div class="m1">🤔 Think</div><div class="m2">&nbsp;</div></div>
+          </div>
+
+          <div class="section-title">📝 Текст для мема</div>
+          <textarea id="meme-text-top" placeholder="Верх: ..."></textarea>
+          <div style="height:10px;"></div>
+          <textarea id="meme-text-bottom" placeholder="Низ: ..."></textarea>
+        </div>
+
+        <div class="section-title">💎 Модель</div>
+        <div class="option meme-model selected" data-model="econom" data-price="15000">
+          <div class="opt-name">💰 Эконом — FLUX 1.1</div>
+          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-desc">Для мемов — достаточно</div>
+        </div>
+        <div class="option meme-model" data-model="standard" data-price="30000">
+          <div class="opt-name">⭐ Стандарт — Banana Pro</div>
+          <div class="opt-price">30 000 токенов</div>
+          <div class="opt-desc">Более точная композиция</div>
+        </div>
+
+        <div class="total"><div>💵 Итого:</div><strong id="total-meme">15 000 токенов</strong></div>
+        <button class="btn btn-secondary" onclick="saveMeme()">✅ Сохранить настройки</button>
+        <button class="btn btn-primary" onclick="startMeme()">▶️ Начать в боте</button>
+        <div class="status" id="status-meme">✅ Сохранено</div>
+      </div>
+
+      <!-- EFFECT -->
+      <div class="panel" id="panel-effect" style="display:none;">
+        <div class="hint">Загрузите фото в боте — добавим выбранный эффект (реалистично и аккуратно).</div>
+
+        <div class="section-title">🎪 Выберите эффект</div>
+        <div class="grid4">
+          <div class="mini effect-preset selected" data-effect="fire"><div class="m1">🔥 Огонь</div><div class="m2">пламя</div></div>
+          <div class="mini effect-preset" data-effect="lightning"><div class="m1">⚡ Молния</div><div class="m2">разряд</div></div>
+          <div class="mini effect-preset" data-effect="magic"><div class="m1">💫 Магия</div><div class="m2">аура</div></div>
+          <div class="mini effect-preset" data-effect="water"><div class="m1">🌊 Вода</div><div class="m2">брызги</div></div>
+          <div class="mini effect-preset" data-effect="ice"><div class="m1">❄️ Лёд</div><div class="m2">иней</div></div>
+          <div class="mini effect-preset" data-effect="fireworks"><div class="m1">🎆 Фейер.</div><div class="m2">салют</div></div>
+          <div class="mini effect-preset" data-effect="ghost"><div class="m1">👻 Призрак</div><div class="m2">дымка</div></div>
+          <div class="mini effect-preset" data-effect="rainbow"><div class="m1">🌈 Радуга</div><div class="m2">градиент</div></div>
+        </div>
+        <div class="pill">
+          ✅ Выбрано: <b id="effect-selected">Огонь</b>
+          <span style="color:#666;" id="effect-desc">Добавит реалистичное пламя на фото</span>
+        </div>
+
+        <div class="section-title">💎 Модель</div>
+        <div class="option effect-model" data-model="econom" data-price="10000">
+          <div class="opt-name">💰 Эконом</div>
+          <div class="opt-price">10 000 токенов</div>
+          <div class="opt-desc">Быстро</div>
+        </div>
+        <div class="option effect-model selected" data-model="standard" data-price="15000">
+          <div class="opt-name">⭐ Стандарт</div>
+          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-desc">Лучший баланс</div>
+        </div>
+        <div class="option effect-model" data-model="premium" data-price="25000">
+          <div class="opt-name">👑 Премиум</div>
+          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-desc">Максимум качества</div>
+        </div>
+
+        <div class="total"><div>💵 Итого:</div><strong id="total-effect">15 000 токенов</strong></div>
+        <button class="btn btn-secondary" onclick="saveEffect()">✅ Сохранить настройки</button>
+        <button class="btn btn-primary" onclick="startEffect()">▶️ Начать в боте</button>
+        <div class="status" id="status-effect">✅ Сохранено</div>
+      </div>
+    </div>
+
+    <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
+
+    function formatTokens(num) {
+      return (num || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+    function parseUserId() {
+      let userId = tg.initDataUnsafe?.user?.id;
+      if (!userId && tg.initData) {
+        try {
+          const params = new URLSearchParams(tg.initData);
+          const userStr = params.get('user');
+          if (userStr) userId = JSON.parse(userStr).id;
+        } catch (e) {}
+      }
+      if (!userId) userId = new URLSearchParams(window.location.search).get('user_id');
+      return userId ? parseInt(userId, 10) : null;
+    }
+    const userId = parseUserId();
+
+    const STYLE_META = {
+      anime: ["Аниме", "Превратит фото в стиль японской анимации"],
+      oil: ["Масло", "Сделает как художественную живопись"],
+      pixel: ["Пиксель", "Пиксель‑арт, 8‑бит стиль"],
+      "3d": ["3D", "Похоже на 3D‑рендер"],
+      neon: ["Неон", "Яркие неоновые огни"],
+      retro: ["Ретро", "Плёночная атмосфера и винтаж"],
+    };
+    const EFFECT_META = {
+      fire: ["Огонь", "Добавит реалистичное пламя на фото"],
+      lightning: ["Молния", "Электрические разряды и вспышки"],
+      magic: ["Магия", "Сияние/аура вокруг объекта"],
+      water: ["Вода", "Брызги/волны/влага"],
+      ice: ["Лёд", "Иней/ледяные кристаллы"],
+      fireworks: ["Фейерверк", "Салют и искры на фоне"],
+      ghost: ["Призрак", "Дымка/прозрачные силуэты"],
+      rainbow: ["Радуга", "Радужный свет/градиент"],
+    };
+
+    function setTab(tab) {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      const el = document.querySelector(`.tab[data-tab="${tab}"]`);
+      if (el) el.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+      const panel = document.getElementById(`panel-${tab}`);
+      if (panel) panel.style.display = 'block';
+    }
+    document.getElementById('tabs')?.addEventListener('click', (e) => {
+      const t = e.target.closest?.('.tab');
+      if (!t) return;
+      setTab(t.dataset.tab);
+    });
+    function selectOne(selector, el) {
+      document.querySelectorAll(selector).forEach(x => x.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+    function getSelected(selector) { return document.querySelector(`${selector}.selected`); }
+    function showSaved(id) {
+      const el = document.getElementById(id);
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    function updateStyleMeta() {
+      const s = getSelected('.style-preset')?.dataset.style || 'anime';
+      const [name, desc] = STYLE_META[s] || [s, ""];
+      document.getElementById('style-selected').textContent = name;
+      document.getElementById('style-desc').textContent = desc;
+    }
+    function updateEffectMeta() {
+      const s = getSelected('.effect-preset')?.dataset.effect || 'fire';
+      const [name, desc] = EFFECT_META[s] || [s, ""];
+      document.getElementById('effect-selected').textContent = name;
+      document.getElementById('effect-desc').textContent = desc;
+    }
+    function updateMemeMode() {
+      const mode = getSelected('.meme-mode')?.dataset.mode || 'create';
+      document.getElementById('meme-template-wrap').style.display = (mode === 'template') ? 'block' : 'none';
+    }
+    function updateTotals() {
+      const s = getSelected('.style-model');
+      if (s) document.getElementById('total-style').textContent = `${formatTokens(parseInt(s.dataset.price,10))} токенов`;
+      const m = getSelected('.meme-model');
+      if (m) document.getElementById('total-meme').textContent = `${formatTokens(parseInt(m.dataset.price,10))} токенов`;
+      const e = getSelected('.effect-model');
+      if (e) document.getElementById('total-effect').textContent = `${formatTokens(parseInt(e.dataset.price,10))} токенов`;
+    }
+
+    document.addEventListener('click', (e) => {
+      const sp = e.target.closest?.('.style-preset');
+      if (sp) { selectOne('.style-preset', sp); updateStyleMeta(); }
+      const sm = e.target.closest?.('.style-model');
+      if (sm) { selectOne('.style-model', sm); updateTotals(); }
+      const mm = e.target.closest?.('.meme-mode');
+      if (mm) { selectOne('.meme-mode', mm); updateMemeMode(); }
+      const mt = e.target.closest?.('.meme-template');
+      if (mt) { selectOne('.meme-template', mt); }
+      const mmodel = e.target.closest?.('.meme-model');
+      if (mmodel) { selectOne('.meme-model', mmodel); updateTotals(); }
+      const ep = e.target.closest?.('.effect-preset');
+      if (ep) { selectOne('.effect-preset', ep); updateEffectMeta(); }
+      const em = e.target.closest?.('.effect-model');
+      if (em) { selectOne('.effect-model', em); updateTotals(); }
+    });
+    document.getElementById('style-custom-enabled')?.addEventListener('change', (e) => {
+      document.getElementById('style-custom-wrap').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    async function loadBalance() {
+      if (!userId) return;
+      try {
+        const resp = await fetch(`/api/image-settings/${userId}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.balance !== undefined) document.getElementById('balance').textContent = formatTokens(data.balance);
+      } catch (e) {}
+    }
+    async function saveExtra(extraPatch) {
+      const resp = await fetch('/api/image-settings/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, action: 'creative', extra_settings: extraPatch })
+      });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || !result.success) throw new Error(result.error || 'save failed');
+    }
+
+    async function loadCreativeSettings() {
+      if (!userId) return;
+      try {
+        const resp = await fetch(`/api/image-settings/${userId}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const extra = data?.extra_settings || {};
+        const creative = extra?.creative || {};
+
+        if (creative?.style) {
+          const sp = document.querySelector(`.style-preset[data-style="${creative.style.style}"]`);
+          if (sp) selectOne('.style-preset', sp);
+          const sm = document.querySelector(`.style-model[data-model="${creative.style.model}"]`);
+          if (sm) selectOne('.style-model', sm);
+          const ce = document.getElementById('style-custom-enabled');
+          const cw = document.getElementById('style-custom-wrap');
+          const ct = document.getElementById('style-custom-text');
+          if (ce) ce.checked = !!creative.style.custom_text;
+          if (cw) cw.style.display = ce && ce.checked ? 'block' : 'none';
+          if (ct) ct.value = creative.style.custom_text || '';
+          updateStyleMeta();
+        }
+
+        if (creative?.meme) {
+          const mm = document.querySelector(`.meme-mode[data-mode="${creative.meme.mode}"]`);
+          if (mm) selectOne('.meme-mode', mm);
+          updateMemeMode();
+          const mt = document.querySelector(`.meme-template[data-template="${creative.meme.template}"]`);
+          if (mt) selectOne('.meme-template', mt);
+          const mmodel = document.querySelector(`.meme-model[data-model="${creative.meme.model}"]`);
+          if (mmodel) selectOne('.meme-model', mmodel);
+          const top = document.getElementById('meme-text-top');
+          const bottom = document.getElementById('meme-text-bottom');
+          if (top) top.value = creative.meme.text_top || '';
+          if (bottom) bottom.value = creative.meme.text_bottom || '';
+        }
+
+        if (creative?.effect) {
+          const ep = document.querySelector(`.effect-preset[data-effect="${creative.effect.effect}"]`);
+          if (ep) selectOne('.effect-preset', ep);
+          const em = document.querySelector(`.effect-model[data-model="${creative.effect.model}"]`);
+          if (em) selectOne('.effect-model', em);
+          updateEffectMeta();
+        }
+        updateTotals();
+      } catch (e) {}
+    }
+
+    async function saveStyle() {
+      const style = getSelected('.style-preset')?.dataset.style || 'anime';
+      const m = getSelected('.style-model');
+      const isCustom = !!document.getElementById('style-custom-enabled')?.checked;
+      const customText = isCustom ? (document.getElementById('style-custom-text')?.value || '').trim() : null;
+      const payload = { creative: { last_subtype: 'style', style: { style, custom_text: customText, model: m.dataset.model, price: parseInt(m.dataset.price,10) } } };
+      await saveExtra(payload);
+      showSaved('status-style');
+    }
+    async function startStyle() {
+      const style = getSelected('.style-preset')?.dataset.style || 'anime';
+      const m = getSelected('.style-model');
+      const isCustom = !!document.getElementById('style-custom-enabled')?.checked;
+      const customText = isCustom ? (document.getElementById('style-custom-text')?.value || '').trim() : null;
+      try { await saveStyle(); } catch (e) {}
+      tg.sendData(JSON.stringify({ type:'images_start', action:'creative', subtype:'style', style, custom_text: customText, model: m.dataset.model, price: parseInt(m.dataset.price,10) }));
+      tg.close();
+    }
+
+    async function saveMeme() {
+      const mode = getSelected('.meme-mode')?.dataset.mode || 'create';
+      const m = getSelected('.meme-model');
+      const template = getSelected('.meme-template')?.dataset.template || 'doge';
+      const top = (document.getElementById('meme-text-top')?.value || '').trim();
+      const bottom = (document.getElementById('meme-text-bottom')?.value || '').trim();
+      const payload = { creative: { last_subtype: 'meme', meme: { mode, template, text_top: top, text_bottom: bottom, model: m.dataset.model, price: parseInt(m.dataset.price,10) } } };
+      await saveExtra(payload);
+      showSaved('status-meme');
+    }
+    async function startMeme() {
+      const mode = getSelected('.meme-mode')?.dataset.mode || 'create';
+      const m = getSelected('.meme-model');
+      const template = getSelected('.meme-template')?.dataset.template || 'doge';
+      const top = (document.getElementById('meme-text-top')?.value || '').trim();
+      const bottom = (document.getElementById('meme-text-bottom')?.value || '').trim();
+      try { await saveMeme(); } catch (e) {}
+      tg.sendData(JSON.stringify({ type:'images_start', action:'creative', subtype:'meme', mode, template, text_top: top, text_bottom: bottom, model: m.dataset.model, price: parseInt(m.dataset.price,10) }));
+      tg.close();
+    }
+
+    async function saveEffect() {
+      const effect = getSelected('.effect-preset')?.dataset.effect || 'fire';
+      const m = getSelected('.effect-model');
+      const payload = { creative: { last_subtype: 'effect', effect: { effect, model: m.dataset.model, price: parseInt(m.dataset.price,10) } } };
+      await saveExtra(payload);
+      showSaved('status-effect');
+    }
+    async function startEffect() {
+      const effect = getSelected('.effect-preset')?.dataset.effect || 'fire';
+      const m = getSelected('.effect-model');
+      try { await saveEffect(); } catch (e) {}
+      tg.sendData(JSON.stringify({ type:'images_start', action:'creative', subtype:'effect', effect, model: m.dataset.model, price: parseInt(m.dataset.price,10) }));
+      tg.close();
+    }
+
+    // init
+    loadBalance();
+    loadCreativeSettings();
+    updateStyleMeta();
+    updateEffectMeta();
+    updateMemeMode();
+    updateTotals();
+  </script>
+</body>
+</html>
+

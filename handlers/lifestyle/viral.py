@@ -471,7 +471,18 @@ async def process_video(msg: Message, state: FSMContext):
         await status.edit_text("🎬 Анализирую видео...\n\n<i>Это может занять до минуты</i>", reply_markup=cancel_kb, parse_mode="HTML")
         
         # Анализируем через ProxyAPI Vision
-        analysis = await analyze_video_frames(frames)
+        try:
+            analysis = await analyze_video_frames(frames)
+        except Exception as vision_error:
+            # Если Vision API отказался, используем текстовый анализ
+            error_msg = str(vision_error)
+            if "отказался анализировать" in error_msg or "I'm sorry" in error_msg or "I can't assist" in error_msg:
+                await status.edit_text("⚠️ Анализ кадров недоступен.\n💡 Используйте <b>💬 Текстовый совет</b> - опишите своё видео текстом, и я дам рекомендации!", parse_mode="HTML", reply_markup=None)
+                cleanup_temp_files(temp_files)
+                await state.clear()
+                return
+            else:
+                raise vision_error
         
         # Проверка на отмену перед отправкой
         data = await state.get_data()
@@ -609,7 +620,18 @@ async def process_link(msg: Message, state: FSMContext):
         await status.edit_text("🎬 Анализирую видео...\n\n<i>Это может занять до минуты</i>", reply_markup=cancel_kb, parse_mode="HTML")
         
         # Анализируем
-        analysis = await analyze_video_frames(frames)
+        try:
+            analysis = await analyze_video_frames(frames)
+        except Exception as vision_error:
+            # Если Vision API отказался, используем текстовый анализ
+            error_msg = str(vision_error)
+            if "отказался анализировать" in error_msg or "I'm sorry" in error_msg or "I can't assist" in error_msg:
+                await status.edit_text("⚠️ Анализ кадров недоступен.\n💡 Используйте <b>💬 Текстовый совет</b> - опишите своё видео текстом, и я дам рекомендации!", parse_mode="HTML", reply_markup=None)
+                cleanup_temp_files(temp_files)
+                await state.clear()
+                return
+            else:
+                raise vision_error
         
         # Проверка на отмену перед отправкой
         data = await state.get_data()
@@ -700,14 +722,25 @@ async def analyze_video_frames(frames: list) -> str:
     from config import OPENAI_API_KEY as PROXYAPI_KEY
     
     # Конвертируем кадры в base64
-    content = [{"type": "text", "text": VIRAL_EXPERT_PROMPT}]
+    content = [
+        {
+            "type": "text", 
+            "text": f"""{VIRAL_EXPERT_PROMPT}
+
+Проанализируй эти {len(frames)} кадров из короткого видео (TikTok/Reels/Shorts). 
+Дай конкретные рекомендации по улучшению для достижения вирусности."""
+        }
+    ]
     
-    for frame_path in frames:
+    for i, frame_path in enumerate(frames, 1):
         with open(frame_path, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode()
         content.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{img_base64}",
+                "detail": "high"
+            }
         })
     
     # Запрос к ProxyAPI
@@ -719,7 +752,8 @@ async def analyze_video_frames(frames: list) -> str:
     payload = {
         "model": "gpt-4o",
         "messages": [{"role": "user", "content": content}],
-        "max_tokens": 2000
+        "max_tokens": 2000,
+        "temperature": 0.7
     }
     
     async with aiohttp.ClientSession() as session:
@@ -735,6 +769,10 @@ async def analyze_video_frames(frames: list) -> str:
             
             result = await resp.json()
             raw_response = result["choices"][0]["message"]["content"]
+            
+            # Проверяем на отказ
+            if "I'm sorry" in raw_response or "I can't assist" in raw_response or "I cannot" in raw_response:
+                raise Exception("Vision API отказался анализировать видео. Попробуйте другое видео или используйте текстовый совет.")
             
             # Форматируем ответ красиво
             formatted = format_viral_response(raw_response)

@@ -150,6 +150,405 @@ async def _get_user_blogger_settings(user_id: int) -> dict:
     return blogger if isinstance(blogger, dict) else {}
 
 
+async def _get_user_creative_settings(user_id: int) -> dict:
+    """Настройки креатива из extra_settings.creative."""
+    from database.postgres_db import get_image_settings
+    settings = await get_image_settings(user_id)
+    extra = settings.get("extra_settings") or {}
+    creative = extra.get("creative") if isinstance(extra, dict) else None
+    return creative if isinstance(creative, dict) else {}
+
+
+def _resolve_creative_model(subtype: str, tier: str) -> str:
+    """Tier from WebApp -> VseGPT model_id."""
+    subtype = (subtype or "").lower()
+    tier = (tier or "standard").lower()
+
+    # meme is text2img; style/effect are img2img
+    if subtype == "meme":
+        if tier in ("econom", "economy", "mini"):
+            return "img-flux/schnell"
+        if tier in ("standard", "pro", "flux-1.1"):
+            return "img-flux/flux-2"
+        return "img-flux/kontext-max"
+
+    # style/effect
+    if tier in ("econom", "economy", "mini"):
+        return "img2img-google/flash-edit"
+    if tier in ("standard", "pro", "flux-1.1"):
+        return "img2img-flux/kontext-pro-edit"
+    return "img2img-flux/kontext-max-edit"
+
+
+def _overlay_meme_text(image_bytes: bytes, top: str, bottom: str) -> bytes:
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+    pad = int(h * 0.06)
+    font_size = int(h * 0.09)
+    font = _load_font(max(18, font_size))
+    stroke = max(2, int(h * 0.004))
+
+    def draw_centered(text: str, y: int):
+        if not text:
+            return
+        max_w = int(w * 0.92)
+        lines = _wrap_text(draw, text.upper(), font, max_w)
+        line_h = int(font.size * 1.10) if hasattr(font, "size") else int(font_size * 1.10)
+        total_h = len(lines) * line_h
+        cy = y - total_h // 2
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            lw = bbox[2] - bbox[0]
+            x = (w - lw) // 2
+            draw.text((x, cy), line, font=font, fill=(255, 255, 255, 255),
+                      stroke_width=stroke, stroke_fill=(0, 0, 0, 200))
+            cy += line_h
+
+    draw_centered(top.strip(), pad + int(font.size * 0.8))
+    draw_centered(bottom.strip(), h - pad - int(font.size * 0.8))
+
+    out = io.BytesIO()
+    img.convert("RGB").save(out, format="PNG")
+    out.seek(0)
+    return out.read()
+
+
+# --- Meme templates (local-by-URL with caching) ---
+_MEME_TEMPLATE_URLS: dict[str, str] = {
+    # imgflip stable CDN-ish links
+    "doge": "https://i.imgflip.com/4t0m5.jpg",
+    "grumpy_cat": "https://i.imgflip.com/8p0a.jpg",
+    "hide_pain": "https://i.imgflip.com/gk5el.jpg",
+    "think": "https://i.imgflip.com/1otk96.jpg",
+}
+_MEME_TEMPLATE_CACHE: dict[str, bytes] = {}
+
+
+async def _fetch_bytes(url: str) -> bytes:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Template download failed {resp.status}")
+            return await resp.read()
+
+
+async def _get_meme_template_image(template_key: str) -> bytes:
+    key = (template_key or "doge").strip().lower()
+    if key in _MEME_TEMPLATE_CACHE:
+        return _MEME_TEMPLATE_CACHE[key]
+    url = _MEME_TEMPLATE_URLS.get(key) or _MEME_TEMPLATE_URLS["doge"]
+    b = await _fetch_bytes(url)
+    # normalize to PNG
+    img = Image.open(io.BytesIO(b)).convert("RGB")
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    out.seek(0)
+    res = out.read()
+    _MEME_TEMPLATE_CACHE[key] = res
+    return res
+
+
+def _parse_meme_top_bottom(text: str) -> tuple[str, str]:
+    t = (text or "").strip()
+    if not t:
+        return "", ""
+    lines = [x.strip() for x in t.splitlines() if x.strip()]
+    top = ""
+    bottom = ""
+    for ln in lines:
+        low = ln.lower()
+        if low.startswith("верх"):
+            top = ln.split(":", 1)[1].strip() if ":" in ln else ln[4:].strip()
+        elif low.startswith("низ"):
+            bottom = ln.split(":", 1)[1].strip() if ":" in ln else ln[3:].strip()
+    if top or bottom:
+        return top, bottom
+    # fallback: first line top, second line bottom
+    top = lines[0] if lines else ""
+    bottom = lines[1] if len(lines) > 1 else ""
+    return top, bottom
+
+
+async def creative_start(message: Message, state: FSMContext, user_id: int | None = None):
+    user_id = user_id or message.from_user.id
+    data = await state.get_data()
+
+    # If started via "again" without payload — load saved settings
+    if not data.get("creative_subtype"):
+        saved = await _get_user_creative_settings(user_id)
+        last = (saved.get("last_subtype") or "style").strip().lower()
+        if last == "style":
+            s = saved.get("style") if isinstance(saved.get("style"), dict) else {}
+            await state.update_data(
+                creative_subtype="style",
+                creative_style=s.get("style", "anime"),
+                creative_custom_text=s.get("custom_text"),
+                creative_model=s.get("model", "standard"),
+                creative_price=s.get("price", 15000),
+            )
+        elif last == "meme":
+            s = saved.get("meme") if isinstance(saved.get("meme"), dict) else {}
+            await state.update_data(
+                creative_subtype="meme",
+                creative_meme_mode=s.get("mode", "create"),
+                creative_meme_template=s.get("template", "doge"),
+                creative_meme_top=s.get("text_top"),
+                creative_meme_bottom=s.get("text_bottom"),
+                creative_model=s.get("model", "econom"),
+                creative_price=s.get("price", 15000),
+            )
+        else:
+            s = saved.get("effect") if isinstance(saved.get("effect"), dict) else {}
+            await state.update_data(
+                creative_subtype="effect",
+                creative_effect=s.get("effect", "fire"),
+                creative_model=s.get("model", "standard"),
+                creative_price=s.get("price", 15000),
+            )
+        data = await state.get_data()
+
+    subtype = (data.get("creative_subtype") or "style").strip().lower()
+    price = int(data.get("creative_price") or 0)
+
+    tokens = await get_available_tokens_web(user_id)
+    if price > 0 and tokens < price:
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    if subtype == "meme":
+        mode = (data.get("creative_meme_mode") or "create").strip().lower()
+        if mode == "template":
+            # if texts already provided from WebApp, generate immediately
+            if (data.get("creative_meme_top") or data.get("creative_meme_bottom")):
+                await creative_generate_meme(message, state, user_id=user_id)
+                return
+            await state.set_state(ImageStates.waiting_creative_meme_idea)
+            await message.answer(
+                "<b>😂 Мем (шаблон)</b>\n\n"
+                f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+                "📝 Напишите текст для мема:\n"
+                "Верх: ...\n"
+                "Низ: ...\n\n"
+                "<i>Текст будет без ошибок (рисуется ботом).</i>",
+                reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+                parse_mode="HTML",
+            )
+            return
+        await state.set_state(ImageStates.waiting_creative_meme_idea)
+        await message.answer(
+            "<b>😂 Мем</b>\n\n"
+            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+            "📝 Напишите идею мема (1–2 предложения).\n"
+            "<i>Текст на картинке будет без ошибок (рисуется ботом).</i>",
+            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+            parse_mode="HTML",
+        )
+        return
+
+    # style/effect need a photo
+    await state.set_state(ImageStates.waiting_creative_photo)
+    if subtype == "style":
+        style = (data.get("creative_style") or "anime").strip().lower()
+        custom = (data.get("creative_custom_text") or "").strip()
+        style_h = {
+            "anime": "🎌 Аниме",
+            "oil": "🖼 Масло",
+            "pixel": "👾 Пиксель",
+            "3d": "🎮 3D",
+            "neon": "✨ Неон",
+            "retro": "🌅 Ретро",
+        }.get(style, style)
+        extra = f"\n<b>Свой стиль:</b> {custom}" if custom else ""
+        await message.answer(
+            "<b>🎨 Стиль</b>\n\n"
+            f"<b>Выбрано:</b> {style_h}{extra}\n"
+            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+            "📸 Отправьте фото, к которому применить стиль.",
+            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+            parse_mode="HTML",
+        )
+        return
+
+    effect = (data.get("creative_effect") or "fire").strip().lower()
+    effect_h = {
+        "fire": "🔥 Огонь",
+        "lightning": "⚡ Молния",
+        "magic": "💫 Магия",
+        "water": "🌊 Вода",
+        "ice": "❄️ Лёд",
+        "fireworks": "🎆 Фейерверк",
+        "ghost": "👻 Призрак",
+        "rainbow": "🌈 Радуга",
+    }.get(effect, effect)
+    await message.answer(
+        "<b>🎪 Эффект</b>\n\n"
+        f"<b>Выбрано:</b> {effect_h}\n"
+        f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+        "📸 Отправьте фото — добавлю эффект аккуратно.",
+        reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
+        parse_mode="HTML",
+    )
+
+
+async def creative_generate_meme(message: Message, state: FSMContext, *, user_id: int):
+    data = await state.get_data()
+    price = int(data.get("creative_price") or 0)
+    tier = data.get("creative_model") or "econom"
+    model_id = _resolve_creative_model("meme", str(tier))
+
+    mode = (data.get("creative_meme_mode") or "create").strip().lower()
+    template = (data.get("creative_meme_template") or "doge").strip().lower()
+    top = (data.get("creative_meme_top") or "").strip()
+    bottom = (data.get("creative_meme_bottom") or "").strip()
+    idea = (data.get("creative_meme_idea") or "").strip()
+
+    tokens = await get_available_tokens_web(user_id)
+    if price > 0 and tokens < price:
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    status = await message.answer("😂 Генерирую мем... 20–60 сек")
+    try:
+        if mode == "template":
+            img_bytes = await _get_meme_template_image(template)
+        else:
+            prompt_en = await _to_english(idea)
+            prompt = (
+                f"Create a funny meme image for this idea: {prompt_en}. "
+                "Leave empty space at top and bottom for captions. "
+                "No text, no watermark."
+            )
+            img_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=None)
+        if top or bottom:
+            img_bytes = _overlay_meme_text(img_bytes, top, bottom)
+
+        if price > 0:
+            await use_tokens_smart_web(user_id, price, bot_name="images")
+        new_balance = await get_available_tokens_web(user_id)
+
+        await status.delete()
+        await message.answer_photo(
+            BufferedInputFile(img_bytes, filename="meme.png"),
+            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("creative"),
+            parse_mode="HTML",
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("creative"),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        await state.clear()
+
+
+async def creative_meme_idea(message: Message, state: FSMContext):
+    """impl; decorator is defined below after ImageStates."""
+    text = (message.text or "").strip()
+    data = await state.get_data()
+    mode = (data.get("creative_meme_mode") or "create").strip().lower()
+    if mode == "template":
+        top, bottom = _parse_meme_top_bottom(text)
+        if not (top or bottom):
+            await message.answer("⚠️ Добавьте текст. Например:\nВерх: ...\nНиз: ...")
+            return
+        await state.update_data(creative_meme_top=top, creative_meme_bottom=bottom, creative_meme_idea="")
+        await creative_generate_meme(message, state, user_id=message.from_user.id)
+        return
+    if len(text) < 3:
+        await message.answer("⚠️ Слишком коротко. Опишите идею подробнее.")
+        return
+    await state.update_data(creative_meme_idea=text, creative_meme_top="", creative_meme_bottom="")
+    await creative_generate_meme(message, state, user_id=message.from_user.id)
+
+
+async def creative_process_photo(message: Message, state: FSMContext):
+    """impl; decorator is defined below after ImageStates."""
+    user_id = message.from_user.id
+    data = await state.get_data()
+    subtype = (data.get("creative_subtype") or "").strip().lower()
+    price = int(data.get("creative_price") or 0)
+    tier = data.get("creative_model") or "standard"
+    model_id = _resolve_creative_model(subtype, str(tier))
+
+    tokens = await get_available_tokens_web(user_id)
+    if price > 0 and tokens < price:
+        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+        await state.clear()
+        return
+
+    # download photo
+    photo = message.photo[-1]
+    file = await bot.get_file(photo.file_id)
+    bio = io.BytesIO()
+    await bot.download_file(file.file_path, bio)
+    jpeg_bytes = _convert_to_jpeg(bio.getvalue())
+
+    status = await message.answer("🎨 Обрабатываю фото... 20–60 сек")
+    try:
+        if subtype == "style":
+            style = (data.get("creative_style") or "anime").strip().lower()
+            custom = (data.get("creative_custom_text") or "").strip()
+            preset = {
+                "anime": "Transform the photo into high-quality japanese anime style.",
+                "oil": "Transform the photo into an oil painting with visible brush strokes.",
+                "pixel": "Transform the photo into pixel art (8-bit), keep the subject recognizable.",
+                "3d": "Transform the photo into a clean 3D render style.",
+                "neon": "Add neon lighting and glowing accents, cyberpunk mood.",
+                "retro": "Make it retro film look, vintage colors and grain.",
+            }.get(style, f"Transform the photo into {style} style.")
+            if custom:
+                preset = f"Transform the photo into this style: {await _to_english(custom)}."
+            prompt = (
+                f"{preset} Preserve the person's identity, face, age, and key features. "
+                "No text, no watermark."
+            )
+        else:
+            effect = (data.get("creative_effect") or "fire").strip().lower()
+            preset = {
+                "fire": "Add realistic fire/flames effects around the subject, safe and natural.",
+                "lightning": "Add dramatic lightning/electric arcs in the scene.",
+                "magic": "Add magical glow/aura and particles around the subject.",
+                "water": "Add realistic water splashes and wet reflections.",
+                "ice": "Add ice/frost crystals and cold mist effects.",
+                "fireworks": "Add fireworks/sparks in the background.",
+                "ghost": "Add ghostly mist and translucent silhouettes, subtle.",
+                "rainbow": "Add soft rainbow light beams and gradients.",
+            }.get(effect, f"Add {effect} visual effect.")
+            prompt = (
+                f"{preset} Preserve the person's identity, face, age, and key features. "
+                "No text, no watermark."
+            )
+
+        out_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=jpeg_bytes)
+
+        if price > 0:
+            await use_tokens_smart_web(user_id, price, bot_name="images")
+        new_balance = await get_available_tokens_web(user_id)
+
+        await status.delete()
+        await message.answer_photo(
+            BufferedInputFile(out_bytes, filename="creative.png"),
+            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            reply_markup=_done_inline_kb("creative"),
+            parse_mode="HTML",
+        )
+        await message.answer(
+            "✨ <b>Готово!</b> Что делаем дальше?",
+            reply_markup=_flow_done_kb("creative"),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        await state.clear()
+
+
 def _load_font(size: int) -> ImageFont.ImageFont:
     # Prefer DejaVu (usually present on Ubuntu)
     for path in (
@@ -389,6 +788,8 @@ class ImageStates(StatesGroup):
     waiting_for_photo_with_caption = State()  # Новое состояние: фото с подписью в одном сообщении
     waiting_process_photo = State()
     waiting_blogger_prompt = State()
+    waiting_creative_photo = State()
+    waiting_creative_meme_idea = State()
     waiting_video_confirm = State()
     waiting_video_text = State()
     waiting_video_photo = State()
@@ -489,6 +890,16 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
         await state.clear()
 
 
+@router.message(ImageStates.waiting_creative_meme_idea, F.text)
+async def creative_meme_idea_handler(message: Message, state: FSMContext):
+    await creative_meme_idea(message, state)
+
+
+@router.message(ImageStates.waiting_creative_photo, F.photo)
+async def creative_process_photo_handler(message: Message, state: FSMContext):
+    await creative_process_photo(message, state)
+
+
 @router.message(F.text.in_(["🎨 Творчество", "📷 Фото", "📸 Фото"]))
 async def photo_menu(message: Message):
     """Показать меню творчества (WebApp-кнопки)"""
@@ -518,6 +929,27 @@ async def handle_images_webapp_data(message: Message, state: FSMContext):
         payload = json.loads(raw) if raw else {}
     except Exception:
         payload = {}
+
+    # other webapps may send data too (e.g., video notes share)
+    if payload.get("type") == "video_notes_share":
+        try:
+            from database.postgres_db import get_video_note
+            note_id = int(payload.get("note_id") or 0)
+            note = await get_video_note(message.from_user.id, note_id)
+            if not note:
+                await message.answer("⚠️ Конспект не найден.")
+                return
+            await message.answer(
+                f"📂 <b>Конспект</b>\n\n"
+                f"🎬 <b>{note['title']}</b>\n"
+                f"🔗 {note['url']}\n"
+                f"📅 {note['date_label']}\n\n"
+                f"{note['text']}",
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            await message.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        return
 
     if payload.get("type") != "images_start":
         return
@@ -560,6 +992,20 @@ async def handle_images_webapp_data(message: Message, state: FSMContext):
             blogger_price=payload.get("price"),
         )
         await blogger_start(message, state)
+    elif action == "creative":
+        await state.update_data(
+            creative_subtype=payload.get("subtype"),
+            creative_style=payload.get("style"),
+            creative_custom_text=payload.get("custom_text"),
+            creative_effect=payload.get("effect"),
+            creative_meme_mode=payload.get("mode"),
+            creative_meme_template=payload.get("template"),
+            creative_meme_top=payload.get("text_top"),
+            creative_meme_bottom=payload.get("text_bottom"),
+            creative_model=payload.get("model"),
+            creative_price=payload.get("price"),
+        )
+        await creative_start(message, state)
     else:
         await message.answer("⚠️ Неизвестное действие. Откройте ⚙️ Настройки и попробуйте снова.", reply_markup=photo_kb(message.from_user.id))
 
@@ -903,6 +1349,7 @@ def _flow_done_kb(kind: str) -> ReplyKeyboardMarkup:
         "video": "🔁 Ещё видео",
         "process": "🔁 Обработать ещё",
         "blogger": "🔁 Ещё дизайн",
+        "creative": "🔁 Ещё креатив",
     }.get(kind, "🔁 Ещё раз")
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -923,6 +1370,7 @@ def _done_inline_kb(kind: str) -> InlineKeyboardMarkup:
         "video": "🔁 Ещё видео",
         "process": "🔁 Обработать ещё",
         "blogger": "🔁 Ещё дизайн",
+        "creative": "🔁 Ещё креатив",
     }.get(kind, "🔁 Ещё раз")
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -1375,7 +1823,7 @@ async def cancel_operation(message: Message, state: FSMContext):
     await message.answer("❌ Операция отменена", reply_markup=photo_kb(message.from_user.id))
 
 
-@router.message(F.text.in_(["🔁 Создать ещё", "🔁 Улучшить ещё", "🔁 Редактировать ещё", "🔁 Ещё видео", "🔁 Обработать ещё", "🔁 Ещё дизайн"]))
+@router.message(F.text.in_(["🔁 Создать ещё", "🔁 Улучшить ещё", "🔁 Редактировать ещё", "🔁 Ещё видео", "🔁 Обработать ещё", "🔁 Ещё дизайн", "🔁 Ещё креатив"]))
 async def flow_again(message: Message, state: FSMContext):
     """Повторить сценарий после результата."""
     await state.clear()
@@ -1394,6 +1842,9 @@ async def flow_again(message: Message, state: FSMContext):
         return
     if "дизайн" in t.lower():
         await blogger_start(message, state)
+        return
+    if "креатив" in t.lower():
+        await creative_start(message, state)
         return
     await create_photo_start(message, state)
 
@@ -1424,6 +1875,9 @@ async def cb_flow_again(cb: CallbackQuery, state: FSMContext):
         return
     if kind == "blogger":
         await blogger_start(cb.message, state, user_id=cb.from_user.id)
+        return
+    if kind == "creative":
+        await creative_start(cb.message, state, user_id=cb.from_user.id)
         return
     await create_photo_start(cb.message, state, user_id=cb.from_user.id)
 

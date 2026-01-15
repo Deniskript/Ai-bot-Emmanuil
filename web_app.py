@@ -952,6 +952,79 @@ def creativity_blogger_settings():
         return f"Error: {e}", 500
 
 
+@app.route('/creativity/creative')
+def creativity_creative_settings():
+    """Telegram Mini App - Настройки креатива (отдельная страница)"""
+    try:
+        return render_template('creative_settings.html')
+    except Exception as e:
+        print(f"Error loading creative settings: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/creativity/video-notes')
+def creativity_video_notes():
+    """Telegram Mini App - Мои конспекты (видео-анализ)"""
+    try:
+        return render_template('video_notes.html')
+    except Exception as e:
+        print(f"Error loading video notes: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/api/video-notes/list/<int:user_id>')
+def api_video_notes_list(user_id: int):
+    """Список конспектов пользователя"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        from database.postgres_db import list_video_notes
+        notes = loop.run_until_complete(list_video_notes(user_id))
+        return jsonify({"notes": notes})
+    except Exception as e:
+        print(f"Error in api_video_notes_list: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/video-notes/get/<int:user_id>/<int:note_id>')
+def api_video_notes_get(user_id: int, note_id: int):
+    """Получить один конспект"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        from database.postgres_db import get_video_note
+        note = loop.run_until_complete(get_video_note(user_id, note_id))
+        if not note:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"note": note})
+    except Exception as e:
+        print(f"Error in api_video_notes_get: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/video-notes/delete', methods=['POST'])
+def api_video_notes_delete():
+    """Удалить конспект"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        from database.postgres_db import delete_video_note
+        data = request.get_json() or {}
+        user_id = int(data.get("user_id"))
+        note_id = int(data.get("note_id"))
+        ok = loop.run_until_complete(delete_video_note(user_id, note_id))
+        return jsonify({"success": bool(ok)})
+    except Exception as e:
+        print(f"Error in api_video_notes_delete: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/api/image-settings/<int:user_id>')
 def get_image_settings_api(user_id: int):
     """Получить настройки изображений и баланс"""

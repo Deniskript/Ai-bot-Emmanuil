@@ -425,6 +425,18 @@ async def init_db():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_user_image_settings_user ON user_image_settings(user_id);
+
+    -- Конспекты по анализу видео (YouTube)
+    CREATE TABLE IF NOT EXISTS video_notes (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        source TEXT DEFAULT 'YouTube',
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_video_notes_user_date ON video_notes(user_id, created_at DESC);
     
     CREATE TABLE IF NOT EXISTS pair_sessions (
         id SERIAL PRIMARY KEY,
@@ -2873,3 +2885,85 @@ async def save_image_settings(user_id: int, settings: dict) -> bool:
             extra_settings_json
         )
         return True
+
+
+# ===========================
+# === VIDEO NOTES (Titus) ===
+# ===========================
+
+async def add_video_note(user_id: int, *, title: str, url: str, text: str, source: str = "YouTube") -> int:
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO video_notes (user_id, source, title, url, text)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+            """,
+            int(user_id), source, title, url, text
+        )
+        return int(row["id"]) if row else 0
+
+
+async def list_video_notes(user_id: int) -> List[Dict]:
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, source, title, url, text, created_at
+            FROM video_notes
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT 200
+            """,
+            int(user_id)
+        )
+        out: List[Dict] = []
+        for r in rows:
+            full = r["text"] or ""
+            preview = full.replace("\r", "").replace("\n", " ").strip()
+            if len(preview) > 90:
+                preview = preview[:90].rstrip() + "…"
+            out.append({
+                "id": int(r["id"]),
+                "source": r["source"] or "YouTube",
+                "title": r["title"] or "Видео",
+                "url": r["url"] or "",
+                "text": full,
+                "date_label": r["created_at"].strftime("%d %b %Y") if r["created_at"] else "",
+                "preview": preview or "—",
+            })
+        return out
+
+
+async def get_video_note(user_id: int, note_id: int) -> Optional[Dict]:
+    async with get_connection() as conn:
+        r = await conn.fetchrow(
+            """
+            SELECT id, source, title, url, text, created_at
+            FROM video_notes
+            WHERE user_id = $1 AND id = $2
+            """,
+            int(user_id), int(note_id)
+        )
+        if not r:
+            return None
+        return {
+            "id": int(r["id"]),
+            "source": r["source"] or "YouTube",
+            "title": r["title"] or "Видео",
+            "url": r["url"] or "",
+            "text": r["text"] or "",
+            "date_label": r["created_at"].strftime("%d %B %Y") if r["created_at"] else "",
+        }
+
+
+async def delete_video_note(user_id: int, note_id: int) -> bool:
+    async with get_connection() as conn:
+        res = await conn.execute(
+            "DELETE FROM video_notes WHERE user_id = $1 AND id = $2",
+            int(user_id), int(note_id)
+        )
+        try:
+            n = int(str(res).split()[-1])
+            return n > 0
+        except Exception:
+            return False
