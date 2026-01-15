@@ -54,8 +54,7 @@ async def stream_response(
     first_chunk = True
     stream_msg = None
     full_response = ""
-    sentence_buffer = ""
-    displayed_text = ""
+    buffer = ""
     last_update = asyncio.get_event_loop().time()
     
     try:
@@ -65,40 +64,41 @@ async def stream_response(
                 continue
             
             full_response += chunk
-            sentence_buffer += chunk
+            buffer += chunk
             now = asyncio.get_event_loop().time()
             
             # При первом chunk - выключаем статус и создаем сообщение
             if first_chunk:
                 first_chunk = False
                 await status.stop()
-                # Небольшая задержка чтобы статус удалился
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05)
                 stream_msg = await message.answer(chunk, parse_mode=None)
-                displayed_text = chunk
                 last_update = now
                 continue
             
-            # Обновляем текст блоками
-            if stream_msg:
-                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')) or len(sentence_buffer) >= 30:
-                    displayed_text += sentence_buffer
-                    sentence_buffer = ""
-                    
-                    if now - last_update >= 0.8:
-                        formatted = md_to_html(displayed_text)
-                        try:
-                            await stream_msg.edit_text(formatted + " ▌", parse_mode="HTML")
-                            last_update = now
-                        except:
+            # Обновляем экран каждые 30 символов или 0.5 секунды
+            if stream_msg and buffer:
+                should_update = (
+                    len(buffer) >= 30 or 
+                    now - last_update >= 0.5 or
+                    '\n' in buffer[-5:]
+                )
+                
+                if should_update:
+                    formatted = md_to_html(full_response)
+                    try:
+                        await stream_msg.edit_text(formatted + " ▌", parse_mode="HTML")
+                        buffer = ""
+                        last_update = now
+                        await asyncio.sleep(0.05)
+                    except Exception as e:
+                        # Игнорируем ошибки "message not modified"
+                        if "message is not modified" not in str(e).lower():
                             pass
         
-        # Добавляем остаток и финальное обновление
-        displayed_text += sentence_buffer
-        resp = full_response.strip()
-        
-        if stream_msg and displayed_text:
-            formatted = md_to_html(displayed_text)
+        # Финальное обновление без курсора
+        if stream_msg and full_response:
+            formatted = md_to_html(full_response.strip())
             try:
                 await stream_msg.edit_text(formatted, parse_mode="HTML")
             except:
@@ -109,7 +109,7 @@ async def stream_response(
             await status.stop()
             return ""
         
-        return resp
+        return full_response.strip()
         
     except Exception as e:
         # При ошибке — выключаем статус
