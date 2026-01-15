@@ -13,6 +13,7 @@ from utils.calories import (
     calculate_macros, format_date, get_meal_time, format_calories_summary
 )
 from utils.markdown import md_to_html
+from utils.status_manager import show_status
 from config import OPENAI_API_KEY as PROXYAPI_KEY
 import base64
 import aiohttp
@@ -91,8 +92,7 @@ async def wait_food_photo(msg: Message, state: FSMContext):
 @router.message(HealthStates.wait_photo, F.photo)
 async def analyze_food_photo(msg: Message, state: FSMContext):
     """Анализ фото еды через ProxyAPI Vision"""
-    processing = await msg.answer("🔍 Анализирую фото...")
-    
+    status = await show_status(msg.bot, msg.chat.id, "photo")
     try:
         # Скачиваем фото
         photo = msg.photo[-1]
@@ -170,7 +170,6 @@ async def analyze_food_photo(msg: Message, state: FSMContext):
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
         
-        await processing.delete()
         await msg.answer(
             f"{response}\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -180,7 +179,10 @@ async def analyze_food_photo(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        await processing.edit_text(f"❌ Ошибка анализа фото:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await msg.answer(f"❌ Ошибка анализа фото:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(HealthStates.calories_menu, F.text == "✏️ Записать вручную")
@@ -205,9 +207,7 @@ async def analyze_manual_input(msg: Message, state: FSMContext):
         await state.set_state(HealthStates.calories_menu)
         await calories_menu(msg, state)
         return
-    
-    processing = await msg.answer("🔍 Считаю калории...")
-    
+    status = await show_status(msg.bot, msg.chat.id, "text")
     try:
         prompt = f"""
 Пользователь съел: {msg.text}
@@ -239,7 +239,6 @@ async def analyze_manual_input(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.delete()
         await msg.answer(
             f"{md_to_html(response)}\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -249,7 +248,10 @@ async def analyze_manual_input(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        await processing.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await msg.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ========== СОХРАНЕНИЕ В ЖУРНАЛ ==========
@@ -501,8 +503,7 @@ async def nutrition_menu(msg: Message, state: FSMContext):
 @router.message(HealthStates.nutrition_menu, F.text == "📋 Что поесть сейчас?")
 async def what_to_eat(msg: Message, state: FSMContext):
     """Рекомендации что поесть сейчас"""
-    processing = await msg.answer("🔍 Анализирую твой журнал...")
-    
+    status = await show_status(msg.bot, msg.chat.id, "text")
     try:
         # Получаем данные
         goal = await db.get_nutrition_goal(msg.from_user.id)
@@ -510,7 +511,7 @@ async def what_to_eat(msg: Message, state: FSMContext):
         print(f"[DEBUG] what_to_eat: user {msg.from_user.id}, goal: {goal}")
         
         if not goal:
-            await processing.edit_text(
+            await msg.answer(
                 "⚠️ <b>Сначала установи цель!</b>\n\n"
                 "Нажми 🎯 Моя цель и введи свои данные.\n"
                 "Тогда я смогу давать персональные рекомендации.",
@@ -569,27 +570,27 @@ async def what_to_eat(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.delete()
         await msg.answer(md_to_html(response), parse_mode="HTML")
         
     except Exception as e:
         print(f"[ERROR] Error in what_to_eat: {e}")
         import traceback
         traceback.print_exc()
-        await processing.delete()
         await msg.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(HealthStates.nutrition_menu, F.text == "📅 План на день")
 async def day_plan(msg: Message, state: FSMContext):
     """Составить план питания на день"""
-    processing = await msg.answer("📝 Составляю план...")
-    
+    status = await show_status(msg.bot, msg.chat.id, "text")
     try:
         goal = await db.get_nutrition_goal(msg.from_user.id)
         
         if not goal:
-            await processing.edit_text(
+            await msg.answer(
                 "⚠️ Сначала установи цель!\n\n"
                 "Нажми <b>🎯 Моя цель</b> чтобы настроить",
                 parse_mode="HTML"
@@ -629,11 +630,13 @@ async def day_plan(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.delete()
         await msg.answer(md_to_html(response), parse_mode="HTML")
         
     except Exception as e:
-        await processing.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await msg.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(HealthStates.nutrition_menu, F.text == "🎯 Моя цель")
@@ -786,15 +789,14 @@ async def process_goal_data(msg: Message, state: FSMContext):
 @router.message(HealthStates.nutrition_menu, F.text == "💡 Советы")
 async def nutrition_tips(msg: Message, state: FSMContext):
     """Советы по питанию на основе анализа"""
-    processing = await msg.answer("🔍 Анализирую твоё питание...")
-    
+    status = await show_status(msg.bot, msg.chat.id, "text")
     try:
         # Получаем статистику за неделю
         week_stats = await db.get_weekly_calories(msg.from_user.id)
         goal = await db.get_nutrition_goal(msg.from_user.id)
         
         if not week_stats:
-            await processing.edit_text("📭 Недостаточно данных для анализа. Начни вести журнал!")
+            await msg.answer("📭 Недостаточно данных для анализа. Начни вести журнал!")
             return
         
         # Формируем данные для анализа
@@ -843,11 +845,13 @@ async def nutrition_tips(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.delete()
         await msg.answer(md_to_html(response), parse_mode="HTML")
         
     except Exception as e:
-        await processing.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await msg.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ========== НАВИГАЦИЯ ==========

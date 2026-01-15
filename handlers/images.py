@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 from database import db
 from database.db import get_available_tokens as get_available_tokens_web, use_tokens_smart as use_tokens_smart_web
+from utils.status_manager import show_status
 from loader import bot
 
 router = Router()
@@ -410,7 +411,7 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
         await state.clear()
         return
 
-    status = await message.answer("😂 Генерирую мем... 20–60 сек")
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         if mode == "template":
             img_bytes = await _get_meme_template_image(template)
@@ -429,7 +430,6 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
             await use_tokens_smart_web(user_id, price, bot_name="images")
         new_balance = await get_available_tokens_web(user_id)
 
-        await status.delete()
         await message.answer_photo(
             BufferedInputFile(img_bytes, filename="meme.png"),
             caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
@@ -442,8 +442,10 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
             parse_mode="HTML",
         )
     except Exception as e:
-        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await message.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
+        if status:
+            await status.stop()
         await state.clear()
 
 
@@ -489,7 +491,7 @@ async def creative_process_photo(message: Message, state: FSMContext):
     await bot.download_file(file.file_path, bio)
     jpeg_bytes = _convert_to_jpeg(bio.getvalue())
 
-    status = await message.answer("🎨 Обрабатываю фото... 20–60 сек")
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         if subtype == "style":
             style = (data.get("creative_style") or "anime").strip().lower()
@@ -531,7 +533,6 @@ async def creative_process_photo(message: Message, state: FSMContext):
             await use_tokens_smart_web(user_id, price, bot_name="images")
         new_balance = await get_available_tokens_web(user_id)
 
-        await status.delete()
         await message.answer_photo(
             BufferedInputFile(out_bytes, filename="creative.png"),
             caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
@@ -544,8 +545,10 @@ async def creative_process_photo(message: Message, state: FSMContext):
             parse_mode="HTML",
         )
     except Exception as e:
-        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await message.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
+        if status:
+            await status.stop()
         await state.clear()
 
 
@@ -820,7 +823,7 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    status = await message.answer("🎨 Генерирую... 20–60 сек")
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         prompt_en = await _to_english(prompt_ru)
 
@@ -868,7 +871,6 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             await use_tokens_smart_web(user_id, price, bot_name="images")
         new_balance = await get_available_tokens_web(user_id)
 
-        await status.delete()
         await message.answer_photo(
             BufferedInputFile(img_bytes, filename="blogger.png"),
             caption=(
@@ -885,8 +887,10 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             parse_mode="HTML",
         )
     except Exception as e:
-        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await message.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
+        if status:
+            await status.stop()
         await state.clear()
 
 
@@ -1481,8 +1485,7 @@ async def process_video_text(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    status = await message.answer("🎬 Генерирую видео... Это может занять 1–6 минут.")
-
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         model_id = _resolve_vsegpt_video_model_id(video_settings)
         aspect_ratio = video_settings.get("aspect_ratio") or "16:9"
@@ -1517,11 +1520,12 @@ async def process_video_text(message: Message, state: FSMContext):
             reply_markup=_flow_done_kb("video"),
             parse_mode="HTML"
         )
-        await status.delete()
     except Exception as e:
         traceback.print_exc()
-        await status.edit_text(f"❌ Ошибка видео:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await message.answer(f"❌ Ошибка видео:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
+        if status:
+            await status.stop()
         await state.clear()
 
 
@@ -1542,7 +1546,7 @@ async def process_video_photo(message: Message, state: FSMContext):
     if not user_caption:
         user_caption = ""
 
-    status = await message.answer("🎬 Генерирую видео... Это может занять 1–6 минут.")
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
@@ -1582,11 +1586,12 @@ async def process_video_photo(message: Message, state: FSMContext):
             reply_markup=_flow_done_kb("video"),
             parse_mode="HTML"
         )
-        await status.delete()
     except Exception as e:
         traceback.print_exc()
-        await status.edit_text(f"❌ Ошибка видео:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await message.answer(f"❌ Ошибка видео:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
+        if status:
+            await status.stop()
         await state.clear()
 
 
@@ -1760,7 +1765,7 @@ async def process_process_photo(message: Message, state: FSMContext):
         await message.answer("⚠️ Добавьте подпись к фото: что именно убрать (например: <code>удали бутылку справа</code>)", parse_mode="HTML")
         return
 
-    status = await message.answer("🧰 Обрабатываю фото... 20–60 сек")
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
@@ -1798,7 +1803,6 @@ async def process_process_photo(message: Message, state: FSMContext):
         await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
         new_balance = await get_available_tokens_web(user_id)
 
-        await status.delete()
         await message.answer_photo(
             BufferedInputFile(out_bytes, filename="processed.png"),
             caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
@@ -1811,8 +1815,10 @@ async def process_process_photo(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
     except Exception as e:
-        await status.edit_text(f"❌ Ошибка обработки:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+        await message.answer(f"❌ Ошибка обработки:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
+        if status:
+            await status.stop()
         await state.clear()
 
 
@@ -1932,13 +1938,7 @@ async def process_create(message: Message, state: FSMContext):
         "High quality. No text, no watermark, no logo. Natural details."
     )
     
-    status = await message.answer(
-        f"🎨 <b>{model['name']}...</b>\n\n"
-        f"⏱ ~{model['time']}\n"
-        f"<i>Подождите...</i>",
-        parse_mode="HTML"
-    )
-    
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         image_data = await _vsegpt_images_generate(
             model_id=model["model"],
@@ -1952,7 +1952,6 @@ async def process_create(message: Message, state: FSMContext):
         await use_tokens_smart_web(message.from_user.id, model['price'], bot_name='images')
         new_balance = await get_available_tokens_web(message.from_user.id)
         
-        await status.delete()
         await message.answer_photo(
             photo,
             caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(model['price'])} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
@@ -1966,9 +1965,11 @@ async def process_create(message: Message, state: FSMContext):
         )
         
     except Exception as e:
-        await status.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
-    
-    await state.clear()
+        await message.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
+        await state.clear()
 
 
 # === UPSCALE 4K ===
@@ -1985,13 +1986,7 @@ async def process_upscale(message: Message, state: FSMContext):
     
     photo = message.photo[-1]
     
-    status = await message.answer(
-        "✨ <b>Улучшение качества</b>\n\n"
-        f"⏱ ~{model['time']}\n"
-        "<i>Улучшаю фото без изменения лица...</i>",
-        parse_mode="HTML"
-    )
-    
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         file = await bot.get_file(photo.file_id)
         photo_data = await bot.download_file(file.file_path)
@@ -2030,7 +2025,6 @@ async def process_upscale(message: Message, state: FSMContext):
         await use_tokens_smart_web(message.from_user.id, model['price'], bot_name='images')
         new_balance = await get_available_tokens_web(message.from_user.id)
         
-        await status.delete()
         await message.answer_photo(
             photo_result,
             caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(model['price'])} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
@@ -2047,9 +2041,11 @@ async def process_upscale(message: Message, state: FSMContext):
         error_msg = str(e)[:300]
         print(f"❌ [Upscale Error] {error_msg}")
         traceback.print_exc()
-        await status.edit_text(f"❌ Ошибка улучшения фото:\n<code>{error_msg}</code>", parse_mode="HTML")
-    
-    await state.clear()
+        await message.answer(f"❌ Ошибка улучшения фото:\n<code>{error_msg}</code>", parse_mode="HTML")
+    finally:
+        if status:
+            await status.stop()
+        await state.clear()
 
 
 # === РЕДАКТОР ===
@@ -2130,18 +2126,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
         await state.clear()
         return
     
-    status_msg = None
-    try:
-        status_msg = await message.answer(
-            "✏️ <b>Редактирую фото...</b>\n\n"
-            f"📝 Команда: <i>{edit_command}</i>\n"
-            "⏱ Подождите 30-60 секунд",
-            parse_mode="HTML"
-        )
-    except TelegramNetworkError:
-        # Если Telegram не ответил на status-сообщение — продолжаем работу без него
-        status_msg = None
-    
+    status = await show_status(bot, message.chat.id, "generate")
     try:
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
@@ -2186,27 +2171,18 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
             reply_markup=_flow_done_kb("edit"),
             parse_mode="HTML"
         )
-        if status_msg:
-            await status_msg.delete()
                     
     except Exception as e:
         print(f"❌ ОШИБКА: {e}")
         traceback.print_exc()
-        
-        if status_msg:
-            await status_msg.edit_text(
-                f"❌ <b>Ошибка редактирования</b>\n\n"
-                f"<code>{str(e)[:150]}</code>\n\n"
-                f"💡 Попробуйте другую команду или фото",
-                parse_mode="HTML"
-            )
-        else:
-            await message.answer(
-                f"❌ <b>Ошибка редактирования</b>\n\n<code>{str(e)[:150]}</code>",
-                parse_mode="HTML"
-            )
-    
-    await state.clear()
+        await message.answer(
+            f"❌ <b>Ошибка редактирования</b>\n\n<code>{str(e)[:150]}</code>",
+            parse_mode="HTML"
+        )
+    finally:
+        if status:
+            await status.stop()
+        await state.clear()
 
 
 @router.message(ImageStates.waiting_for_photo_with_caption)

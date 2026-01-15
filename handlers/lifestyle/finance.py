@@ -13,6 +13,7 @@ from database.postgres_db import EXPENSE_CATEGORIES
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.markdown import md_to_html
+from utils.status_manager import show_status
 
 router = Router()
 
@@ -414,8 +415,9 @@ async def budget_entered(msg: Message, state: FSMContext):
 @router.message(FinanceStates.menu, F.text == "💡 Советы")
 async def finance_tips(msg: Message, state: FSMContext):
     """Советы по экономии"""
+    status = None
     try:
-        processing = await msg.answer("🔍 Анализирую твои расходы...")
+        status = await show_status(msg.bot, msg.chat.id, "text")
         
         # Получаем статистику
         month_stats = await db.get_month_expenses_detailed(msg.from_user.id)
@@ -460,7 +462,6 @@ async def finance_tips(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='finance')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.delete()
         await msg.answer(md_to_html(response), parse_mode="HTML")
         
     except Exception as e:
@@ -468,6 +469,9 @@ async def finance_tips(msg: Message, state: FSMContext):
         import traceback
         traceback.print_exc()
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ═══════════════════════════════════════

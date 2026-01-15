@@ -11,6 +11,7 @@ from database import db  # Использует PostgreSQL через database/_
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.markdown import md_to_html
+from utils.status_manager import show_status
 
 router = Router()
 
@@ -98,15 +99,14 @@ async def meditation_type_selected(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("med_"))
 async def meditation_duration_selected(callback: CallbackQuery, state: FSMContext):
     """Выбор длительности медитации"""
+    status = None
     try:
         duration = int(callback.data.replace("med_", ""))
         data = await state.get_data()
         med_type = data.get("med_type", "calm")
         
         await state.update_data(duration=duration)
-        
-        # Генерируем медитацию через AI
-        processing = await callback.message.edit_text("🧘 Создаю медитацию для тебя...")
+        status = await show_status(callback.bot, callback.message.chat.id, "text")
         
         type_prompts = {
             "calm": "Создай успокаивающую медитацию для снятия стресса",
@@ -137,7 +137,7 @@ async def meditation_duration_selected(callback: CallbackQuery, state: FSMContex
         await db.use_tokens_smart(callback.from_user.id, tokens_used, bot_name='mental')
         await db.increment_requests(callback.from_user.id)
         
-        await processing.edit_text(
+        await callback.message.edit_text(
             f"🧘‍♀️ <b>Медитация {duration} мин</b>\n\n"
             f"{md_to_html(response)}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -151,6 +151,9 @@ async def meditation_duration_selected(callback: CallbackQuery, state: FSMContex
         import traceback
         traceback.print_exc()
         await callback.message.edit_text(f"❌ Ошибка: {str(e)[:200]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ═══════════════════════════════════════
@@ -309,8 +312,9 @@ async def get_mood_tip(mood: int, tags: list) -> str:
 @router.message(MentalStates.menu, F.text == "💆 Убрать тревогу")
 async def anxiety_help(msg: Message, state: FSMContext):
     """Помощь при тревоге"""
+    status = None
     try:
-        processing = await msg.answer("💆 Готовлю технику для тебя...")
+        status = await show_status(msg.bot, msg.chat.id, "text")
         
         techniques = [
             ("5-4-3-2-1", "grounding"),
@@ -365,7 +369,7 @@ async def anxiety_help(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='mental')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.edit_text(
+        await msg.answer(
             f"💆 <b>{name}</b>\n\n"
             f"{md_to_html(response)}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -378,6 +382,9 @@ async def anxiety_help(msg: Message, state: FSMContext):
         import traceback
         traceback.print_exc()
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ═══════════════════════════════════════
@@ -387,8 +394,9 @@ async def anxiety_help(msg: Message, state: FSMContext):
 @router.message(MentalStates.menu, F.text == "✨ Аффирмация")
 async def daily_affirmation(msg: Message, state: FSMContext):
     """Аффирмация дня"""
+    status = None
     try:
-        processing = await msg.answer("✨ Генерирую аффирмацию...")
+        status = await show_status(msg.bot, msg.chat.id, "text")
         
         prompt = """
 Сгенерируй одну мощную аффирмацию на сегодня.
@@ -412,7 +420,7 @@ async def daily_affirmation(msg: Message, state: FSMContext):
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='mental')
         await db.increment_requests(msg.from_user.id)
         
-        await processing.edit_text(
+        await msg.answer(
             f"<b>Аффирмация дня</b>\n\n"
             f"{md_to_html(response)}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -425,6 +433,9 @@ async def daily_affirmation(msg: Message, state: FSMContext):
         import traceback
         traceback.print_exc()
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ═══════════════════════════════════════

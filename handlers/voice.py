@@ -10,6 +10,7 @@ from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
 from prompts.voice_prompt import VOICE_EMOTIONAL_PROMPT
+from utils.status_manager import show_status
 from config import MIN_TOKENS
 from loader import bot
 import asyncio
@@ -149,9 +150,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         )
         return
     
-    # Статус
-    status_msg = await msg.answer("🎧 Слушаю...")
-    
+    status = await show_status(bot, msg.chat.id, "voice")
     try:
         # Получаем голос пользователя
         voice_gender = await db.get_voice_gender(user_id, 'voice')
@@ -180,14 +179,11 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         messages.extend(hist)
         messages.append({"role": "user", "content": text})
         
-        # Статус: думаю
-        await status_msg.edit_text("🤔 Думаю...")
-        
         # Запрос к AI
         resp, tokens_used = await ask(messages, model)
         
         if not resp:
-            await status_msg.edit_text("❌ Не удалось получить ответ")
+            await msg.answer("❌ Не удалось получить ответ")
             return
         
         # Очищаем ответ от эмодзи и markdown
@@ -207,21 +203,15 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         # Обновляем память в фоне
         asyncio.create_task(update_memory(user_id, 'voice', text, resp_clean))
         
-        # Статус: озвучиваю
-        await status_msg.edit_text("🎤 Озвучиваю...")
-        
         # Преобразуем в речь
         voice_tts = VOICE_MAP.get(voice_gender, "onyx")
         audio_path = await text_to_speech(resp_clean, voice=voice_tts)
         
         if not audio_path:
-            await status_msg.edit_text("❌ Ошибка озвучки")
+            await msg.answer("❌ Ошибка озвучки")
             # Отправляем текстом на всякий случай
             await msg.answer(f"📝 {resp_clean[:500]}")
             return
-        
-        # Удаляем статус
-        await status_msg.delete()
         
         # Отправляем голосовое сообщение
         voice_file = FSInputFile(audio_path)
@@ -237,10 +227,10 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         print(f"Voice processing error: {e}")
         import traceback
         traceback.print_exc()
-        try:
-            await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
-        except:
-            await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
+        await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 # ========== ОБРАБОТЧИКИ ВХОДЯЩИХ СООБЩЕНИЙ ==========
@@ -251,22 +241,19 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
     if msg.text in ["🛑 Завершить", "🗑 Очистить", "🔄 Сменить голос"]:
         return
     
-    status = await msg.answer("🎧 Распознаю...")
-    
+    status = await show_status(bot, msg.chat.id, "voice")
     try:
         # Скачиваем и распознаём голос
         file_path = await download_voice(bot, msg.voice.file_id)
         if not file_path:
-            await status.edit_text("❌ Не удалось скачать голосовое")
+            await msg.answer("❌ Не удалось скачать голосовое")
             return
         
         text = await transcribe_voice(file_path)
         if not text:
-            await status.edit_text("❌ Не удалось распознать речь")
+            await msg.answer("❌ Не удалось распознать речь")
             return
-        
-        await status.delete()
-        
+        await status.stop()
         # Показываем что распознали
         await msg.answer(f"📝 Ты сказал:\n<i>{text}</i>")
         
@@ -275,7 +262,10 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
         
     except Exception as e:
         print(f"Voice recognition error: {e}")
-        await status.edit_text(f"❌ Ошибка: {str(e)[:100]}")
+        await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(VoiceSt.chat, F.text)

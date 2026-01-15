@@ -14,11 +14,13 @@ from aiogram.fsm.state import State, StatesGroup
 from database import db
 from database import redis_db
 from keyboards import reply, inline
-from utils.openrouter import ask, ask_stream
+from utils.openrouter import ask
 from utils.tokens import calculate_tokens
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button, get_titus_keyboard
+from utils.streaming import stream_response
+from utils.status_manager import show_status
 from loader import bot
 
 # Локальные импорты модуля (всё внутри handlers/titus/)
@@ -139,80 +141,17 @@ async def create_course(msg: Message, state: FSMContext):
     sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: 1 из {steps}\n\n⚠️ НЕ представляйся! Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": "Начни шаг 1"}]
     
-    status = await msg.answer("⏳ Обрабатываю...")
-    
-    # STREAMING для создания курса
-    full_response = ""
-    sentence_buffer = ""
-    displayed_text = ""
-    last_update = time.time()
-    typing_phase = 0
-    stream_msg = None
-    
     try:
-        async for chunk in ask_stream(msgs, model, max_tokens=4000):
-            if not chunk:
-                continue
-            
-            full_response += chunk
-            sentence_buffer += chunk
-            now = time.time()
-            
-            if typing_phase == 0 and len(full_response) > 20:
-                typing_phase = 1
-                try:
-                    await status.edit_text("✍️ Печатаю...")
-                except:
-                    pass
-            
-            if typing_phase == 1 and len(full_response) > 100:
-                typing_phase = 2
-                try:
-                    await status.delete()
-                except:
-                    pass
-                stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
-            
-            if typing_phase == 2 and stream_msg:
-                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                    displayed_text += sentence_buffer
-                    sentence_buffer = ""
-                    
-                    if now - last_update >= 0.5:
-                        formatted = clean_response(displayed_text)
-                        try:
-                            await stream_msg.edit_text(formatted + " ▌")
-                            last_update = now
-                            await asyncio.sleep(0.3)
-                        except:
-                            pass
-        
-        displayed_text += sentence_buffer
-        resp = full_response.strip()
+        resp = await stream_response(
+            bot=bot,
+            message=msg,
+            messages=msgs,
+            model=model,
+            status_type="text"
+        )
         tok = calculate_tokens(msgs, resp)
-        
-        if stream_msg:
-            try:
-                await stream_msg.delete()
-            except:
-                pass
-        if status and typing_phase < 2:
-            try:
-                await status.delete()
-            except:
-                pass
     except Exception as e:
         print(f"Stream error in create_course: {e}")
-        if stream_msg:
-            try:
-                await stream_msg.delete()
-            except:
-                pass
-        if status:
-            try:
-                await status.delete()
-            except:
-                pass
         raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
@@ -453,7 +392,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
     
     print(f"[VIDEO] Video ID извлечён: {video_id}, время: {time.time() - start_time:.2f}с")
     
-    status = await msg.answer(texts.VIDEO_ANALYSIS_EXTRACTING)
+    status = await show_status(bot, msg.chat.id, "text")
     
     try:
         # Получаем субтитры
@@ -472,7 +411,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         
         if not transcript:
             print(f"[VIDEO] Субтитры не найдены: {time.time() - start_time:.2f}с")
-            await status.edit_text("❌ У этого видео нет субтитров")
+            await msg.answer("❌ У этого видео нет субтитров")
             return
         
         # Получаем текст
@@ -484,8 +423,6 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         # Ограничиваем длину (макс 50к символов)
         if len(full_text) > 50000:
             full_text = full_text[:50000] + "..."
-        
-        await status.edit_text(f"✅ Субтитры получены ({len(full_text)} символов)\n⏳ Анализирую...")
         
         # Анализ через Gemini Flash (дешёвая модель)
         print(f"[VIDEO] Начало AI анализа: {time.time() - start_time:.2f}с")
@@ -504,7 +441,8 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         resp, tok = await ask([{"role": "user", "content": analysis_prompt}], VIDEO_ANALYSIS_MODEL)
         print(f"[VIDEO] AI анализ завершён: {time.time() - start_time:.2f}с")
         
-        await status.delete()
+        if status:
+            await status.stop()
         
         resp_clean = clean_response(resp)
         
@@ -552,9 +490,12 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         error_msg = str(e)
         print(f"[VIDEO] ❌ ОШИБКА на {time.time() - start_time:.2f}с: {error_msg}")
         if "Subtitles are disabled" in error_msg or "transcript" in error_msg.lower():
-            await status.edit_text(texts.VIDEO_ANALYSIS_NO_SUBTITLES)
+            await msg.answer(texts.VIDEO_ANALYSIS_NO_SUBTITLES)
         else:
-            await status.edit_text(f"❌ Ошибка: {error_msg[:200]}")
+            await msg.answer(f"❌ Ошибка: {error_msg[:200]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(TitusSt.menu, F.text == "🔍 Помощь")
@@ -594,8 +535,8 @@ async def titus_cancel(msg: Message):
         except:
             pass
         try:
-            if active_requests[user_id].get('status_msg'):
-                await active_requests[user_id]['status_msg'].delete()
+            if active_requests[user_id].get('status'):
+                await active_requests[user_id]['status'].stop()
         except:
             pass
         try:
@@ -667,32 +608,15 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
     cid = data.get('cid')
     cname = data.get('cname', 'Курс')
     user_id = msg.from_user.id
-    request_state = {'cancelled': False, 'kb_msg': None, 'status_msg': None}
+    request_state = {'cancelled': False, 'kb_msg': None, 'status': None}
     active_requests[user_id] = request_state
     
-    status_msg = await msg.answer("⏳ Обрабатываю. Пожалуйста подождите...")
-    request_state['status_msg'] = status_msg
+    request_state['status'] = None
     
     current_step = data.get('current_step', 1)
     total_steps = data.get('total_steps', 10)
     resp = None
     tok = 0
-    timer_running = True
-    
-    async def update_timer():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running or request_state['cancelled']:
-                break
-            sec += 1
-            try:
-                await status_msg.edit_text(f"✍️ Печатаю... ({sec})")
-            except:
-                pass
-    
-    timer_task = asyncio.create_task(update_timer())
-    
     try:
         if request_state['cancelled']:
             return
@@ -726,72 +650,14 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         if image_b64:
             resp, tok = await ask(msgs_to_send, model, image_b64)
         else:
-            # УЛУЧШЕННЫЙ STREAMING для Titus
-            full_response = ""
-            sentence_buffer = ""
-            displayed_text = ""
-            last_update = time.time()
-            typing_phase = 0
-            stream_msg = None
-            
-            async for chunk in ask_stream(msgs_to_send, model, max_tokens=4000):
-                if request_state['cancelled']:
-                    return
-                if not chunk:
-                    continue
-                
-                full_response += chunk
-                sentence_buffer += chunk
-                now = time.time()
-                
-                # Фаза 1: показываем "печатаю"
-                if typing_phase == 0 and len(full_response) > 20:
-                    typing_phase = 1
-                    try:
-                        await status_msg.edit_text("✍️ Печатаю...")
-                    except:
-                        pass
-                
-                # Фаза 2: начинаем показывать текст блоками
-                if typing_phase == 1 and len(full_response) > 100:
-                    typing_phase = 2
-                    try:
-                        await status_msg.delete()
-                    except:
-                        pass
-                    stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
-                
-                # Обновляем текст блоками
-                if typing_phase == 2 and stream_msg:
-                    if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                        displayed_text += sentence_buffer
-                        sentence_buffer = ""
-                        
-                        if now - last_update >= 0.5:
-                            from utils.errors import check_tokens_and_notify
-                            formatted = clean_response(displayed_text)
-                            try:
-                                await stream_msg.edit_text(formatted + " ▌")
-                                last_update = now
-                                await asyncio.sleep(0.3)
-                            except:
-                                pass
-            
-            displayed_text += sentence_buffer
-            resp = full_response.strip()
+            resp = await stream_response(
+                bot=bot,
+                message=msg,
+                messages=msgs_to_send,
+                model=model,
+                status_type="text"
+            )
             tok = calculate_tokens(msgs_to_send, resp)
-            
-            # Удаляем streaming сообщение
-            if stream_msg:
-                try:
-                    await stream_msg.delete()
-                except:
-                    pass
-            if status_msg and typing_phase < 2:
-                try:
-                    await status_msg.delete()
-                except:
-                    pass
         
         if request_state['cancelled']:
             return
@@ -817,12 +683,6 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                 if new_step > course['total']:
                     await db.complete_course(cid)
                     await state.set_state(TitusSt.menu)
-                    timer_running = False
-                    timer_task.cancel()
-                    try:
-                        await status_msg.delete()
-                    except:
-                        pass
                     await msg.answer(
                         f"{resp_clean}\n\n{texts.COURSE_COMPLETED}",
                         reply_markup=reply.study_kb(msg.from_user.id)
@@ -845,12 +705,6 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         resp = resp_clean
                         
     finally:
-        timer_running = False
-        timer_task.cancel()
-        try:
-            await status_msg.delete()
-        except:
-            pass
         active_requests.pop(user_id, None)
     
     if resp:
@@ -903,70 +757,36 @@ async def titus_text(msg: Message, state: FSMContext):
 
 @router.message(TitusSt.chat, F.voice)
 async def titus_voice(msg: Message, state: FSMContext):
-    status = await msg.answer("🎧 Слушаю...")
-    timer_running = True
-    
-    async def update_timer():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running:
-                break
-            sec += 1
-            try:
-                await status.edit_text(f"🎧 Слушаю... ({sec} сек)")
-            except:
-                pass
-    
-    timer_task = asyncio.create_task(update_timer())
+    status = await show_status(bot, msg.chat.id, "voice")
     try:
         fp = await download_voice(bot, msg.voice.file_id)
         text = await transcribe_voice(fp)
-        timer_running = False
-        timer_task.cancel()
         if not text:
-            await status.edit_text(texts.ERROR_NO_RECOGNITION)
+            await msg.answer(texts.ERROR_NO_RECOGNITION)
             return
-        await status.delete()
     except Exception as e:
-        timer_running = False
-        timer_task.cancel()
-        await status.edit_text(f"❌ {e}")
+        await msg.answer(f"❌ {e}")
         return
+    finally:
+        if status:
+            await status.stop()
     await process_titus_message(msg, state, text)
 
 
 @router.message(TitusSt.chat, F.photo)
 async def titus_photo(msg: Message, state: FSMContext):
-    status = await msg.answer("🔎 Смотрю фото...")
-    timer_running = True
-    
-    async def update_timer():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running:
-                break
-            sec += 1
-            try:
-                await status.edit_text(f"🔎 Смотрю фото... ({sec} сек)")
-            except:
-                pass
-    
-    timer_task = asyncio.create_task(update_timer())
+    status = await show_status(bot, msg.chat.id, "photo")
     try:
         photo = msg.photo[-1]
         file = await bot.get_file(photo.file_id)
         data = await bot.download_file(file.file_path)
         b64 = base64.b64encode(data.read()).decode()
-        timer_running = False
-        timer_task.cancel()
-        await status.delete()
     except Exception as e:
-        timer_running = False
-        timer_task.cancel()
-        await status.edit_text(f"❌ {e}")
+        await msg.answer(f"❌ {e}")
         return
+    finally:
+        if status:
+            await status.stop()
     await process_titus_message(msg, state, msg.caption or "Что на изображении?", b64)
 
 
@@ -989,23 +809,6 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     
     model = await db.get_user_model(cb.from_user.id)
     
-    status = await cb.message.answer("⏳ Обрабатываю. Пожалуйста подождите...")
-    timer_running = True
-    
-    async def update_timer():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running:
-                break
-            sec += 1
-            try:
-                await status.edit_text(f"✍️ Печатаю... ({sec} сек)")
-            except:
-                pass
-    
-    timer_task = asyncio.create_task(update_timer())
-    
     # Проверяем настройки голоса для выбора промпта
     titus_settings_pre = redis_db.get_titus_settings(cb.from_user.id) or {}
     voice_enabled_pre = bool(titus_settings_pre.get("voice_enabled", False))
@@ -1014,82 +817,17 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Продолжи обучение с шага {current_step}. Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Продолжи с шага {current_step}"}]
     
-    # STREAMING для продолжения
-    full_response = ""
-    sentence_buffer = ""
-    displayed_text = ""
-    last_update = time.time()
-    typing_phase = 0
-    stream_msg = None
-    
     try:
-        async for chunk in ask_stream(msgs, model, max_tokens=4000):
-            if not chunk:
-                continue
-            
-            full_response += chunk
-            sentence_buffer += chunk
-            now = time.time()
-            
-            if typing_phase == 0 and len(full_response) > 20:
-                typing_phase = 1
-                timer_running = False
-                timer_task.cancel()
-                try:
-                    await status.edit_text("✍️ Печатаю...")
-                except:
-                    pass
-            
-            if typing_phase == 1 and len(full_response) > 100:
-                typing_phase = 2
-                try:
-                    await status.delete()
-                except:
-                    pass
-                stream_msg = await cb.message.answer("_Печатаю..._", parse_mode=None)
-            
-            if typing_phase == 2 and stream_msg:
-                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                    displayed_text += sentence_buffer
-                    sentence_buffer = ""
-                    
-                    if now - last_update >= 0.5:
-                        formatted = clean_response(displayed_text)
-                        try:
-                            await stream_msg.edit_text(formatted + " ▌")
-                            last_update = now
-                            await asyncio.sleep(0.3)
-                        except:
-                            pass
-        
-        displayed_text += sentence_buffer
-        resp = full_response.strip()
+        resp = await stream_response(
+            bot=bot,
+            message=cb.message,
+            messages=msgs,
+            model=model,
+            status_type="text"
+        )
         tok = calculate_tokens(msgs, resp)
-        
-        if stream_msg:
-            try:
-                await stream_msg.delete()
-            except:
-                pass
-        if status and typing_phase < 2:
-            try:
-                await status.delete()
-            except:
-                pass
     except Exception as e:
         print(f"Stream error in course_continue: {e}")
-        timer_running = False
-        timer_task.cancel()
-        if stream_msg:
-            try:
-                await stream_msg.delete()
-            except:
-                pass
-        if status:
-            try:
-                await status.delete()
-            except:
-                pass
         raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
@@ -1177,23 +915,6 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     
     topics_text = ", ".join([t.get('topic', str(t)) if isinstance(t, dict) else str(t) for t in weak_topics])
     
-    status = await cb.message.answer("⏳ Обрабатываю. Пожалуйста подождите...")
-    timer_running = True
-    
-    async def update_timer():
-        sec = 0
-        while timer_running:
-            await asyncio.sleep(1)
-            if not timer_running:
-                break
-            sec += 1
-            try:
-                await status.edit_text(f"✍️ Печатаю... ({sec} сек)")
-            except:
-                pass
-    
-    timer_task = asyncio.create_task(update_timer())
-    
     # Проверяем настройки голоса для выбора промпта
     titus_settings_pre = redis_db.get_titus_settings(cb.from_user.id) or {}
     voice_enabled_pre = bool(titus_settings_pre.get("voice_enabled", False))
@@ -1202,68 +923,15 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Разбери подробно темы, которые были сложными: {topics_text}"}]
     
-    # STREAMING для повторения
-    full_response = ""
-    sentence_buffer = ""
-    displayed_text = ""
-    last_update = time.time()
-    typing_phase = 0
-    stream_msg = None
-    
     try:
-        async for chunk in ask_stream(msgs, model, max_tokens=4000):
-            if not chunk:
-                continue
-            
-            full_response += chunk
-            sentence_buffer += chunk
-            now = time.time()
-            
-            if typing_phase == 0 and len(full_response) > 20:
-                typing_phase = 1
-                timer_running = False
-                timer_task.cancel()
-                try:
-                    await status.edit_text("✍️ Печатаю...")
-                except:
-                    pass
-            
-            if typing_phase == 1 and len(full_response) > 100:
-                typing_phase = 2
-                try:
-                    await status.delete()
-                except:
-                    pass
-                stream_msg = await cb.message.answer("_Печатаю..._", parse_mode=None)
-            
-            if typing_phase == 2 and stream_msg:
-                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                    displayed_text += sentence_buffer
-                    sentence_buffer = ""
-                    
-                    if now - last_update >= 0.5:
-                        formatted = clean_response(displayed_text)
-                        try:
-                            await stream_msg.edit_text(formatted + " ▌")
-                            last_update = now
-                            await asyncio.sleep(0.3)
-                        except:
-                            pass
-        
-        displayed_text += sentence_buffer
-        resp = full_response.strip()
+        resp = await stream_response(
+            bot=bot,
+            message=cb.message,
+            messages=msgs,
+            model=model,
+            status_type="text"
+        )
         tok = calculate_tokens(msgs, resp)
-        
-        if stream_msg:
-            try:
-                await stream_msg.delete()
-            except:
-                pass
-        if status and typing_phase < 2:
-            try:
-                await status.delete()
-            except:
-                pass
         
         resp_clean = clean_response(resp)
         
@@ -1317,10 +985,4 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                 reply_markup=keyboard
             )
     except Exception as e:
-        timer_running = False
-        timer_task.cancel()
-        try:
-            await status.delete()
-        except:
-            pass
         await cb.message.answer(f"❌ Ошибка: {str(e)[:200]}", reply_markup=reply.study_chat_kb())

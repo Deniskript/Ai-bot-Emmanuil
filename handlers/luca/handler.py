@@ -8,17 +8,18 @@ from aiogram.fsm.state import State, StatesGroup
 from database import db
 from database import redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
-from utils.openrouter import ask, ask_stream
+from utils.openrouter import ask
 from utils.tokens import calculate_tokens
 from utils.memory import update_memory
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
+from utils.status_manager import show_status
+from utils.streaming import stream_response
 from loader import bot
 import asyncio
 import base64
-import time
 import re
 import os
 
@@ -276,8 +277,8 @@ async def voice_cancel(msg: Message):
     if user_id in active_requests:
         active_requests[user_id]['cancelled'] = True
         try:
-            if active_requests[user_id].get('status_msg'):
-                await active_requests[user_id]['status_msg'].delete()
+            if active_requests[user_id].get('status'):
+                await active_requests[user_id]['status'].stop()
         except:
             pass
         try:
@@ -320,8 +321,8 @@ async def luka_cancel(msg: Message):
         except:
             pass
         try:
-            if active_requests[user_id].get('status_msg'):
-                await active_requests[user_id]['status_msg'].delete()
+            if active_requests[user_id].get('status'):
+                await active_requests[user_id]['status'].stop()
         except:
             pass
         try:
@@ -378,7 +379,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     model = await db.get_user_model(user_id)
     
     # Статус запроса
-    request_state = {'cancelled': False, 'loading_msg': None, 'status_msg': None}
+    request_state = {'cancelled': False, 'loading_msg': None, 'status': None}
     active_requests[user_id] = request_state
     
     # Получаем настройки пользователя из Redis
@@ -421,108 +422,32 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     
     # Если есть картинка - обычный запрос
     if image_b64:
-        status_msg = await msg.answer(texts.STATUS_PROCESSING)
-        request_state['status_msg'] = status_msg
+        status = await show_status(bot, msg.chat.id, "photo")
+        request_state['status'] = status
         try:
             resp, tok = await ask(messages, model, image_b64)
         except Exception as e:
-            await status_msg.edit_text(f"❌ Ошибка: {e}")
+            await msg.answer(f"❌ Ошибка: {e}")
             active_requests.pop(user_id, None)
             return
+        finally:
+            if status:
+                await status.stop()
     else:
-        # УЛУЧШЕННЫЙ STREAMING с красивым форматированием
-        status_msg = await msg.answer(texts.STATUS_PROCESSING_SHORT)
-        request_state['status_msg'] = status_msg
-        
-        full_response = ""
-        sentence_buffer = ""
-        displayed_text = ""
-        last_update = time.time()
-        typing_phase = 0  # 0=loading, 1=typing, 2=streaming blocks
-        stream_msg = None
-        
+        # Единый стриминг
         try:
-            async for chunk in ask_stream(messages, model, max_tokens=4000):  # Увеличен лимит!
-                if request_state['cancelled']:
-                    try:
-                        await status_msg.delete()
-                    except:
-                        pass
-                    active_requests.pop(user_id, None)
-                    return
-                
-                if not chunk:
-                    continue
-                
-                full_response += chunk
-                sentence_buffer += chunk
-                now = time.time()
-                
-                # Фаза 1: показываем "печатаю"
-                if typing_phase == 0 and len(full_response) > 20:
-                    typing_phase = 1
-                    try:
-                        await status_msg.edit_text(texts.STATUS_TYPING)
-                    except:
-                        pass
-                
-                # Фаза 2: начинаем показывать текст блоками
-                if typing_phase == 1 and len(full_response) > 100:
-                    typing_phase = 2
-                    try:
-                        await status_msg.delete()
-                    except:
-                        pass
-                    # Создаём сообщение для стриминга
-                    stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
-                
-                # Обновляем текст блоками когда накопилось 1-2 предложения
-                if typing_phase == 2 and stream_msg:
-                    # Проверяем конец предложения
-                    if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                        displayed_text += sentence_buffer
-                        sentence_buffer = ""
-                        
-                        # Обновляем с небольшой задержкой (каждые 0.5 сек)
-                        if now - last_update >= 0.5:
-                            formatted = md_to_html(displayed_text)
-                            try:
-                                await stream_msg.edit_text(formatted + " ▌")
-                                last_update = now
-                                await asyncio.sleep(0.3)  # Пауза для читаемости
-                            except:
-                                pass
-            
-            # Добавляем остаток
-            displayed_text += sentence_buffer
-            resp = full_response.strip()
-            
-            # Удаляем streaming сообщение
-            if stream_msg:
-                try:
-                    await stream_msg.delete()
-                except:
-                    pass
-            if status_msg and typing_phase < 2:
-                try:
-                    await status_msg.delete()
-                except:
-                    pass
-            
-            # Точный подсчёт токенов
+            resp = await stream_response(
+                bot=bot,
+                message=msg,
+                messages=messages,
+                model=model,
+                status_type="text"
+            )
             tok = calculate_tokens(messages, resp)
-            
         except Exception as e:
             print(f"Stream error: {e}")
             import traceback
             traceback.print_exc()
-            try:
-                if stream_msg:
-                    await stream_msg.delete()
-                if status_msg:
-                    await status_msg.edit_text(f"❌ Ошибка: {e}")
-            except:
-                pass
             active_requests.pop(user_id, None)
             return
     
@@ -613,32 +538,36 @@ async def luka_chat_text(msg: Message, state: FSMContext):
 
 @router.message(LukaSt.chat, F.voice)
 async def luka_chat_voice(msg: Message, state: FSMContext):
-    st = await msg.answer(texts.STATUS_LISTENING)
+    status = await show_status(bot, msg.chat.id, "voice")
     try:
         fp = await download_voice(bot, msg.voice.file_id)
         text = await transcribe_voice(fp)
         if not text:
-            await st.edit_text(texts.ERROR_NO_RECOGNITION)
+            await msg.answer(texts.ERROR_NO_RECOGNITION)
             return
-        await st.delete()
     except Exception as e:
-        await st.edit_text(f"❌ {e}")
+        await msg.answer(f"❌ {e}")
         return
+    finally:
+        if status:
+            await status.stop()
     await process_luka_message(msg, state, text)
 
 
 @router.message(LukaSt.chat, F.photo)
 async def luka_chat_photo(msg: Message, state: FSMContext):
-    st = await msg.answer(texts.STATUS_LOOKING)
+    status = await show_status(bot, msg.chat.id, "photo")
     try:
         photo = msg.photo[-1]
         file = await bot.get_file(photo.file_id)
         data = await bot.download_file(file.file_path)
         b64 = base64.b64encode(data.read()).decode()
-        await st.delete()
     except Exception as e:
-        await st.edit_text(f"❌ {e}")
+        await msg.answer(f"❌ {e}")
         return
+    finally:
+        if status:
+            await status.stop()
     await process_luka_message(msg, state, msg.caption or "Что на изображении?", b64)
 
 
@@ -665,7 +594,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         return
     
     # Статус запроса с кнопкой отмены
-    request_state = {'cancelled': False, 'status_msg': None}
+    request_state = {'cancelled': False, 'status': None}
     active_requests[user_id] = request_state
     
     # Меняем клавиатуру на "Отменить запрос"
@@ -675,8 +604,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
     except:
         pass
     
-    status_msg = await msg.answer(texts.STATUS_LISTENING)
-    request_state['status_msg'] = status_msg
+    status = await show_status(bot, msg.chat.id, "voice")
+    request_state['status'] = status
     
     try:
         # Получаем настройки голоса из Redis
@@ -719,9 +648,6 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
             active_requests.pop(user_id, None)
             return
         
-        # Статус: думаю
-        await status_msg.edit_text(texts.STATUS_THINKING)
-        
         # Запрос к AI
         resp, tokens_used = await ask(messages, model)
         
@@ -731,7 +657,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
             return
         
         if not resp:
-            await status_msg.edit_text(texts.ERROR_NO_AI_RESPONSE)
+            await msg.answer(texts.ERROR_NO_AI_RESPONSE)
             active_requests.pop(user_id, None)
             return
         
@@ -756,15 +682,12 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
             active_requests.pop(user_id, None)
             return
         
-        # Статус: озвучиваю
-        await status_msg.edit_text(texts.STATUS_VOICING)
-        
         # Преобразуем в речь
         voice_tts = VOICE_MAP.get(voice_gender, "onyx")
         audio_path = await text_to_speech(resp_clean, voice=voice_tts)
         
         if not audio_path:
-            await status_msg.edit_text(texts.ERROR_TTS_FAILED)
+            await msg.answer(texts.ERROR_TTS_FAILED)
             # Отправляем текстом на всякий случай
             await msg.answer(f"📝 {resp_clean[:500]}")
             active_requests.pop(user_id, None)
@@ -778,12 +701,6 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
                 pass
             active_requests.pop(user_id, None)
             return
-        
-        # Удаляем статус
-        try:
-            await status_msg.delete()
-        except:
-            pass
         
         # Отправляем голосовое сообщение с обычной клавиатурой
         voice_file = FSInputFile(audio_path)
@@ -802,11 +719,11 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         print(f"Voice processing error: {e}")
         import traceback
         traceback.print_exc()
-        try:
-            await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
-        except:
-            await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
+        await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
         active_requests.pop(user_id, None)
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(LukaSt.voice_chat, F.voice)
@@ -815,21 +732,19 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
     if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
         return
     
-    status = await msg.answer(texts.STATUS_RECOGNIZING)
+    status = await show_status(bot, msg.chat.id, "voice")
     
     try:
         # Скачиваем и распознаём голос
         file_path = await download_voice(bot, msg.voice.file_id)
         if not file_path:
-            await status.edit_text(texts.ERROR_VOICE_DOWNLOAD)
+            await msg.answer(texts.ERROR_VOICE_DOWNLOAD)
             return
         
         text = await transcribe_voice(file_path)
         if not text:
-            await status.edit_text(texts.ERROR_VOICE_RECOGNITION)
+            await msg.answer(texts.ERROR_VOICE_RECOGNITION)
             return
-        
-        await status.delete()
         
         # Показываем что распознали
         await msg.answer(texts.RECOGNIZED_TEXT.format(text=text))
@@ -839,7 +754,10 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
         
     except Exception as e:
         print(f"Voice recognition error: {e}")
-        await status.edit_text(f"❌ Ошибка: {str(e)[:100]}")
+        await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
+    finally:
+        if status:
+            await status.stop()
 
 
 @router.message(LukaSt.voice_chat, F.text)

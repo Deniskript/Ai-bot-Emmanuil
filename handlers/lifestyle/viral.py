@@ -4,13 +4,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db  # Использует PostgreSQL через database/__init__.py
 from keyboards import reply, inline
-from utils.openrouter import ask, ask_stream
+from utils.openrouter import ask
 from utils.tokens import calculate_tokens
 from utils.antiflood import ai_flood
 from utils.video_downloader import download_video_from_url, extract_key_frames, cleanup_temp_files
 from utils.markdown import md_to_html
 from utils.conversations import save_message, clean_response, get_chat_button
 from utils.errors import check_tokens_and_notify
+from utils.status_manager import show_status
+from utils.streaming import stream_response
 from prompts.viral_expert import VIRAL_EXPERT_PROMPT, VIRAL_TEXT_ADVICE_PROMPT
 from config import MIN_TOKENS, OPENROUTER_API_KEY
 from loader import bot
@@ -218,9 +220,7 @@ async def process_text_advice(msg: Message, state: FSMContext):
     cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⏹ Отменить", callback_data=f"viral_text_cancel:{user_id}")]
     ])
-    
-    status_msg = await msg.answer("⏳ Думаю...", reply_markup=cancel_kb)
-    
+    cancel_msg = await msg.answer("⏹ Можно отменить запрос", reply_markup=cancel_kb)
     try:
         # Получаем модель пользователя
         model = await db.get_user_model(user_id)
@@ -231,75 +231,17 @@ async def process_text_advice(msg: Message, state: FSMContext):
             {"role": "user", "content": text}
         ]
         
-        # Стриминг ответа
-        full_response = ""
-        sentence_buffer = ""
-        displayed_text = ""
-        last_update = time.time()
-        typing_phase = 0  # 0=loading, 1=typing, 2=streaming
-        stream_msg = None
-        
-        async for chunk in ask_stream(messages, model, max_tokens=2000):
-            if request_state['cancelled']:
-                try:
-                    await status_msg.delete()
-                    if stream_msg:
-                        await stream_msg.delete()
-                except:
-                    pass
-                active_requests.pop(user_id, None)
-                return
-            
-            full_response += chunk
-            sentence_buffer += chunk
-            
-            now = time.time()
-            
-            # Фаза 1: Переход от "Думаю..." к "Печатаю..."
-            if typing_phase == 0 and len(full_response) > 10:
-                typing_phase = 1
-                try:
-                    await status_msg.edit_text("✍️ Печатаю...", reply_markup=cancel_kb)
-                except:
-                    pass
-            
-            # Фаза 2: Начало стриминга
-            if typing_phase == 1 and len(full_response) > 50:
-                typing_phase = 2
-                try:
-                    await status_msg.delete()
-                except:
-                    pass
-                stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
-            
-            # Обновляем текст блоками
-            if typing_phase == 2 and stream_msg:
-                if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                    displayed_text += sentence_buffer
-                    sentence_buffer = ""
-                    
-                    if now - last_update >= 0.5:
-                        formatted = md_to_html(displayed_text)
-                        try:
-                            await stream_msg.edit_text(formatted + " ▌", parse_mode="HTML")
-                            last_update = now
-                            await asyncio.sleep(0.3)
-                        except:
-                            pass
-        
-        # Добавляем остаток
-        displayed_text += sentence_buffer
-        resp = full_response.strip()
-        
-        # Удаляем streaming сообщение
-        if stream_msg:
+        # Стриминг ответа через единый модуль
+        resp = await stream_response(
+            bot=bot,
+            message=msg,
+            messages=messages,
+            model=model,
+            status_type="text"
+        )
+        if cancel_msg:
             try:
-                await stream_msg.delete()
-            except:
-                pass
-        if status_msg and typing_phase < 2:
-            try:
-                await status_msg.delete()
+                await cancel_msg.delete()
             except:
                 pass
         
@@ -343,13 +285,11 @@ async def process_text_advice(msg: Message, state: FSMContext):
         print(f"Viral text advice error: {e}")
         import traceback
         traceback.print_exc()
-        try:
-            if stream_msg:
-                await stream_msg.delete()
-            if status_msg:
-                await status_msg.edit_text(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML", reply_markup=None)
-        except:
-            pass
+        if cancel_msg:
+            try:
+                await cancel_msg.delete()
+            except:
+                pass
     
     active_requests.pop(user_id, None)
     await state.clear()
@@ -421,7 +361,8 @@ async def process_video(msg: Message, state: FSMContext):
         [InlineKeyboardButton(text="⏹ Отменить", callback_data=f"viral_cancel:{user_id}")]
     ])
     
-    status = await msg.answer("⏳ Скачиваю видео...", reply_markup=cancel_kb)
+    cancel_msg = await msg.answer("⏹ Можно отменить запрос", reply_markup=cancel_kb)
+    status = await show_status(msg.bot, msg.chat.id, "photo")
     
     temp_files = []
     
@@ -429,7 +370,10 @@ async def process_video(msg: Message, state: FSMContext):
         # Проверка на отмену
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             await state.clear()
             return
         
@@ -449,12 +393,13 @@ async def process_video(msg: Message, state: FSMContext):
         # Проверка на отмену
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             cleanup_temp_files(temp_files)
             await state.clear()
             return
-        
-        await status.edit_text("⏳ Извлекаю ключевые кадры...", reply_markup=cancel_kb)
         
         # Извлекаем кадры
         frames = await extract_key_frames(temp_video.name, num_frames=6)
@@ -463,12 +408,13 @@ async def process_video(msg: Message, state: FSMContext):
         # Проверка на отмену
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             cleanup_temp_files(temp_files)
             await state.clear()
             return
-        
-        await status.edit_text("🎬 Анализирую видео...\n\n<i>Это может занять до минуты</i>", reply_markup=cancel_kb, parse_mode="HTML")
         
         # Анализируем через ProxyAPI Vision
         try:
@@ -477,7 +423,15 @@ async def process_video(msg: Message, state: FSMContext):
             # Если Vision API отказался, используем текстовый анализ
             error_msg = str(vision_error)
             if "отказался анализировать" in error_msg or "I'm sorry" in error_msg or "I can't assist" in error_msg:
-                await status.edit_text("⚠️ Анализ кадров недоступен.\n💡 Используйте <b>💬 Текстовый совет</b> - опишите своё видео текстом, и я дам рекомендации!", parse_mode="HTML", reply_markup=None)
+                if status:
+                    await status.stop()
+                if cancel_msg:
+                    await cancel_msg.delete()
+                await msg.answer(
+                    "⚠️ Анализ кадров недоступен.\n"
+                    "💡 Используйте <b>💬 Текстовый совет</b> - опишите своё видео текстом, и я дам рекомендации!",
+                    parse_mode="HTML"
+                )
                 cleanup_temp_files(temp_files)
                 await state.clear()
                 return
@@ -503,7 +457,10 @@ async def process_video(msg: Message, state: FSMContext):
         
         new_balance = await db.get_available_tokens(user_id)
         
-        await status.delete()
+        if status:
+            await status.stop()
+        if cancel_msg:
+            await cancel_msg.delete()
         
         # Получаем кнопку диалога
         dialog_kb = get_chat_button(conv_id, len(analysis))
@@ -518,14 +475,20 @@ async def process_video(msg: Message, state: FSMContext):
         
     except Exception as e:
         error_text = str(e)
-        await status.edit_text(
+        await msg.answer(
             f"❌ <b>Ошибка</b>\n\n<code>{error_text[:300]}</code>",
-            parse_mode="HTML",
-            reply_markup=None
+            parse_mode="HTML"
         )
     finally:
         # Очищаем временные файлы
         cleanup_temp_files(temp_files)
+        if status:
+            await status.stop()
+        if cancel_msg:
+            try:
+                await cancel_msg.delete()
+            except Exception:
+                pass
     
     await state.clear()
 
@@ -579,7 +542,8 @@ async def process_link(msg: Message, state: FSMContext):
         [InlineKeyboardButton(text="⏹ Отменить", callback_data=f"viral_cancel:{user_id}")]
     ])
     
-    status = await msg.answer("⏳ Скачиваю видео...\n\n<i>Это может занять до минуты</i>", reply_markup=cancel_kb, parse_mode="HTML")
+    cancel_msg = await msg.answer("⏹ Можно отменить запрос", reply_markup=cancel_kb)
+    status = await show_status(msg.bot, msg.chat.id, "photo")
     
     temp_files = []
     
@@ -587,7 +551,10 @@ async def process_link(msg: Message, state: FSMContext):
         # Проверка на отмену
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             await state.clear()
             return
         
@@ -598,12 +565,13 @@ async def process_link(msg: Message, state: FSMContext):
         # Проверка на отмену
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             cleanup_temp_files(temp_files)
             await state.clear()
             return
-        
-        await status.edit_text("⏳ Извлекаю ключевые кадры...", reply_markup=cancel_kb)
         
         # Извлекаем кадры
         frames = await extract_key_frames(video_path, num_frames=6)
@@ -612,12 +580,13 @@ async def process_link(msg: Message, state: FSMContext):
         # Проверка на отмену
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             cleanup_temp_files(temp_files)
             await state.clear()
             return
-        
-        await status.edit_text("🎬 Анализирую видео...\n\n<i>Это может занять до минуты</i>", reply_markup=cancel_kb, parse_mode="HTML")
         
         # Анализируем
         try:
@@ -626,7 +595,15 @@ async def process_link(msg: Message, state: FSMContext):
             # Если Vision API отказался, используем текстовый анализ
             error_msg = str(vision_error)
             if "отказался анализировать" in error_msg or "I'm sorry" in error_msg or "I can't assist" in error_msg:
-                await status.edit_text("⚠️ Анализ кадров недоступен.\n💡 Используйте <b>💬 Текстовый совет</b> - опишите своё видео текстом, и я дам рекомендации!", parse_mode="HTML", reply_markup=None)
+                if status:
+                    await status.stop()
+                if cancel_msg:
+                    await cancel_msg.delete()
+                await msg.answer(
+                    "⚠️ Анализ кадров недоступен.\n"
+                    "💡 Используйте <b>💬 Текстовый совет</b> - опишите своё видео текстом, и я дам рекомендации!",
+                    parse_mode="HTML"
+                )
                 cleanup_temp_files(temp_files)
                 await state.clear()
                 return
@@ -636,7 +613,10 @@ async def process_link(msg: Message, state: FSMContext):
         # Проверка на отмену перед отправкой
         data = await state.get_data()
         if data.get('request_state', {}).get('cancelled'):
-            await status.edit_text("⏹ Запрос отменён", reply_markup=None)
+            if status:
+                await status.stop()
+            if cancel_msg:
+                await cancel_msg.edit_text("⏹ Запрос отменён", reply_markup=None)
             cleanup_temp_files(temp_files)
             await state.clear()
             return
@@ -652,7 +632,10 @@ async def process_link(msg: Message, state: FSMContext):
         
         new_balance = await db.get_available_tokens(user_id)
         
-        await status.delete()
+        if status:
+            await status.stop()
+        if cancel_msg:
+            await cancel_msg.delete()
         
         # Получаем кнопку диалога
         dialog_kb = get_chat_button(conv_id, len(analysis))
@@ -670,44 +653,47 @@ async def process_link(msg: Message, state: FSMContext):
         
         # Красивое сообщение об ошибке
         if "Instagram временно недоступен" in error_text:
-            await status.edit_text(
+            await msg.answer(
                 "❌ <b>Instagram временно недоступен</b>\n\n"
                 "💡 <b>Что делать:</b>\n"
                 "• Попробуйте загрузить видео напрямую через кнопку <b>📤 Загрузить видео</b>\n"
                 "• Или попробуйте позже",
-                parse_mode="HTML",
-                reply_markup=None
+                parse_mode="HTML"
             )
         elif "Видео недоступно" in error_text or "приватное" in error_text:
-            await status.edit_text(
+            await msg.answer(
                 "❌ <b>Видео недоступно</b>\n\n"
                 "Возможные причины:\n"
                 "• Видео приватное\n"
                 "• Видео удалено\n"
                 "• Аккаунт закрыт",
-                parse_mode="HTML",
-                reply_markup=None
+                parse_mode="HTML"
             )
         elif "не поддерживается" in error_text:
-            await status.edit_text(
+            await msg.answer(
                 "❌ <b>Платформа не поддерживается</b>\n\n"
                 "✅ Поддерживаются:\n"
                 "• TikTok\n"
                 "• YouTube Shorts\n"
                 "• Instagram Reels (не всегда)\n\n"
                 "💡 Попробуйте загрузить видео напрямую",
-                parse_mode="HTML",
-                reply_markup=None
+                parse_mode="HTML"
             )
         else:
-            await status.edit_text(
+            await msg.answer(
                 f"❌ <b>Ошибка</b>\n\n<code>{error_text[:300]}</code>",
-                parse_mode="HTML",
-                reply_markup=None
+                parse_mode="HTML"
             )
     finally:
         # Очищаем временные файлы
         cleanup_temp_files(temp_files)
+        if status:
+            await status.stop()
+        if cancel_msg:
+            try:
+                await cancel_msg.delete()
+            except Exception:
+                pass
     
     await state.clear()
 

@@ -101,16 +101,6 @@ REQUEST_CANCELLED = "❌ Запрос отменён"
 
 NO_ACTIVE_REQUEST = "Нет активного запроса"
 
-# ========== СТАТУСЫ ОБРАБОТКИ ==========
-
-STATUS_PROCESSING = "⏳ Обрабатываю. Пожалуйста подождите..."
-
-STATUS_TYPING = "✍️ Печатаю..."
-
-STATUS_LISTENING = "🎧 Слушаю... ({sec} сек)"
-
-STATUS_LOOKING = "🔎 Смотрю фото... ({sec} сек)"
-
 # ========== ОШИБКИ ==========
 
 ERROR_NO_RECOGNITION = "❌ Не распознано"

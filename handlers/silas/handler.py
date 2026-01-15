@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database.postgres_db import set_silas_settings, get_silas_settings
 from database import db, redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
-from utils.openrouter import ask, ask_stream
+from utils.openrouter import ask
 from utils.tokens import calculate_tokens
 from utils.memory import update_memory
 from utils.voice import download_voice, transcribe_voice, text_to_speech
@@ -18,12 +18,13 @@ import os
 from utils.antiflood import ai_flood
 from utils.telegraph import create_telegraph_page, make_preview
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
+from utils.status_manager import show_status
+from utils.streaming import stream_response
 from config import MIN_TOKENS
 from loader import bot
 from datetime import datetime
 import asyncio
 import base64
-import time
 
 from . import keyboards as kb
 from . import texts
@@ -279,8 +280,8 @@ async def silas_cancel(msg: Message):
         except:
             pass
         try:
-            if active_requests[user_id].get('status_msg'):
-                await active_requests[user_id]['status_msg'].delete()
+            if active_requests[user_id].get('status'):
+                await active_requests[user_id]['status'].stop()
         except:
             pass
         # Удаляем сообщение пользователя
@@ -337,11 +338,12 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         return
     
     user_id = msg.from_user.id
-    request_state = {'cancelled': False, 'kb_msg': None, 'status_msg': None}
+    request_state = {'cancelled': False, 'kb_msg': None, 'status': None}
     active_requests[user_id] = request_state
     
-    status_msg = await msg.answer(texts.STATUS_PROCESSING)
-    request_state['status_msg'] = status_msg
+    status_type = "photo" if image_b64 else "text"
+    status = await show_status(bot, msg.chat.id, status_type)
+    request_state['status'] = status
     
     resp = None
     
@@ -392,70 +394,17 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         if request_state['cancelled']:
             return
         
-        # УЛУЧШЕННЫЙ STREAMING
         if image_b64:
             resp, tok = await ask(msgs, model, image_b64)
         else:
-            full_response = ""
-            sentence_buffer = ""
-            displayed_text = ""
-            last_update = time.time()
-            typing_phase = 0
-            stream_msg = None
-            
-            async for chunk in ask_stream(msgs, model, max_tokens=4000):
-                if request_state['cancelled']:
-                    return
-                if not chunk:
-                    continue
-                
-                full_response += chunk
-                sentence_buffer += chunk
-                now = time.time()
-                
-                if typing_phase == 0 and len(full_response) > 20:
-                    typing_phase = 1
-                    try:
-                        await status_msg.edit_text(texts.STATUS_TYPING)
-                    except:
-                        pass
-                
-                if typing_phase == 1 and len(full_response) > 100:
-                    typing_phase = 2
-                    try:
-                        await status_msg.delete()
-                    except:
-                        pass
-                    stream_msg = await msg.answer("_Печатаю..._", parse_mode=None)
-                
-                if typing_phase == 2 and stream_msg:
-                    if sentence_buffer.rstrip().endswith(('.', '!', '?', '\n\n')):
-                        displayed_text += sentence_buffer
-                        sentence_buffer = ""
-                        
-                        if now - last_update >= 0.5:
-                            formatted = md_to_html(displayed_text)
-                            try:
-                                await stream_msg.edit_text(formatted + " ▌")
-                                last_update = now
-                                await asyncio.sleep(0.3)
-                            except:
-                                pass
-            
-            displayed_text += sentence_buffer
-            resp = full_response.strip()
+            resp = await stream_response(
+                bot=bot,
+                message=msg,
+                messages=msgs,
+                model=model,
+                status_type="text"
+            )
             tok = calculate_tokens(msgs, resp)
-            
-            if stream_msg:
-                try:
-                    await stream_msg.delete()
-                except:
-                    pass
-            if status_msg and typing_phase < 2:
-                try:
-                    await status_msg.delete()
-                except:
-                    pass
         
         if request_state['cancelled']:
             return
@@ -482,6 +431,8 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         
     finally:
+        if status:
+            await status.stop()
         active_requests.pop(user_id, None)
     
     if resp:
@@ -536,71 +487,33 @@ async def silas_text(msg: Message, state: FSMContext):
 
 @router.message(SilasSt.session, F.voice)
 async def silas_voice(msg: Message, state: FSMContext):
-    sec = 0
-    st = await msg.answer(texts.STATUS_LISTENING.format(sec=0))
-    
-    running = True
-    async def update_voice_counter():
-        nonlocal sec
-        while running:
-            await asyncio.sleep(1)
-            if not running:
-                break
-            sec += 1
-            try:
-                await st.edit_text(texts.STATUS_LISTENING.format(sec=sec))
-            except:
-                break
-    
-    counter_task = asyncio.create_task(update_voice_counter())
-    
+    status = await show_status(bot, msg.chat.id, "voice")
     try:
         fp = await download_voice(bot, msg.voice.file_id)
         text = await transcribe_voice(fp)
-        running = False
-        counter_task.cancel()
         if not text:
-            await st.edit_text(texts.ERROR_NO_RECOGNITION)
+            await msg.answer(texts.ERROR_NO_RECOGNITION)
             return
-        await st.delete()
     except Exception as e:
-        running = False
-        counter_task.cancel()
-        await st.edit_text(f"❌ {e}")
+        await msg.answer(f"❌ {e}")
         return
+    finally:
+        if status:
+            await status.stop()
     await process_silas_message(msg, state, text)
 
 @router.message(SilasSt.session, F.photo)
 async def silas_photo(msg: Message, state: FSMContext):
-    sec = 0 
-    st = await msg.answer(texts.STATUS_LOOKING.format(sec=0))
-    
-    running = True
-    async def update_photo_counter():
-        nonlocal sec
-        while running:
-            await asyncio.sleep(1)
-            if not running:
-                break
-            sec += 1
-            try:
-                await st.edit_text(texts.STATUS_LOOKING.format(sec=sec))
-            except:
-                break
-    
-    counter_task = asyncio.create_task(update_photo_counter())
-    
+    status = await show_status(bot, msg.chat.id, "photo")
     try:
         photo = msg.photo[-1]
         file = await bot.get_file(photo.file_id)
         data = await bot.download_file(file.file_path)
         b64 = base64.b64encode(data.read()).decode()
-        running = False
-        counter_task.cancel()
-        await st.delete()
     except Exception as e:
-        running = False
-        counter_task.cancel()
-        await st.edit_text(f"❌ {e}")
+        await msg.answer(f"❌ {e}")
         return
+    finally:
+        if status:
+            await status.stop()
     await process_silas_message(msg, state, msg.caption or "Опишите что вы видите", b64)

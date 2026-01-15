@@ -84,14 +84,6 @@ NO_ACTIVE_REQUEST = "Нет активного запроса"
 
 # ========== СТАТУСЫ ОБРАБОТКИ ==========
 
-STATUS_PROCESSING = "⌛️ Обрабатываю... Пожалуйста подождите..."
-STATUS_PROCESSING_SHORT = "⌛️ Обрабатываю..."
-STATUS_TYPING = "✍️ Печатаю..."
-STATUS_LISTENING = "🎧 Слушаю..."
-STATUS_RECOGNIZING = "🎧 Распознаю..."
-STATUS_LOOKING = "🔎 Смотрю фото..."
-STATUS_THINKING = "🤔 Думаю..."
-STATUS_VOICING = "🎤 Озвучиваю..."
 
 # ========== ОШИБКИ ==========
 
