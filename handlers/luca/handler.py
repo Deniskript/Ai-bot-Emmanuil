@@ -35,7 +35,7 @@ from .memory import (
     CHARS,
     CHAR_NAMES
 )
-from .prompts import SYSTEM_PROMPT, LUCA_VOICE_RULES, LUCA_VOICE_STYLE_SOUL, LUCA_VOICE_STYLE_MIND
+from .prompts import LUCA_VOICE_RULES, LUCA_VOICE_STYLE_SOUL, LUCA_VOICE_STYLE_MIND
 
 router = Router()
 

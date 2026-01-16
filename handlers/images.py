@@ -11,7 +11,6 @@ from aiogram.types import (
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.exceptions import TelegramNetworkError
 from keyboards.reply import photo_kb, bots_menu_kb
 import aiohttp
 import base64

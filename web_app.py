@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime
-from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens, DATABASE_PATH
+from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens
 
 # Web App Domain для Telegram Mini Apps
 WEBAPP_DOMAIN = os.getenv("WEBAPP_DOMAIN", "http://localhost:5000")
@@ -25,7 +25,6 @@ from prompts.magic_prompts import (
     PALM_PROMPT, FACE_PROMPT, COFFEE_PROMPT, CRYSTAL_PROMPT, CANDLE_PROMPT,
     RITUALS
 )
-import aiosqlite
 import html
 import re
 

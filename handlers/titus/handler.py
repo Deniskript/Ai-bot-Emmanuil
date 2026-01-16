@@ -18,7 +18,7 @@ from utils.openrouter import ask
 from utils.tokens import calculate_tokens
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
-from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button, get_titus_keyboard
+from utils.conversations import save_message, clean_response, should_show_preview, get_titus_keyboard
 from utils.streaming import stream_response
 from utils.status_manager import show_status
 from loader import bot

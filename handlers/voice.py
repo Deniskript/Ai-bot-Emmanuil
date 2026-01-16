@@ -5,7 +5,6 @@ from aiogram.fsm.state import State, StatesGroup
 from database import db
 from keyboards import reply, inline
 from utils.openrouter import ask
-from utils.tokens import calculate_tokens
 from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood

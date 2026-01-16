@@ -1,10 +1,9 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db  # Использует PostgreSQL через database/__init__.py
 from keyboards import reply, inline
-from utils.openrouter import ask
 from utils.tokens import calculate_tokens
 from utils.antiflood import ai_flood
 from utils.video_downloader import download_video_from_url, extract_key_frames, cleanup_temp_files

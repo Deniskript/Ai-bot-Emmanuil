@@ -19,7 +19,7 @@ import base64
 import aiohttp
 import os
 import tempfile
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 
 router = Router()
 
@@ -269,7 +269,6 @@ async def save_to_journal(callback: CallbackQuery, state: FSMContext):
             return
         
         # Логируем для отладки
-        print(f"[DEBUG] Saving calories for user {callback.from_user.id}: {food_data}")
         
         # Сохраняем в БД
         await db.save_calories_log(
@@ -282,7 +281,6 @@ async def save_to_journal(callback: CallbackQuery, state: FSMContext):
             carbs=float(food_data.get("carbs", 0))
         )
         
-        print(f"[DEBUG] Calories saved successfully for user {callback.from_user.id}")
         
         # Получаем статистику на сегодня
         today_stats = await db.get_today_calories(callback.from_user.id)
@@ -332,7 +330,6 @@ async def show_today(msg: Message, state: FSMContext):
     try:
         logs = await db.get_calories_logs(msg.from_user.id, days=0)
         
-        print(f"[DEBUG] Found {len(logs)} logs for user {msg.from_user.id}")
         
         if not logs:
             await msg.answer(
@@ -508,7 +505,6 @@ async def what_to_eat(msg: Message, state: FSMContext):
         # Получаем данные
         goal = await db.get_nutrition_goal(msg.from_user.id)
         
-        print(f"[DEBUG] what_to_eat: user {msg.from_user.id}, goal: {goal}")
         
         if not goal:
             await msg.answer(
@@ -559,12 +555,10 @@ async def what_to_eat(msg: Message, state: FSMContext):
    [почему подходит]
 """
         
-        print(f"[DEBUG] Sending prompt to OpenRouter")
         
         messages = [{"role": "user", "content": prompt}]
         response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
         
-        print(f"[DEBUG] Got response from OpenRouter")
         
         # Списываем токены с маржой 2.5x
         await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')

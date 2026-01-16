@@ -1,9 +1,14 @@
+# Environment
 .env
 .env.*
 !.env.example
+
+# Security
 *.key
 *credentials*
 *secret*
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -11,10 +16,33 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 venv/
-node_modules/
-venv/
-__pycache__/
-*.pyc
-.env
+
+# Database
 *.db
+*.sqlite
+*.sqlite3
+
+# Logs
 *.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node
+node_modules/
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.old
+*.backup
+*~
+
+# OS
+.DS_Store
+Thumbs.db

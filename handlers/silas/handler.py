@@ -16,7 +16,7 @@ from utils.voice import download_voice, transcribe_voice, text_to_speech
 from aiogram.types import FSInputFile
 import os
 from utils.antiflood import ai_flood
-from utils.telegraph import create_telegraph_page, make_preview
+from utils.telegraph import create_telegraph_page
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from utils.status_manager import show_status
 from utils.streaming import stream_response
@@ -28,7 +28,7 @@ import base64
 
 from . import keyboards as kb
 from . import texts
-from .prompts import SILAS_SYSTEM, SILAS_VOICE_RULES, MOODS
+from .prompts import SILAS_SYSTEM, SILAS_VOICE_RULES
 from .memory import build_memory_context
 
 router = Router()

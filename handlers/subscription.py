@@ -3,7 +3,7 @@ from aiogram.types import Message, CallbackQuery
 from database import db
 from keyboards import inline
 from utils.robokassa import generate_payment_link
-from config import SUBSCRIPTIONS, TOKEN_PACKAGES, NEW_USER_BONUS
+from config import SUBSCRIPTIONS, TOKEN_PACKAGES
 
 
 router = Router()
