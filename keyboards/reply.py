@@ -11,11 +11,14 @@ def main_kb(user_id: int):
         [KeyboardButton(text="💳 Оплата", web_app=WebAppInfo(url=f"https://soul-bot.ru/payment?user_id={user_id}")), KeyboardButton(text="❓ Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))]
     ], resize_keyboard=True)
 
+HOW_IT_WORKS_TEXT = "📖 Как это работает?"
+
+
 def bots_menu_kb():
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="💬 Диалог"), KeyboardButton(text="🛋️ Психолог")],
+        [KeyboardButton(text="✨ Soul Чат"), KeyboardButton(text="🛋️ Психолог")],
         [KeyboardButton(text="📚 Обучение"), KeyboardButton(text="🎨 Творчество")],
-        [KeyboardButton(text="🍎 Здоровье"), KeyboardButton(text="🏃 Лайфстайл")],
+        [KeyboardButton(text="📲 Соцсети"), KeyboardButton(text="🏆 Лайфстайл")],
         [KeyboardButton(text="◀️ Главное меню")]
     ], resize_keyboard=True)
 
@@ -47,8 +50,8 @@ def back_kb():
 def study_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="📝 Новый курс")],
-        [KeyboardButton(text="📂 Ваши курсы"), KeyboardButton(text="📚 Анализ видео")],
-        [KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
+        [KeyboardButton(text="📚 Анализ видео"), KeyboardButton(text="📁 Ваши курсы")],
+        [KeyboardButton(text=HOW_IT_WORKS_TEXT, web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
 def study_chat_kb():
@@ -136,9 +139,8 @@ def nutrition_menu_kb():
 def lifestyle_kb(user_id: int):
     """Меню раздела Лайфстайл"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🎬 Вирусный разбор"), KeyboardButton(text="🌅 Режим дня")],
-        [KeyboardButton(text="🎯 Трекер целей"), KeyboardButton(text="🧘 Ментальное")],
-        [KeyboardButton(text="💰 Финансы"), KeyboardButton(text="🔮 Магия")],
+        [KeyboardButton(text="🗓 Режим дня"), KeyboardButton(text="🔮 Эзотерика")],
+        [KeyboardButton(text="🍎 Здоровье"), KeyboardButton(text=HOW_IT_WORKS_TEXT, web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
@@ -215,8 +217,17 @@ def creativity_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🎬 Видео", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/video?user_id={user_id}")),
          KeyboardButton(text="📷 Фото", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/photo?user_id={user_id}"))],
-        [KeyboardButton(text="📱 Блогерам", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/blogger?user_id={user_id}")),
-         KeyboardButton(text="🎭 Креатив", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/creative?user_id={user_id}"))],
+        [KeyboardButton(text="🎭 Креатив", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/creative?user_id={user_id}"))],
+        [KeyboardButton(text=HOW_IT_WORKS_TEXT, web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))],
+        [KeyboardButton(text="◀️ Назад")]
+    ], resize_keyboard=True)
+
+
+def socials_menu_kb(user_id: int):
+    """Меню раздела Соцсети"""
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="🎬 Вирусный разбор"), KeyboardButton(text="🖼 Обложки", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/blogger?user_id={user_id}"))],
+        [KeyboardButton(text=HOW_IT_WORKS_TEXT, web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 

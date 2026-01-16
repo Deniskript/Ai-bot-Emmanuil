@@ -15,8 +15,8 @@ from aiogram.types import (
 def dialog_kb(user_id: int):
     """Главное меню диалога"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🙂 Поговорить"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/luca/settings?user_id={user_id}"))],
-        [KeyboardButton(text="🧹 Очистить"), KeyboardButton(text="📖 Как это работает", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}&tab=dialog"))],
+        [KeyboardButton(text="💬 Начать"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/luca/settings?user_id={user_id}"))],
+        [KeyboardButton(text="🧹 Очистить"), KeyboardButton(text="📖 Как это работает?", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}&tab=dialog"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 

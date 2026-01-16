@@ -5,36 +5,25 @@
 
 # ========== ИДЕНТИФИКАЦИЯ БОТА ==========
 BOT_NAME = "lifestyle"
-BOT_DISPLAY_NAME = "🏃 Лайфстайл"
-BOT_FULL_NAME = "🏃 Lifestyle"
+BOT_DISPLAY_NAME = "🏆 Лайфстайл"
+BOT_FULL_NAME = "🏆 Lifestyle"
 BOT_DESCRIPTION = "Улучшай качество жизни"
 
 # ========== ПОДМОДУЛИ ==========
 MODULES = {
-    "viral": {
-        "name": "🎬 Вирусный разбор",
-        "enabled": True
-    },
     "routine": {
-        "name": "🌅 Режим дня",
-        "enabled": True
-    },
-    "goals": {
-        "name": "🎯 Трекер целей",
-        "enabled": True
-    },
-    "mental": {
-        "name": "🧘 Ментальное",
-        "enabled": True
-    },
-    "finance": {
-        "name": "💰 Финансы",
+        "name": "🗓 Режим дня",
         "enabled": True
     },
     "magic": {
-        "name": "🔮 Магия",
+        "name": "🔮 Эзотерика",
         "enabled": True
-    }
+    },
+    # Удалённые разделы оставляем закомментированными по требованиям
+    # "viral": {"name": "🎬 Вирусный разбор", "enabled": True},
+    # "goals": {"name": "🎯 Трекер целей", "enabled": True},
+    # "mental": {"name": "🧘 Ментальное", "enabled": True},
+    # "finance": {"name": "💰 Финансы", "enabled": True},
 }
 
 # ========== ЛИМИТЫ ТОКЕНОВ ==========

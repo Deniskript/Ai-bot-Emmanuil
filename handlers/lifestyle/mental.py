@@ -490,4 +490,4 @@ async def mood_chart(msg: Message, state: FSMContext):
 async def back_from_mental(msg: Message, state: FSMContext):
     """Вернуться в меню Лайфстайл"""
     await state.clear()
-    await msg.answer("🏃 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))
+    await msg.answer("🏆 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))

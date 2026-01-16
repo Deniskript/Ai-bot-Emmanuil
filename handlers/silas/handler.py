@@ -154,7 +154,7 @@ async def silas_start_session(msg: Message, state: FSMContext):
 
 # Обработчик "📔 Настроение" удалён - теперь используется Web App "🧘 Подготовка"
 
-@router.message(SilasSt.menu, F.text == "📖 Как это работает")
+@router.message(SilasSt.menu, F.text == "📖 Как это работает?")
 async def silas_help(msg: Message):
     text = await db.get_text('help_psycho')
     if not text:

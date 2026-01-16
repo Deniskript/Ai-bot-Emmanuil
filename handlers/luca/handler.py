@@ -103,7 +103,7 @@ async def check_tokens_and_notify(user_id: int, min_tokens: int, msg: Message) -
 
 # ========== МЕНЮ ==========
 
-@router.message(F.text.in_(["💭 Диалог", "💬 Диалог"]))
+@router.message(F.text == "✨ Soul Чат")
 async def luka_enter(msg: Message, state: FSMContext):
     cfg = await db.get_bot_cfg('luca')
     if not cfg['enabled']:
@@ -122,7 +122,7 @@ async def luka_enter(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.menu, F.text == "🙂 Поговорить")
+@router.message(LukaSt.menu, F.text == "💬 Начать")
 async def luka_start_chat(msg: Message, state: FSMContext):
     await db.clear_msgs(msg.from_user.id, 'luca')
     await db.reset_msg_counter(msg.from_user.id, 'luca')

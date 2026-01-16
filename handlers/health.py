@@ -943,11 +943,11 @@ async def back_to_health_from_nutrition(msg: Message, state: FSMContext):
     await msg.answer(text, parse_mode="HTML", reply_markup=reply.health_kb(msg.from_user.id))
 
 
-# Назад из меню Здоровье → Soul меню
+# Назад из меню Здоровье → Лайфстайл
 @router.message(HealthStates.menu, F.text == "◀️ Назад")
-async def back_to_soul_menu(msg: Message, state: FSMContext):
-    """Назад из главного меню Здоровье в меню Soul AI"""
+async def back_to_lifestyle_menu(msg: Message, state: FSMContext):
+    """Назад из главного меню Здоровье в меню Лайфстайл"""
     await state.clear()
-    from keyboards.reply import bots_menu_kb
-    await msg.answer("🫧 Soul AI", reply_markup=bots_menu_kb())
+    from keyboards.reply import lifestyle_kb
+    await msg.answer("🏆 Лайфстайл", reply_markup=lifestyle_kb(msg.from_user.id))
 

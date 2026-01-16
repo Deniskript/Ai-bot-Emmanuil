@@ -317,7 +317,7 @@ async def reg_gender(cb: CallbackQuery, state: FSMContext):
 # === МЕНЮ БОТОВ ===
 @router.message(F.text == "🫧 Soul AI")
 async def bots_menu(msg: Message):
-    text = """💭 <b>Диалог</b>
+    text = """✨ <b>Soul Чат</b>
 Твой внутренний голос — усиленный ИИ.
 Находи идеи, вдохновляйся, чувствуй поддержку.
 
@@ -325,10 +325,19 @@ async def bots_menu(msg: Message):
 То, что внутри — влияет на всё вокруг.
 Пойми себя глубже, чтобы жить легче.
 
-📓 <b>Обучение</b>
+📚 <b>Обучение</b>
 Курсы за сотни тысяч — теперь у тебя.
 Шаги • Конспекты • Разбор сложного.
-Лучшие репетиторы изменят твоё сознание."""
+Лучшие репетиторы изменят твоё сознание.
+
+🎨 <b>Творчество</b>
+Фото, видео и креативные эффекты.
+
+📲 <b>Соцсети</b>
+Вирусные разборы и обложки.
+
+🏆 <b>Лайфстайл</b>
+Режим дня, эзотерика и здоровье."""
     await msg.answer(text, reply_markup=reply.bots_menu_kb())
 @router.message(F.text == "◀️ Главное меню")
 async def back_main_menu(msg: Message, state: FSMContext):

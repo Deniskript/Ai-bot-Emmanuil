@@ -172,16 +172,16 @@ async def cancel_operation(msg: Message, state: FSMContext):
 async def back_from_viral(msg: Message, state: FSMContext):
     """Возврат из меню вирусного разбора"""
     await state.clear()
-    from keyboards.reply import study_kb
-    await msg.answer("📓 Обучение", reply_markup=study_kb(msg.from_user.id))
+    from keyboards.reply import socials_menu_kb
+    await msg.answer("📲 Соцсети", reply_markup=socials_menu_kb(msg.from_user.id))
 
 
 @router.message(ViralAnalysisSt.menu, F.text == "❌ Завершить")
 async def exit_viral(msg: Message, state: FSMContext):
     """Выход из вирусного разбора"""
     await state.clear()
-    from keyboards.reply import study_kb
-    await msg.answer("👋 До встречи!", reply_markup=study_kb(msg.from_user.id))
+    from keyboards.reply import socials_menu_kb
+    await msg.answer("👋 До встречи!", reply_markup=socials_menu_kb(msg.from_user.id))
 
 
 # ========== ТЕКСТОВЫЙ СОВЕТ ==========

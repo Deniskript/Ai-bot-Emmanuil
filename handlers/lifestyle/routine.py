@@ -31,7 +31,7 @@ class RoutineStates(StatesGroup):
 # ГЛАВНОЕ МЕНЮ
 # ═══════════════════════════════════════
 
-@router.message(F.text == "🌅 Режим дня")
+@router.message(F.text == "🗓 Режим дня")
 async def routine_menu(msg: Message, state: FSMContext):
     """Главное меню режима дня"""
     await state.set_state(RoutineStates.menu)
@@ -44,7 +44,7 @@ async def routine_menu(msg: Message, state: FSMContext):
         evening_status = f"✅ Заполнено" if today_evening else "⬜ Не заполнено"
         
         await msg.answer(
-            f"🌅 <b>Режим дня</b>\n\n"
+            f"🗓 <b>Режим дня</b>\n\n"
             f"<b>Сегодня:</b>\n"
             f"☀️ Утро: {morning_status}\n"
             f"🌙 Вечер: {evening_status}\n\n"
@@ -248,7 +248,7 @@ async def reflection_entered(msg: Message, state: FSMContext):
     try:
         if msg.text.startswith("◀️"):
             await state.set_state(RoutineStates.menu)
-            await msg.answer("🌅 Режим дня", reply_markup=reply.routine_menu_kb())
+            await msg.answer("🗓 Режим дня", reply_markup=reply.routine_menu_kb())
             return
         
         await state.update_data(reflection=msg.text)
@@ -424,18 +424,18 @@ async def productivity_stats(msg: Message):
 async def back_from_routine(msg: Message, state: FSMContext):
     """Вернуться в меню Лайфстайл"""
     await state.clear()
-    await msg.answer("🏃 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))
+    await msg.answer("🏆 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))
 
 
 @router.message(RoutineStates.morning_checklist, F.text == "◀️ Назад")
 async def back_from_morning(msg: Message, state: FSMContext):
     """Назад из утреннего чеклиста"""
     await state.set_state(RoutineStates.menu)
-    await msg.answer("🌅 <b>Режим дня</b>", parse_mode="HTML", reply_markup=reply.routine_menu_kb())
+    await msg.answer("🗓 <b>Режим дня</b>", parse_mode="HTML", reply_markup=reply.routine_menu_kb())
 
 
 @router.message(RoutineStates.evening_reflection, F.text == "◀️ Назад")
 async def back_from_evening(msg: Message, state: FSMContext):
     """Назад из вечерней рефлексии"""
     await state.set_state(RoutineStates.menu)
-    await msg.answer("🌅 <b>Режим дня</b>", parse_mode="HTML", reply_markup=reply.routine_menu_kb())
+    await msg.answer("🗓 <b>Режим дня</b>", parse_mode="HTML", reply_markup=reply.routine_menu_kb())

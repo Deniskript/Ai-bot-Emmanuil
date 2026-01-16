@@ -16,7 +16,7 @@ def psycho_kb(user_id: int):
     """Главное меню психолога"""
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🛋️ Начать сессию"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/silas/settings?user_id={user_id}"))],
-        [KeyboardButton(text="📖 Как это работает", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
+        [KeyboardButton(text="📖 Как это работает?", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
 

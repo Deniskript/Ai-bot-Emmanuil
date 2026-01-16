@@ -512,7 +512,7 @@ async def goals_stats(msg: Message):
 async def back_from_goals(msg: Message, state: FSMContext):
     """Вернуться в меню Лайфстайл"""
     await state.clear()
-    await msg.answer("🏃 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))
+    await msg.answer("🏆 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))
 
 
 @router.message(GoalStates.enter_title, F.text == "◀️ Назад")
