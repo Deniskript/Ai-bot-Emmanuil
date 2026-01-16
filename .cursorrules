@@ -1,56 +1,89 @@
-Markdown
 # 🤖 SOUL AI BOT — Telegram бот с AI функционалом
 
 ## 📋 ОСНОВНАЯ ИНФОРМАЦИЯ
 
 **Название:** Soul AI Bot  
 **Домен:** soul-bot.ru  
-**Стек:** Python 3.12, aiogram 3.x, PostgreSQL, Redis, aiohttp  
+**Стек:** Python 3.12, aiogram 3.x, PostgreSQL, Redis, aiohttp, Alembic  
 **Сервер:** VPS Linux (root@Aibot)  
-**Готовность проекта:** ~83%
+**Готовность проекта:** ~90%
+**Последнее обновление:** Январь 2026
 
 ---
 
 ## 🏗️ АРХИТЕКТУРА ПРОЕКТА
 
 ### Handlers (обработчики):
+```
 handlers/
 ├── start.py        — /start, главное меню, навигация
-├── admin.py        — Админ-панель (38KB, нужна доработка)
-├── images.py       — Генерация изображений (95KB, основной функционал)
-├── health.py       — Здоровье и калории (39KB)
+├── admin.py        — Админ-панель
+├── images.py       — Генерация изображений (основной функционал)
+├── health.py       — Здоровье и калории
 ├── subscription.py — Подписки и оплата
-├── voice.py        — Голосовые сообщения (Whisper)
-├── luca/           — Модуль Luca (Soul AI чат)
-├── silas/          — Модуль Silas (парные сессии)
-├── titus/          — Модуль Titus (контент-создание)
-└── lifestyle/      — Lifestyle модуль (viral, routine, goals, mental, finance)
-
-
-Clean
+├── voice.py        — Голосовые сообщения (Whisper) — ТОЛЬКО для Luca и Silas
+├── luca/           — Модуль Luca (Soul AI чат с голосом)
+├── silas/          — Модуль Silas (парные сессии с голосом)
+├── titus/          — Модуль Titus (обучение, ТОЛЬКО текст, голос удалён)
+└── lifestyle/      — Lifestyle модуль (viral, routine, goals, mental, finance, magic)
+```
 
 ### Templates (WebApp HTML):
+```
 templates/
 ├── images_settings.html    — Настройки генерации изображений
 ├── photo_settings.html     — Фото настройки
 ├── video_settings.html     — Видео настройки
 ├── blogger_settings.html   — Для блогеров
 ├── creative_settings.html  — Креативные инструменты
-├── luca_settings.html      — Настройки Luca
-├── silas_settings.html     — Настройки Silas (58KB)
+├── luca_settings.html      — Настройки Luca (персонаж + голос)
+├── silas_settings.html     — Настройки Silas
 ├── silas_pair_join.html    — Присоединение к паре
 ├── silas_pair_session.html — Парная сессия
-├── video_notes.html        — Видео заметки
-├── webapp.html             — Основной WebApp
+├── video_notes.html        — Видео заметки (конспекты)
+├── webapp.html             — Основной WebApp (кабинет)
 ├── help.html               — Помощь
-└── payment.html            — Оплата
+├── payment.html            — Оплата
+├── magic_horoscope.html    — Гороскопы
+├── magic_tarot.html        — Таро
+├── magic_divination.html   — Гадания
+├── magic_numerology.html   — Нумерология
+├── magic_moon.html         — Лунный календарь
+└── magic_rituals.html      — Ритуалы
+```
 
+### Utils (утилиты):
+```
+utils/
+├── openrouter.py       — API OpenRouter (ask, ask_stream)
+├── streaming.py        — Единый модуль стриминга с автостатусом
+├── status_manager.py   — Анимированные статусы ожидания
+├── markdown.py         — md_to_html конвертер
+├── voice.py            — TTS и STT (Whisper)
+├── tokens.py           — Работа с токенами
+├── memory.py           — Долгосрочная память
+├── magic_calculations.py — Расчёты для магии (нумерология, луна)
+├── magic_vision.py     — Анализ фото для гаданий
+└── magic_notifications.py — Уведомления магии
+```
 
-Yaml
+### Database (базы данных):
+```
+database/
+├── __init__.py         — Экспорт: from . import postgres_db as db
+├── postgres_db.py      — Основная БД (PostgreSQL + asyncpg)
+├── redis_db.py         — Кэш и настройки (Redis)
+└── db.py               — Старый SQLite (НЕ ИСПОЛЬЗОВАТЬ)
+```
 
-### Устаревшие файлы (.old) — НЕ ИСПОЛЬЗОВАТЬ:
-- finance.py.old, goals.py.old, mental.py.old, routine.py.old
-- lifestyle.py.old, titus.py.old, viral_analysis.py.old
+### Migrations (Alembic):
+```
+migrations/
+├── env.py              — Конфигурация Alembic
+└── versions/
+    ├── 001_initial_schema.py   — Базовые таблицы
+    └── 002_add_course_memory.py — Память курсов Titus
+```
 
 ---
 
@@ -59,7 +92,8 @@ Yaml
 ### OpenRouter (основной для текста):
 - **URL:** https://openrouter.ai/api/v1
 - **Модель по умолчанию:** anthropic/claude-sonnet-4.5
-- **Использование:** Чат, анализ, генерация текста
+- **Использование:** Чат, анализ, генерация текста, стриминг
+- **Функции:** `ask()`, `ask_stream()` в utils/openrouter.py
 
 ### ProxyAPI (для изображений):
 - **Ключ:** OPENAI_API_KEY в .env
@@ -67,7 +101,6 @@ Yaml
 
 ### Robokassa (оплата):
 - **Тестовый режим:** включен (ROBOKASSA_TEST_MODE=1)
-- **Планируется:** СБП, криптооплата
 
 ---
 
@@ -86,36 +119,70 @@ Yaml
 
 ### Минимум для запроса: 3,000 токенов
 
-**⚠️ ВАЖНО:** В проекте есть баги с токенами — нужна централизация и проверка на всех handlers!
+---
+
+## 🎯 МОДУЛИ И ИХ СОСТОЯНИЕ
+
+### ✅ ГОТОВО:
+- **Luca** — AI чат с персонажами (Soul/Alter), голосом, памятью
+- **Silas** — Парные сессии с голосом
+- **Titus** — Обучение курсам (ТОЛЬКО текст, голос удалён)
+- **Images** — Генерация изображений
+- **Lifestyle** — Viral анализ, рутина, цели, финансы
+- **Magic** — Гороскопы, Таро, Гадания, Нумерология, Луна, Ритуалы
+- **Health** — Калории, здоровье
+
+### 🔧 ТРЕБУЕТ ДОРАБОТКИ:
+- **Admin** — Админ-панель (баги)
+- **Subscription** — Оплата (тестовый режим)
 
 ---
 
-## 🎯 ТЕКУЩИЕ ПРИОРИТЕТЫ
+## ⚙️ ВАЖНЫЕ СИСТЕМЫ
 
-### 1. Доделать handlers до 100%:
-- [ ] images.py — проверить все режимы генерации
-- [ ] health.py — убрать DEBUG принты
-- [ ] admin.py — исправить баги, добавить функционал
+### 1. Стриминг (utils/streaming.py):
+```python
+from utils.streaming import stream_response
 
-### 2. Админ-кабинет:
-- [ ] Исправить ошибки
-- [ ] Добавить статистику
-- [ ] Управление пользователями
+resp, sent_msg = await stream_response(
+    bot=bot,
+    message=msg,
+    messages=[{"role": "user", "content": text}],
+    model="anthropic/claude-sonnet-4.5",
+    status_type="text"  # text, photo, voice, magic, generate
+)
 
-### 3. Кабинет пользователя:
-- [ ] Создать/дополнить интерфейс
-- [ ] История генераций
-- [ ] Настройки профиля
+# sent_msg — уже отправленное сообщение, не отправлять повторно!
+if sent_msg:
+    await sent_msg.edit_text(final_text, reply_markup=keyboard)
+```
 
-### 4. Система токенов:
-- [ ] Централизовать логику списания
-- [ ] Проверить работу на ВСЕХ handlers
-- [ ] Убрать дубликаты токен-логики
+### 2. Статусы ожидания (utils/status_manager.py):
+```python
+from utils.status_manager import show_status
 
-### 5. Оплата:
-- [ ] Настроить Robokassa (production)
-- [ ] Добавить СБП
-- [ ] Добавить криптооплату
+status = await show_status(bot, chat_id, "text")
+try:
+    # ... работа ...
+finally:
+    await status.stop()
+```
+
+Типы: `text`, `photo`, `voice`, `magic`, `generate`
+
+### 3. Память курсов (handlers/titus/memory.py):
+- `save_step_progress()` — сохранение прогресса
+- `build_smart_context()` — построение контекста
+- Таблица `course_memory` в PostgreSQL
+
+### 4. Миграции БД (Alembic):
+```bash
+cd /root/ai-bot
+source venv/bin/activate
+alembic upgrade head    # Применить миграции
+alembic current         # Текущая версия
+alembic history         # История миграций
+```
 
 ---
 
@@ -124,94 +191,160 @@ Yaml
 ### Стиль:
 - Всегда async/await (проект полностью асинхронный)
 - Type hints обязательны
-- Docstrings на русском
-- Комментарии на русском
+- Docstrings и комментарии на русском
+- Использовать logging вместо print()
 
-### Форматирование текста для пользователя:
+### Форматирование для пользователя:
 - Заголовки **жирные**
-- Используй эмодзи 😊🎨✨
-- Красивое оформление сообщений
+- Эмодзи для визуала 😊🎨✨
+- HTML-теги: `<b>`, `<i>`, `<code>`
 
 ### База данных:
 - Только asyncpg (PostgreSQL)
-- НЕ использовать SQLite или SQLAlchemy
-- Пул соединений через postgres_db
+- НЕ использовать SQLite (db.py устарел)
+- Миграции через Alembic
+
+### Стриминг:
+- Использовать `stream_response()` из utils/streaming.py
+- Возвращает `(text, sent_msg)` — НЕ отправлять повторно!
+- Статус автоматически выключается при первом chunk
 
 ### WebApp:
-- Данные отправляются через Telegram.WebApp.sendData(JSON)
-- Обработка в handlers через web_app_data
-
-### Обработка ошибок:
-- try/except везде где есть API вызовы
-- Логирование через logging (не print!)
-- Graceful degradation для пользователя
+- Данные через `Telegram.WebApp.sendData(JSON)`
+- Обработка в handlers через `web_app_data`
 
 ---
 
 ## 🚫 НЕ ТРОГАТЬ
 
-- `bot.py` — только добавлять роутеры, не менять структуру
+- `main.py` — точка входа, только добавлять роутеры
 - `config.py` — только через .env
-- `loader.py` — инициализация бота
-- `database/postgres_db.py` — работает стабильно
-- Файлы `.old` — архив, не использовать
+- `loader.py` — инициализация bot, dp
+- `database/db.py` — устаревший SQLite, не использовать
+- `prompts/` — папка с устаревшими промптами (актуальные в handlers/*/prompts.py)
 
 ---
 
-## 📁 ВАЖНЫЕ ПУТИ
+## 📁 СТРУКТУРА ПРОЕКТА
 
-/root/ai-bot/           — корень проекта
-├── bot.py              — точка входа
-├── config.py           — конфигурация
-├── loader.py           — инициализация bot, dp
-├── handlers/           — обработчики
+```
+/root/ai-bot/
+├── main.py             — Точка входа
+├── config.py           — Конфигурация из .env
+├── loader.py           — Инициализация bot, dp
+├── web_app.py          — Flask WebApp сервер
+├── alembic.ini         — Конфиг Alembic
+├── requirements.txt    — Зависимости
+├── .env                — Секреты (НЕ коммитить!)
+├── handlers/           — Обработчики
+│   ├── luca/           — Luca (чат + голос)
+│   ├── silas/          — Silas (пары + голос)
+│   ├── titus/          — Titus (обучение, только текст)
+│   └── lifestyle/      — Lifestyle + Magic
 ├── templates/          — HTML для WebApp
-├── database/           — PostgreSQL
-├── utils/              — утилиты (openrouter.py и др.)
-├── keyboards/          — клавиатуры
-└── .env                — секреты (НЕ коммитить!)
-
-
-Yaml
+├── database/           — PostgreSQL + Redis
+├── migrations/         — Alembic миграции
+├── utils/              — Утилиты
+├── keyboards/          — Клавиатуры
+└── assets/             — Статика (картинки таро)
+```
 
 ---
 
-## 🔧 DEBUG ПРИНТЫ — УДАЛИТЬ
+## 🔧 УПРАВЛЕНИЕ СЕРВИСАМИ
 
-В `handlers/health.py` есть DEBUG принты — заменить на logging:
+```bash
+# Бот
+systemctl restart aibot
+systemctl status aibot
+journalctl -u aibot -n 50 --no-pager
+
+# WebApp
+systemctl restart soul-bot-web
+systemctl status soul-bot-web
+
+# Логи в реальном времени
+journalctl -u aibot -f
+```
+
+---
+
+## 🗄️ БАЗА ДАННЫХ
+
+### PostgreSQL (основная):
+- **Подключение:** DATABASE_URL в .env
+- **Модуль:** database/postgres_db.py
+- **Таблицы:** users, conversations, messages, courses, course_memory, и др.
+
+### Redis (кэш):
+- **Подключение:** REDIS_URL в .env
+- **Модуль:** database/redis_db.py
+- **Использование:** Настройки Luca/Silas, кэш, rate limiting
+
+---
+
+## 💡 ДЛЯ НОВОГО АГЕНТА
+
+### Первые шаги:
+1. Прочитай этот файл полностью
+2. Изучи структуру: `ls -la /root/ai-bot/handlers/`
+3. Проверь статус: `systemctl status aibot`
+4. Посмотри логи: `journalctl -u aibot -n 30`
+
+### Частые задачи:
+
+**Добавить функционал в модуль:**
 ```python
-# УДАЛИТЬ:
-print(f"[DEBUG] ...")
+# Смотри существующие handlers как пример
+# handlers/luca/handler.py — хороший пример с голосом
+# handlers/titus/handler.py — пример без голоса
+```
 
-# ЗАМЕНИТЬ НА:
-import logging
-logger = logging.getLogger(__name__)
-logger.debug(f"...")
-💡 КОНТЕКСТ ДЛЯ AI
-При работе с этим проектом:
+**Работа со стримингом:**
+```python
+from utils.streaming import stream_response
 
-Проект большой (~83% готов), много модулей
-Основная задача — доделать, а не переписывать
-Сохранять обратную совместимость
-Тестировать изменения перед деплоем
-Документировать сложную логику
+resp, sent_msg = await stream_response(bot, msg, messages, status_type="text")
+# sent_msg уже содержит ответ! Редактируй, не создавай новое
+```
 
-Yaml
+**Добавить миграцию БД:**
+```bash
+alembic revision -m "003_add_new_table"
+# Редактируй созданный файл в migrations/versions/
+alembic upgrade head
+```
+
+### Что проверять после изменений:
+1. `python -c "from handlers.MODULE.handler import router; print('OK')"`
+2. `systemctl restart aibot`
+3. `journalctl -u aibot -n 20`
+4. Протестировать в боте
 
 ---
 
-## Первый промпт для нового Cursor:
+## ⚠️ ИЗВЕСТНЫЕ ОСОБЕННОСТИ
 
-После создания `.cursorrules`, в новом Cursor напиши:
+1. **Titus без голоса** — удалён в январе 2026, только текстовый режим
+2. **stream_response() возвращает tuple** — `(text, sent_msg)`, не дублировать отправку
+3. **Промпты в handlers/** — актуальные промпты в `handlers/*/prompts.py`, не в `prompts/`
+4. **database/db.py устарел** — использовать только `database/postgres_db.py`
 
+---
+
+## 📝 ПЕРВЫЙ ПРОМПТ ДЛЯ CURSOR
+
+После открытия проекта:
+
+```
 @.cursorrules Прочитай правила проекта.
 
-Затем изучи структуру:
-@handlers/images.py @handlers/admin.py @handlers/start.py
+Затем изучи ключевые файлы:
+@handlers/luca/handler.py @handlers/titus/handler.py @utils/streaming.py
 
 Подтверди что понял:
-
-Какой стек используется
-Какие текущие приоритеты
-Что НЕ трогать
-После этого начнём работу над handlers.
+1. Какой стек используется
+2. Как работает стриминг
+3. Какие модули есть и их состояние
+4. Что НЕ трогать
+```
