@@ -2,162 +2,486 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soul Bot - Настройки изображений</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul — Настройки изображений</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #06B6D4 100%);
             min-height: 100vh;
             padding: 20px;
+            padding-bottom: 40px;
+            color: #333;
+            overflow-x: hidden;
         }
-        
-        .container { max-width: 600px; margin: 0 auto; }
-        
+
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: floatCreative 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 20px; height: 20px; background: rgba(255,255,255,0.2); top: 5%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; background: rgba(255,182,193,0.25); top: 15%; left: 85%; animation-delay: 0.5s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; background: rgba(255,255,255,0.15); top: 28%; left: 20%; animation-delay: 1s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; background: rgba(147,197,253,0.3); top: 40%; left: 75%; animation-delay: 1.5s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; background: rgba(255,255,255,0.2); top: 55%; left: 30%; animation-delay: 2s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; background: rgba(196,181,253,0.25); top: 68%; left: 80%; animation-delay: 2.5s; }
+        .particle:nth-child(7) { width: 14px; height: 14px; background: rgba(255,255,255,0.18); top: 78%; left: 15%; animation-delay: 3s; }
+        .particle:nth-child(8) { width: 20px; height: 20px; background: rgba(165,243,252,0.25); top: 88%; left: 60%; animation-delay: 3.5s; }
+
+        @keyframes floatCreative {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) rotate(0deg) scale(1);
+                opacity: 0.3;
+            }
+            25% {
+                transform: translateY(-30px) translateX(20px) rotate(90deg) scale(1.2);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-15px) translateX(-15px) rotate(180deg) scale(0.9);
+                opacity: 0.4;
+            }
+            75% {
+                transform: translateY(-40px) translateX(10px) rotate(270deg) scale(1.1);
+                opacity: 0.5;
+            }
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === HEADER === */
         .header {
             text-align: center;
             color: white;
             margin-bottom: 24px;
+            animation: fadeInUp 0.6s ease-out;
         }
-        .header h1 { font-size: 28px; margin-bottom: 8px; }
-        .header p { opacity: 0.9; }
-        
-        .card {
-            background: white;
+
+        .header-icon {
+            font-size: 50px;
+            display: inline-block;
+            animation: sparkle 2s ease-in-out infinite;
+            margin-bottom: 8px;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: brightness(1) drop-shadow(0 0 0px transparent);
+            }
+            25% { 
+                transform: scale(1.1) rotate(-8deg);
+                filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,255,255,0.5));
+            }
+            50% { 
+                transform: scale(1.15) rotate(0deg);
+                filter: brightness(1.3) drop-shadow(0 0 25px rgba(255,255,255,0.7));
+            }
+            75% { 
+                transform: scale(1.1) rotate(8deg);
+                filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,255,255,0.5));
+            }
+        }
+
+        .header h1 {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 15px;
+            opacity: 0.9;
+            font-weight: 600;
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* === БАЛАНС === */
+        .balance-info {
+            background: rgba(255,255,255,0.95);
+            padding: 16px;
             border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 20px;
+            border-left: 4px solid #EC4899;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            animation: fadeInUp 0.6s ease-out 0.1s backwards;
         }
-        
+
+        .balance-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .balance-amount {
+            font-size: 28px;
+            font-weight: 800;
+            color: #EC4899;
+            margin: 4px 0;
+        }
+
+        .balance-sub {
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* === КАРТОЧКИ === */
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+
+        .card:nth-child(2) { animation-delay: 0.15s; }
+        .card:nth-child(3) { animation-delay: 0.2s; }
+        .card:nth-child(4) { animation-delay: 0.25s; }
+        .card:nth-child(5) { animation-delay: 0.3s; }
+
         .card-title {
             font-size: 18px;
-            font-weight: 600;
-            color: #667eea;
+            font-weight: 700;
+            color: #EC4899;
             margin-bottom: 16px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        
+
+        /* === ОПЦИИ МОДЕЛЕЙ === */
         .model-option {
-            padding: 14px;
+            padding: 16px;
             border: 2px solid #e9ecef;
-            border-radius: 12px;
+            border-radius: 14px;
             margin-bottom: 10px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
             display: block;
             width: 100%;
         }
-        
+
         .model-option:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+            border-color: #EC4899;
+            background: rgba(236,72,153,0.05);
+            transform: translateX(5px);
         }
-        
+
+        .model-option:active {
+            transform: scale(0.98);
+        }
+
         .model-option.selected {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-color: #EC4899;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            box-shadow: 0 4px 20px rgba(236,72,153,0.2);
         }
-        
+
+        .model-option.selected .model-name {
+            color: #EC4899;
+        }
+
         .model-option input[type="radio"] {
             display: none;
         }
-        
+
         .model-name {
-            font-weight: 600;
+            font-weight: 700;
             font-size: 16px;
             color: #333;
             margin-bottom: 4px;
         }
-        
+
         .model-price {
-            color: #667eea;
-            font-weight: 600;
+            color: #EC4899;
+            font-weight: 700;
             font-size: 14px;
             margin-bottom: 4px;
         }
-        
+
         .model-desc {
             font-size: 13px;
             color: #666;
             margin-top: 4px;
-            line-height: 1.4;
+            line-height: 1.5;
         }
-        
+
+        /* === КНОПКИ === */
         .btn-apply {
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            padding: 16px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
             color: white;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
+            transition: all 0.3s ease;
             margin-top: 12px;
+            box-shadow: 0 4px 15px rgba(16,185,129,0.3);
         }
-        
+
         .btn-apply:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+            box-shadow: 0 6px 25px rgba(16,185,129,0.4);
         }
-        
+
+        .btn-apply:active {
+            transform: scale(0.98);
+        }
+
+        .btn-start {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #EC4899 100%);
+            background-size: 200% 200%;
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            box-shadow: 0 4px 20px rgba(236,72,153,0.35);
+            animation: gradientShift 3s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(236,72,153,0.45);
+        }
+
         .btn-back {
             width: 100%;
-            padding: 14px;
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            border-radius: 12px;
+            padding: 16px;
+            background: rgba(255,255,255,0.95);
+            color: #EC4899;
+            border: none;
+            border-radius: 14px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            animation: fadeInUp 0.6s ease-out 0.5s backwards;
         }
-        
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        /* === STATUS SAVED === */
         .status-saved {
-            padding: 12px;
-            background: #d4edda;
-            color: #155724;
-            border-radius: 8px;
+            padding: 14px;
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            color: #065F46;
+            border-radius: 12px;
             text-align: center;
             margin-top: 12px;
+            font-weight: 600;
             display: none;
+            animation: fadeIn 0.3s ease;
         }
-        
-        .status-saved.show { display: block; }
-        
-        .balance-info {
-            background: #f0f8ff;
-            padding: 12px;
-            border-radius: 10px;
-            text-align: center;
-            margin-bottom: 16px;
-            border-left: 4px solid #667eea;
+
+        .status-saved.show {
+            display: block;
         }
-        
-        .balance-amount {
-            font-size: 24px;
+
+        /* === ВИДЕО СЕКЦИЯ === */
+        .section-label {
             font-weight: 700;
-            color: #667eea;
+            color: #333;
+            margin: 14px 0 10px;
+            font-size: 15px;
+        }
+
+        .video-note {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 14px;
+            line-height: 1.5;
+            padding: 12px;
+            background: rgba(236,72,153,0.08);
+            border-radius: 12px;
+        }
+
+        .video-note b {
+            color: #EC4899;
+        }
+
+        /* === СЕЛЕКТЫ === */
+        .select-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .select-group {
+            flex: 1;
+        }
+
+        .select-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .select-input {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .select-input:focus {
+            outline: none;
+            border-color: #EC4899;
+            box-shadow: 0 0 0 4px rgba(236,72,153,0.15);
+        }
+
+        /* === CHECKBOX === */
+        .checkbox-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 14px;
+            padding: 12px;
+            background: rgba(236,72,153,0.05);
+            border-radius: 12px;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #EC4899;
+        }
+
+        .checkbox-label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        /* === TOAST === */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 400px) {
+            .header h1 { font-size: 22px; }
+            .header-icon { font-size: 40px; }
+            .card { padding: 18px; }
+            .model-option { padding: 14px; }
+            .select-row { flex-direction: column; gap: 10px; }
         }
     </style>
 </head>
 <body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
-            <h1>🎨 Настройки изображений</h1>
+            <div class="header-icon">🎨</div>
+            <h1>Настройки изображений</h1>
             <p>Выберите модели для каждого действия</p>
         </div>
-        
+
+        <!-- БАЛАНС -->
         <div class="balance-info">
-            <div>Ваш баланс</div>
+            <div class="balance-label">Ваш баланс</div>
             <div class="balance-amount" id="balance">0</div>
-            <div style="font-size: 12px; color: #666;">токенов</div>
+            <div class="balance-sub">токенов</div>
         </div>
 
         <!-- СОЗДАНИЕ ФОТО -->
@@ -193,11 +517,11 @@
             </label>
             
             <button class="btn-apply" onclick="saveSection('create')">✅ Применить для создания</button>
-            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startInBot('create')">▶️ Начать в боте</button>
+            <button class="btn-start" onclick="startInBot('create')">▶️ Начать в боте</button>
             <div class="status-saved" id="status-create">✅ Сохранено! Используйте «📷 Создать» в боте</div>
         </div>
 
-        <!-- UPSCALE - УЛУЧШЕНИЕ КАЧЕСТВА -->
+        <!-- UPSCALE -->
         <div class="card">
             <div class="card-title">🎨 Улучшение качества</div>
             
@@ -230,7 +554,7 @@
             </label>
             
             <button class="btn-apply" onclick="saveSection('upscale')">✅ Применить для улучшения</button>
-            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startInBot('upscale')">▶️ Начать в боте</button>
+            <button class="btn-start" onclick="startInBot('upscale')">▶️ Начать в боте</button>
             <div class="status-saved" id="status-upscale">✅ Сохранено! Используйте «🎨 4K Фото» в боте</div>
         </div>
 
@@ -253,7 +577,7 @@
             </label>
             
             <button class="btn-apply" onclick="saveSection('edit')">✅ Применить для редактора</button>
-            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startInBot('edit')">▶️ Начать в боте</button>
+            <button class="btn-start" onclick="startInBot('edit')">▶️ Начать в боте</button>
             <div class="status-saved" id="status-edit">✅ Сохранено! Используйте «✏️ Редактор» в боте</div>
         </div>
 
@@ -261,64 +585,68 @@
         <div class="card">
             <div class="card-title">🎬 Видео</div>
 
-            <div style="font-size: 13px; color: #666; margin-bottom: 10px; line-height: 1.4;">
+            <div class="video-note">
                 Выберите режим и уровень качества. Запуск и отправка контента — в боте.
                 <br><br>
-                <b>Если видите ошибку VseGPT про лимит (например: limit 10₽, а цена 12₽)</b> —
-                увеличьте лимит “на один запрос” в настройках аккаунта VseGPT минимум до <b>12₽</b>
+                <b>Если видите ошибку VseGPT про лимит</b> (например: limit 10₽, а цена 12₽) —
+                увеличьте лимит "на один запрос" в настройках аккаунта VseGPT минимум до <b>12₽</b>
                 (лучше 20–200₽, если планируете premium-модели).
             </div>
 
-            <div style="font-weight: 600; color: #333; margin: 10px 0 8px;">Режим</div>
+            <div class="section-label">Режим</div>
+            
             <label class="model-option video-mode selected" data-video-mode="photo_to_video">
                 <div class="model-name">📸 Фото → Видео</div>
                 <div class="model-desc">Сделаем ролик на основе фото (можно добавить подпись)</div>
             </label>
+            
             <label class="model-option video-mode" data-video-mode="text_to_video">
                 <div class="model-name">📝 Текст → Видео</div>
                 <div class="model-desc">Сгенерируем видео только по описанию</div>
             </label>
+            
             <label class="model-option video-mode" data-video-mode="animate_photo">
                 <div class="model-name">✨ Анимация фото</div>
                 <div class="model-desc">Оживим фото мягкими движениями (можно добавить подпись)</div>
             </label>
 
-            <div style="font-weight: 600; color: #333; margin: 14px 0 8px;">Уровень</div>
+            <div class="section-label">Уровень</div>
+            
             <label class="model-option video-tier selected" data-video-tier="econom" data-price="12000">
                 <div class="model-name">💰 Эконом (LTX)</div>
                 <div class="model-price">12,000 токенов</div>
                 <div class="model-desc">Быстро и недорого • лучше для тестов</div>
             </label>
+            
             <label class="model-option video-tier" data-video-tier="standard" data-price="99000">
                 <div class="model-name">⭐ Стандарт (Veo Fast)</div>
                 <div class="model-price">99,000 токенов</div>
                 <div class="model-desc">Хорошее качество • можно включить аудио</div>
             </label>
+            
             <label class="model-option video-tier" data-video-tier="premium" data-price="198000">
                 <div class="model-name">👑 Премиум (Sora/Kling)</div>
                 <div class="model-price">198,000 токенов</div>
                 <div class="model-desc">Максимальное качество (дороже)</div>
             </label>
 
-            <div style="display:flex; gap:10px; align-items:center; margin-top: 10px;">
-                <label style="display:flex; gap:8px; align-items:center; font-size: 14px; color:#333;">
-                    <input type="checkbox" id="videoAudio" style="transform: scale(1.1);">
-                    Аудио (если поддерживается уровнем)
-                </label>
+            <div class="checkbox-row">
+                <input type="checkbox" id="videoAudio">
+                <label class="checkbox-label" for="videoAudio">🔊 Аудио (если поддерживается уровнем)</label>
             </div>
 
-            <div style="display:flex; gap:10px; margin-top: 12px;">
-                <div style="flex:1;">
-                    <div style="font-size: 13px; color:#666; margin-bottom:6px;">Соотношение сторон</div>
-                    <select id="videoAspect" style="width:100%; padding:12px; border-radius:12px; border:2px solid #e9ecef;">
+            <div class="select-row">
+                <div class="select-group">
+                    <div class="select-label">Соотношение сторон</div>
+                    <select id="videoAspect" class="select-input">
                         <option value="16:9">16:9</option>
                         <option value="9:16">9:16</option>
                         <option value="1:1">1:1</option>
                     </select>
                 </div>
-                <div style="flex:1;">
-                    <div style="font-size: 13px; color:#666; margin-bottom:6px;">Длительность</div>
-                    <select id="videoSeconds" style="width:100%; padding:12px; border-radius:12px; border:2px solid #e9ecef;">
+                <div class="select-group">
+                    <div class="select-label">Длительность</div>
+                    <select id="videoSeconds" class="select-input">
                         <option value="4">4 сек</option>
                         <option value="5" selected>5 сек</option>
                         <option value="8">8 сек</option>
@@ -328,20 +656,26 @@
             </div>
 
             <button class="btn-apply" onclick="saveVideoSettings()">✅ Применить для видео</button>
-            <button class="btn-apply" style="margin-top: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="startVideoInBot()">▶️ Начать в боте</button>
+            <button class="btn-start" onclick="startVideoInBot()">▶️ Начать в боте</button>
             <div class="status-saved" id="status-video">✅ Сохранено! Используйте «🎬 Видео» в боте</div>
         </div>
 
+        <!-- КНОПКА НАЗАД -->
         <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
     </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast">Сохранено!</div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
         
+        // Получение userId
         let userId = tg.initDataUnsafe?.user?.id;
         console.log('Initial userId from initDataUnsafe:', userId);
+        
         if (!userId && tg.initData) {
             try {
                 const params = new URLSearchParams(tg.initData);
@@ -355,6 +689,7 @@
                 console.error('Error parsing initData:', e);
             }
         }
+        
         if (!userId) {
             const urlParams = new URLSearchParams(window.location.search);
             userId = urlParams.get('user_id');
@@ -362,21 +697,168 @@
         }
         console.log('Final userId:', userId);
 
-        // Выбор модели (только для блоков create/upscale/edit)
+        // ========== ВЫБОР МОДЕЛЕЙ ==========
         document.querySelectorAll('.model-option').forEach(option => {
             option.addEventListener('click', function() {
                 const action = this.dataset.action;
-                if (!action) return; // video-элементы обрабатываются отдельно
+                if (!action) return;
+                
                 document.querySelectorAll(`.model-option[data-action="${action}"]`).forEach(opt => {
                     opt.classList.remove('selected');
                 });
                 this.classList.add('selected');
+                
                 const radio = this.querySelector('input[type="radio"]');
                 if (radio) radio.checked = true;
             });
         });
 
-        // Загрузка настроек
+        // ========== ВИДЕО РЕЖИМЫ ==========
+        function selectVideoMode(mode) {
+            document.querySelectorAll('.video-mode').forEach(opt => opt.classList.remove('selected'));
+            const el = document.querySelector(`.video-mode[data-video-mode="${mode}"]`);
+            if (el) el.classList.add('selected');
+        }
+
+        function selectVideoTier(tier) {
+            document.querySelectorAll('.video-tier').forEach(opt => opt.classList.remove('selected'));
+            const el = document.querySelector(`.video-tier[data-video-tier="${tier}"]`);
+            if (el) el.classList.add('selected');
+        }
+
+        document.addEventListener('click', (e) => {
+            const modeEl = e.target.closest?.('.video-mode');
+            if (modeEl) {
+                selectVideoMode(modeEl.dataset.videoMode);
+                setTimeout(updateVideoTierPricesUI, 0);
+            }
+            const tierEl = e.target.closest?.('.video-tier');
+            if (tierEl) {
+                selectVideoTier(tierEl.dataset.videoTier);
+                setTimeout(updateVideoTierPricesUI, 0);
+            }
+        });
+
+        // ========== ЦЕНООБРАЗОВАНИЕ ВИДЕО ==========
+        const VIDEO_PRICING_RUB = {
+            econom: {
+                text_to_video: { base: 12 },
+                photo_to_video: { base: 12 },
+                animate_photo: { base: 12 }
+            },
+            standard: {
+                text_to_video: { no_audio: 99, with_audio: 149 },
+                photo_to_video: { no_audio: 159, with_audio: 239 },
+                animate_photo: { no_audio: 159, with_audio: 239 }
+            },
+            premium: {
+                text_to_video: { s4: 99, s8: 198 },
+                photo_to_video: { s5: 89.9, s10: 179.9 },
+                animate_photo: { s5: 89.9, s10: 179.9 }
+            }
+        };
+
+        function rubToTokens(rub) {
+            return Math.round(rub * 1000);
+        }
+
+        function getSelectedVideoParams() {
+            const modeEl = document.querySelector('.video-mode.selected');
+            const tierEl = document.querySelector('.video-tier.selected');
+            const mode = modeEl?.dataset.videoMode || 'photo_to_video';
+            const tier = tierEl?.dataset.videoTier || 'econom';
+            const audio = document.getElementById('videoAudio')?.checked || false;
+            const seconds = parseInt(document.getElementById('videoSeconds')?.value || '5', 10);
+            return { mode, tier, audio, seconds };
+        }
+
+        function computeVideoPriceTokens(params) {
+            const { mode, tier, audio, seconds } = params;
+
+            if (tier === 'econom') {
+                return rubToTokens(12);
+            }
+
+            if (tier === 'standard') {
+                const m = VIDEO_PRICING_RUB.standard[mode] || VIDEO_PRICING_RUB.standard.photo_to_video;
+                const rub = audio ? m.with_audio : m.no_audio;
+                return rubToTokens(rub);
+            }
+
+            if (mode === 'text_to_video') {
+                const rub = seconds >= 8 ? VIDEO_PRICING_RUB.premium.text_to_video.s8 : VIDEO_PRICING_RUB.premium.text_to_video.s4;
+                return rubToTokens(rub);
+            }
+            
+            const rub = seconds >= 10 ? VIDEO_PRICING_RUB.premium.photo_to_video.s10 : VIDEO_PRICING_RUB.premium.photo_to_video.s5;
+            return rubToTokens(rub);
+        }
+
+        function updateVideoTierPricesUI() {
+            const params = getSelectedVideoParams();
+            const mode = params.mode;
+            const audio = params.audio;
+            const seconds = params.seconds;
+
+            // Эконом
+            const economEl = document.querySelector('.video-tier[data-video-tier="econom"]');
+            if (economEl) {
+                economEl.dataset.price = String(rubToTokens(12));
+                const priceEl = economEl.querySelector('.model-price');
+                if (priceEl) priceEl.textContent = `${rubToTokens(12).toLocaleString('ru-RU')} токенов`;
+            }
+
+            // Стандарт
+            const standardEl = document.querySelector('.video-tier[data-video-tier="standard"]');
+            if (standardEl) {
+                const rub = (mode === 'text_to_video')
+                    ? (audio ? 149 : 99)
+                    : (audio ? 239 : 159);
+                const tokens = rubToTokens(rub);
+                standardEl.dataset.price = String(tokens);
+                const priceEl = standardEl.querySelector('.model-price');
+                if (priceEl) priceEl.textContent = `${tokens.toLocaleString('ru-RU')} токенов`;
+            }
+
+            // Премиум
+            const premiumEl = document.querySelector('.video-tier[data-video-tier="premium"]');
+            if (premiumEl) {
+                let rub;
+                if (mode === 'text_to_video') {
+                    rub = seconds >= 8 ? 198 : 99;
+                } else {
+                    rub = seconds >= 10 ? 179.9 : 89.9;
+                }
+                const tokens = rubToTokens(rub);
+                premiumEl.dataset.price = String(tokens);
+                const priceEl = premiumEl.querySelector('.model-price');
+                if (priceEl) priceEl.textContent = `${tokens.toLocaleString('ru-RU')} токенов`;
+            }
+
+            // Ограничение секунд для text_to_video
+            const secondsSelect = document.getElementById('videoSeconds');
+            if (secondsSelect) {
+                const isText = mode === 'text_to_video';
+                Array.from(secondsSelect.options).forEach(opt => {
+                    const v = parseInt(opt.value, 10);
+                    if (isText) {
+                        opt.disabled = !(v === 4 || v === 8);
+                        if (![4,8].includes(parseInt(secondsSelect.value, 10))) {
+                            secondsSelect.value = "4";
+                        }
+                    } else {
+                        opt.disabled = false;
+                    }
+                });
+            }
+        }
+
+        // Event listeners для обновления цен
+        document.getElementById('videoAudio')?.addEventListener('change', updateVideoTierPricesUI);
+        document.getElementById('videoAspect')?.addEventListener('change', updateVideoTierPricesUI);
+        document.getElementById('videoSeconds')?.addEventListener('change', updateVideoTierPricesUI);
+
+        // ========== ЗАГРУЗКА НАСТРОЕК ==========
         async function loadSettings() {
             if (!userId) {
                 console.error('No userId available');
@@ -402,7 +884,7 @@
                     if (data.upscale_model) selectModel('upscale', data.upscale_model);
                     if (data.edit_model) selectModel('edit', data.edit_model);
 
-                    // Видео (extra_settings)
+                    // Видео
                     const video = data.extra_settings?.video;
                     if (video) {
                         selectVideoMode(video.mode || 'photo_to_video');
@@ -411,6 +893,8 @@
                         if (video.aspect_ratio) document.getElementById('videoAspect').value = video.aspect_ratio;
                         if (video.seconds) document.getElementById('videoSeconds').value = String(video.seconds);
                     }
+                    
+                    updateVideoTierPricesUI();
                 } else {
                     const errorData = await resp.json().catch(() => ({error: 'Unknown error'}));
                     console.error('Load error response:', errorData);
@@ -427,20 +911,25 @@
                     opt.classList.remove('selected');
                 });
                 option.classList.add('selected');
-                option.querySelector('input[type="radio"]').checked = true;
+                const radio = option.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
             }
         }
 
-        // Сохранение секции
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        // ========== СОХРАНЕНИЕ ==========
         async function saveSection(action) {
             if (!userId) {
-                alert('Ошибка: не удалось определить пользователя');
+                showToast('❌ Ошибка: не удалось определить пользователя');
                 return;
             }
             
             const selected = document.querySelector(`.model-option[data-action="${action}"].selected`);
             if (!selected) {
-                alert('Выберите модель!');
+                showToast('⚠️ Выберите модель!');
                 return;
             }
             
@@ -467,97 +956,35 @@
                     const status = document.getElementById(`status-${action}`);
                     status.classList.add('show');
                     setTimeout(() => status.classList.remove('show'), 3000);
+                    showToast('✨ Сохранено!');
                 } else {
                     const errorMsg = result.error || 'Ошибка сохранения';
                     console.error('Save error:', errorMsg);
-                    alert('Ошибка сохранения: ' + errorMsg);
+                    showToast('❌ ' + errorMsg);
                 }
             } catch (e) {
                 console.error('Save error:', e);
-                alert('Ошибка сохранения: ' + e.message);
+                showToast('❌ Ошибка сохранения');
             }
         }
-
-        // Старт в боте (гибридный режим)
-        async function startInBot(action) {
-            if (!userId) {
-                alert('Ошибка: не удалось определить пользователя');
-                return;
-            }
-            const selected = document.querySelector(`.model-option[data-action="${action}"].selected`);
-            if (!selected) {
-                alert('Сначала выберите модель');
-                return;
-            }
-
-            const payload = {
-                type: "images_start",
-                action: action,
-                model: selected.dataset.model,
-                price: parseInt(selected.dataset.price, 10)
-            };
-
-            try {
-                // Сохраняем выбор перед стартом (чтобы бот сразу использовал настройки)
-                await saveSection(action);
-            } catch (e) {
-                // Даже если сохранение не удалось — все равно отправим данные в бот, чтобы он показал ошибку/помощь
-            }
-
-            try {
-                tg.sendData(JSON.stringify(payload));
-                tg.close();
-            } catch (e) {
-                console.error('sendData error:', e);
-                alert('Не удалось передать данные в бот');
-            }
-        }
-
-        function formatNumber(num) {
-            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        }
-
-        function selectVideoMode(mode) {
-            document.querySelectorAll('.video-mode').forEach(opt => opt.classList.remove('selected'));
-            const el = document.querySelector(`.video-mode[data-video-mode="${mode}"]`);
-            if (el) el.classList.add('selected');
-        }
-
-        function selectVideoTier(tier) {
-            document.querySelectorAll('.video-tier').forEach(opt => opt.classList.remove('selected'));
-            const el = document.querySelector(`.video-tier[data-video-tier="${tier}"]`);
-            if (el) el.classList.add('selected');
-        }
-
-        // Клики по видео-опциям
-        document.addEventListener('click', (e) => {
-            const modeEl = e.target.closest?.('.video-mode');
-            if (modeEl) {
-                selectVideoMode(modeEl.dataset.videoMode);
-            }
-            const tierEl = e.target.closest?.('.video-tier');
-            if (tierEl) {
-                selectVideoTier(tierEl.dataset.videoTier);
-            }
-        });
 
         async function saveVideoSettings() {
             if (!userId) {
-                alert('Ошибка: не удалось определить пользователя');
+                showToast('❌ Ошибка: не удалось определить пользователя');
                 return;
             }
+            
             const modeEl = document.querySelector('.video-mode.selected');
             const tierEl = document.querySelector('.video-tier.selected');
             if (!modeEl || !tierEl) {
-                alert('Выберите режим и уровень');
+                showToast('⚠️ Выберите режим и уровень');
                 return;
             }
 
             const mode = modeEl.dataset.videoMode;
             const tier = tierEl.dataset.videoTier;
-            // Цена динамическая — вычисляем по правилам
-            const computedPrice = computeVideoPriceTokens({ mode, tier, audio: document.getElementById('videoAudio').checked, seconds: parseInt(document.getElementById('videoSeconds').value, 10) });
-            const price = computedPrice;
+            const params = getSelectedVideoParams();
+            const price = computeVideoPriceTokens(params);
             const audio = document.getElementById('videoAudio').checked;
             const aspect = document.getElementById('videoAspect').value;
             const seconds = parseInt(document.getElementById('videoSeconds').value, 10);
@@ -587,12 +1014,46 @@
                     const status = document.getElementById('status-video');
                     status.classList.add('show');
                     setTimeout(() => status.classList.remove('show'), 3000);
+                    showToast('✨ Сохранено!');
                 } else {
-                    alert('Ошибка сохранения: ' + (result.error || 'Unknown'));
+                    showToast('❌ ' + (result.error || 'Ошибка сохранения'));
                 }
             } catch (e) {
                 console.error('Save video error:', e);
-                alert('Ошибка сохранения: ' + e.message);
+                showToast('❌ Ошибка сохранения');
+            }
+        }
+
+        // ========== СТАРТ В БОТЕ ==========
+        async function startInBot(action) {
+            if (!userId) {
+                showToast('❌ Ошибка: не удалось определить пользователя');
+                return;
+            }
+            
+            const selected = document.querySelector(`.model-option[data-action="${action}"].selected`);
+            if (!selected) {
+                showToast('⚠️ Сначала выберите модель');
+                return;
+            }
+
+            const payload = {
+                type: "images_start",
+                action: action,
+                model: selected.dataset.model,
+                price: parseInt(selected.dataset.price, 10)
+            };
+
+            try {
+                await saveSection(action);
+            } catch (e) {}
+
+            try {
+                tg.sendData(JSON.stringify(payload));
+                tg.close();
+            } catch (e) {
+                console.error('sendData error:', e);
+                showToast('❌ Не удалось передать данные в бот');
             }
         }
 
@@ -606,147 +1067,22 @@
                 tg.close();
             } catch (e) {
                 console.error('sendData error:', e);
-                alert('Не удалось передать данные в бот');
+                showToast('❌ Не удалось передать данные в бот');
             }
         }
 
-        // ====== Умная цена видео по выбранным параметрам ======
-        const VIDEO_PRICING_RUB = {
-            econom: {
-                text_to_video: { base: 12 },
-                photo_to_video: { base: 12 },
-                animate_photo: { base: 12 }
-            },
-            standard: {
-                text_to_video: { no_audio: 99, with_audio: 149 },
-                photo_to_video: { no_audio: 159, with_audio: 239 },
-                animate_photo: { no_audio: 159, with_audio: 239 }
-            },
-            premium: {
-                // Sora (текст): 4с=99, 8с=198
-                text_to_video: { s4: 99, s8: 198 },
-                // Kling (фото): 5с=89.9, 10с=179.9
-                photo_to_video: { s5: 89.9, s10: 179.9 },
-                animate_photo: { s5: 89.9, s10: 179.9 }
-            }
-        };
-
-        function rubToTokens(rub) {
-            // У тебя в UI уже используется логика “1₽ = 1000 токенов”
-            return Math.round(rub * 1000);
+        // ========== TOAST ==========
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
         }
 
-        function getSelectedVideoParams() {
-            const modeEl = document.querySelector('.video-mode.selected');
-            const tierEl = document.querySelector('.video-tier.selected');
-            const mode = modeEl?.dataset.videoMode || 'photo_to_video';
-            const tier = tierEl?.dataset.videoTier || 'econom';
-            const audio = document.getElementById('videoAudio')?.checked || false;
-            const seconds = parseInt(document.getElementById('videoSeconds')?.value || '5', 10);
-            return { mode, tier, audio, seconds };
-        }
-
-        function computeVideoPriceTokens(params) {
-            const { mode, tier, audio, seconds } = params;
-            const t = (tier || 'econom');
-
-            if (t === 'econom') {
-                return rubToTokens(12);
-            }
-
-            if (t === 'standard') {
-                const m = VIDEO_PRICING_RUB.standard[mode] || VIDEO_PRICING_RUB.standard.photo_to_video;
-                const rub = audio ? m.with_audio : m.no_audio;
-                return rubToTokens(rub);
-            }
-
-            // premium
-            if (mode === 'text_to_video') {
-                const rub = seconds >= 8 ? VIDEO_PRICING_RUB.premium.text_to_video.s8 : VIDEO_PRICING_RUB.premium.text_to_video.s4;
-                return rubToTokens(rub);
-            }
-            const rub = seconds >= 10 ? VIDEO_PRICING_RUB.premium.photo_to_video.s10 : VIDEO_PRICING_RUB.premium.photo_to_video.s5;
-            return rubToTokens(rub);
-        }
-
-        function updateVideoTierPricesUI() {
-            const params = getSelectedVideoParams();
-            const mode = params.mode;
-            const audio = params.audio;
-            const seconds = params.seconds;
-
-            // Эконом всегда 12₽
-            const economEl = document.querySelector('.video-tier[data-video-tier="econom"]');
-            if (economEl) {
-                economEl.dataset.price = String(rubToTokens(12));
-                const priceEl = economEl.querySelector('.model-price');
-                if (priceEl) priceEl.textContent = `${rubToTokens(12).toLocaleString('ru-RU')} токенов`;
-            }
-
-            // Стандарт зависит от mode+audio
-            const standardEl = document.querySelector('.video-tier[data-video-tier="standard"]');
-            if (standardEl) {
-                const rub = (mode === 'text_to_video')
-                    ? (audio ? 149 : 99)
-                    : (audio ? 239 : 159);
-                const tokens = rubToTokens(rub);
-                standardEl.dataset.price = String(tokens);
-                const priceEl = standardEl.querySelector('.model-price');
-                if (priceEl) priceEl.textContent = `${tokens.toLocaleString('ru-RU')} токенов`;
-            }
-
-            // Премиум зависит от mode+seconds
-            const premiumEl = document.querySelector('.video-tier[data-video-tier="premium"]');
-            if (premiumEl) {
-                let rub;
-                if (mode === 'text_to_video') {
-                    rub = seconds >= 8 ? 198 : 99;
-                } else {
-                    rub = seconds >= 10 ? 179.9 : 89.9;
-                }
-                const tokens = rubToTokens(rub);
-                premiumEl.dataset.price = String(tokens);
-                const priceEl = premiumEl.querySelector('.model-price');
-                if (priceEl) priceEl.textContent = `${tokens.toLocaleString('ru-RU')} токенов`;
-            }
-
-            // Если режим text_to_video — ограничим секунды до 4/8 (чтобы не вводить в заблуждение)
-            const secondsSelect = document.getElementById('videoSeconds');
-            if (secondsSelect) {
-                const isText = mode === 'text_to_video';
-                Array.from(secondsSelect.options).forEach(opt => {
-                    const v = parseInt(opt.value, 10);
-                    if (isText) {
-                        opt.disabled = !(v === 4 || v === 8);
-                        // авто-фикс если выбран недопустимый
-                        if (secondsSelect.value && ![4,8].includes(parseInt(secondsSelect.value,10))) {
-                            secondsSelect.value = "4";
-                        }
-                    } else {
-                        opt.disabled = false;
-                    }
-                });
-            }
-        }
-
-        // Реактивное обновление цен при изменениях
-        document.getElementById('videoAudio')?.addEventListener('change', updateVideoTierPricesUI);
-        document.getElementById('videoAspect')?.addEventListener('change', updateVideoTierPricesUI);
-        document.getElementById('videoSeconds')?.addEventListener('change', updateVideoTierPricesUI);
-
-        document.addEventListener('click', (e) => {
-            const modeEl = e.target.closest?.('.video-mode');
-            const tierEl = e.target.closest?.('.video-tier');
-            if (modeEl || tierEl) {
-                // После выбора режима/уровня пересчитываем цены
-                setTimeout(updateVideoTierPricesUI, 0);
-            }
-        });
-
-        // Первичный пересчет
+        // ========== INIT ==========
         updateVideoTierPricesUI();
-
-        // Загружаем при старте
         loadSettings();
     </script>
 </body>
