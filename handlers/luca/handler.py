@@ -364,6 +364,7 @@ async def luka_telegraph(cb: CallbackQuery):
 
 async def process_luka_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
     user_id = msg.from_user.id
+    sent_msg = None
     
     # Антифлуд
     allowed, error_msg = await ai_flood.check(user_id)

@@ -341,10 +341,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
     request_state = {'cancelled': False, 'kb_msg': None, 'status': None}
     active_requests[user_id] = request_state
     
-    status_type = "photo" if image_b64 else "text"
-    status = await show_status(bot, msg.chat.id, status_type)
-    request_state['status'] = status
-    
+    status = None
     resp = None
     
     try:
@@ -395,6 +392,8 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
             return
         
         if image_b64:
+            status = await show_status(bot, msg.chat.id, "photo")
+            request_state['status'] = status
             resp, tok = await ask(msgs, model, image_b64)
             sent_msg = None
         else:

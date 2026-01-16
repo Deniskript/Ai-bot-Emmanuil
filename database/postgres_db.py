@@ -62,8 +62,8 @@ async def get_connection():
         yield conn
 
 
-async def init_db():
-    """Создание всех таблиц в PostgreSQL"""
+async def _init_db_schema():
+    """Создание всех таблиц в PostgreSQL (устаревшее, через Alembic)"""
     
     schema = """
     -- Основная таблица пользователей
@@ -180,6 +180,26 @@ async def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_courses_user ON courses(user_id, created_at DESC);
+
+    -- Память курсов (Titus)
+    CREATE TABLE IF NOT EXISTS course_memory (
+        id SERIAL PRIMARY KEY,
+        course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+        user_id BIGINT,
+        completed_topics JSONB DEFAULT '[]',
+        problem_zones JSONB DEFAULT '[]',
+        student_name TEXT,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_course_memory_course_id ON course_memory(course_id);
+    CREATE INDEX IF NOT EXISTS idx_course_memory_user_id ON course_memory(user_id);
+    DO $$
+    BEGIN
+        ALTER TABLE course_memory
+        ADD CONSTRAINT unique_course_memory_course_id UNIQUE (course_id);
+    EXCEPTION
+        WHEN duplicate_object THEN NULL;
+    END $$;
     
     -- Цели пользователей
     CREATE TABLE IF NOT EXISTS user_goals (
@@ -578,6 +598,13 @@ async def init_db():
             print(f"⚠️ Миграция user_image_settings: {e}")
     
     print("✅ Все таблицы PostgreSQL созданы")
+
+
+async def init_db():
+    """Проверка подключения к БД"""
+    async with get_connection() as conn:
+        await conn.execute("SELECT 1")
+    print("✅ PostgreSQL connected")
 
 
 # ============================================================================
@@ -1203,6 +1230,134 @@ async def mark_course_done(cid: int):
         await conn.execute(
             "UPDATE courses SET done = 1 WHERE id = $1",
             cid
+        )
+
+
+# ============================================================================
+# COURSE MEMORY
+# ============================================================================
+
+async def get_course_memory(course_id: int) -> Dict:
+    """Получить память курса"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM course_memory WHERE course_id = $1",
+            course_id
+        )
+        if not row:
+            await conn.execute(
+                "INSERT INTO course_memory (course_id) VALUES ($1)",
+                course_id
+            )
+            return {
+                "course_id": course_id,
+                "user_id": None,
+                "completed_topics": [],
+                "problem_zones": [],
+                "student_name": None,
+                "last_updated": None
+            }
+        completed_topics = row["completed_topics"] or []
+        problem_zones = row["problem_zones"] or []
+        if isinstance(completed_topics, str):
+            completed_topics = json.loads(completed_topics)
+        if isinstance(problem_zones, str):
+            problem_zones = json.loads(problem_zones)
+        return {
+            "id": row["id"],
+            "course_id": row["course_id"],
+            "user_id": row["user_id"],
+            "completed_topics": completed_topics,
+            "problem_zones": problem_zones,
+            "student_name": row["student_name"],
+            "last_updated": row["last_updated"]
+        }
+
+
+async def save_course_memory(
+    course_id: int,
+    summary: str = None,
+    problem_zones: List = None,
+    completed_topics: List = None,
+    last_context: str = None,
+    user_id: Optional[int] = None,
+    student_name: Optional[str] = None
+) -> None:
+    """Сохранить/обновить память курса"""
+    mem = await get_course_memory(course_id)
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO course_memory (course_id, user_id, completed_topics, problem_zones, student_name, last_updated)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (course_id)
+            DO UPDATE SET
+                user_id = COALESCE($2, course_memory.user_id),
+                completed_topics = $3,
+                problem_zones = $4,
+                student_name = COALESCE($5, course_memory.student_name),
+                last_updated = NOW()
+            """,
+            course_id,
+            user_id,
+            json.dumps(
+                completed_topics if completed_topics is not None else mem.get("completed_topics", []),
+                ensure_ascii=False
+            ),
+            json.dumps(
+                problem_zones if problem_zones is not None else mem.get("problem_zones", []),
+                ensure_ascii=False
+            ),
+            student_name
+        )
+
+
+async def add_problem_zone(course_id: int, step: int, topic: str, question: str) -> None:
+    """Добавить проблемную зону"""
+    mem = await get_course_memory(course_id)
+    zones = mem.get("problem_zones", [])
+    zones.append({"step": step, "topic": topic, "question": question[:200]})
+    await save_course_memory(course_id, problem_zones=zones[-20:])
+
+
+async def add_completed_topic(
+    course_id: int,
+    step: int,
+    topic: str,
+    key_points: list,
+    difficulty: str = "medium"
+) -> None:
+    """Добавить пройденную тему"""
+    mem = await get_course_memory(course_id)
+    topics = mem.get("completed_topics", [])
+    topics.append({"step": step, "topic": topic, "key_points": key_points[:5], "difficulty": difficulty})
+    await save_course_memory(course_id, completed_topics=topics)
+
+
+async def delete_course_memory(course_id: int) -> None:
+    """Удалить память курса"""
+    async with get_connection() as conn:
+        await conn.execute(
+            "DELETE FROM course_memory WHERE course_id = $1",
+            course_id
+        )
+
+
+async def update_course_step(course_id: int, step: int) -> None:
+    """Обновить текущий шаг курса"""
+    async with get_connection() as conn:
+        await conn.execute(
+            "UPDATE courses SET current = $1 WHERE id = $2",
+            step, course_id
+        )
+
+
+async def complete_course(course_id: int) -> None:
+    """Отметить курс как завершённый"""
+    async with get_connection() as conn:
+        await conn.execute(
+            "UPDATE courses SET done = 1 WHERE id = $1",
+            course_id
         )
 
 

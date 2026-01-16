@@ -11,6 +11,28 @@ from utils.openrouter import ask_stream, ask
 from utils.markdown import md_to_html
 
 
+def _sanitize_html(text: str) -> str:
+    """Балансирует базовые HTML-теги для Telegram."""
+    tags = ["b", "i", "u", "s", "code", "pre"]
+
+    for tag in tags:
+        open_tag = f"<{tag}>"
+        close_tag = f"</{tag}>"
+
+        open_count = text.count(open_tag)
+        close_count = text.count(close_tag)
+
+        if open_count > close_count:
+            text += close_tag * (open_count - close_count)
+        elif close_count > open_count:
+            for _ in range(close_count - open_count):
+                idx = text.rfind(close_tag)
+                if idx != -1:
+                    text = text[:idx] + text[idx + len(close_tag):]
+
+    return text
+
+
 async def stream_response(
     bot: Bot,
     message: Message,
@@ -65,11 +87,11 @@ async def stream_response(
                     await status.stop()
                     status_stopped = True
                     await asyncio.sleep(0.05)
-                    formatted = md_to_html(full_response)
+                    formatted = _sanitize_html(md_to_html(full_response))
                     stream_msg = await message.answer(formatted, parse_mode="HTML")
                 else:
                     if stream_msg:
-                        formatted = md_to_html(full_response)
+                        formatted = _sanitize_html(md_to_html(full_response))
                         try:
                             await stream_msg.edit_text(formatted, parse_mode="HTML")
                         except Exception:
@@ -86,7 +108,7 @@ async def stream_response(
         
         # Отправляем/обновляем финальный текст
         if full_response.strip():
-            formatted = md_to_html(full_response.strip())
+            formatted = _sanitize_html(md_to_html(full_response.strip()))
             if stream_msg:
                 try:
                     await stream_msg.edit_text(formatted, parse_mode="HTML")
@@ -99,7 +121,7 @@ async def stream_response(
             fallback_text, _ = await ask(messages, model, max_tokens=max_tokens)
             fallback_text = (fallback_text or "").strip()
             if fallback_text:
-                formatted = md_to_html(fallback_text)
+                formatted = _sanitize_html(md_to_html(fallback_text))
                 fallback_msg = await message.answer(formatted, parse_mode="HTML")
                 return fallback_text, fallback_msg
             else:

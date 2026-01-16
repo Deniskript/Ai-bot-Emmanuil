@@ -4,6 +4,7 @@
 import asyncio
 from aiogram import Bot
 from aiogram.enums import ChatAction
+from aiogram.exceptions import TelegramRetryAfter, TelegramBadRequest
 
 STATUS_CONFIG = {
     "text": {
@@ -68,16 +69,27 @@ class StatusManager:
     async def _animate(self):
         """Анимация статуса каждую секунду"""
         while self.running:
+            await asyncio.sleep(1)
+            self.seconds += 1
+
+            if not (self.running and self.message):
+                continue
+
             try:
-                await asyncio.sleep(1)
-                self.seconds += 1
-                
-                if self.running and self.message:
-                    await self.message.edit_text(self._build_message())
-                    await self.bot.send_chat_action(
-                        self.chat_id,
-                        self.config["action"]
-                    )
+                await self.message.edit_text(self._build_message())
+            except TelegramRetryAfter as e:
+                # Уважать лимиты Telegram на частые обновления
+                await asyncio.sleep(e.retry_after)
+            except TelegramBadRequest:
+                pass
+            except Exception:
+                pass
+
+            try:
+                await self.bot.send_chat_action(
+                    self.chat_id,
+                    self.config["action"]
+                )
             except Exception:
                 pass
     

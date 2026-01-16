@@ -21,13 +21,14 @@ from utils.antiflood import ai_flood
 from utils.conversations import save_message, clean_response, should_show_preview, get_titus_keyboard
 from utils.streaming import stream_response
 from utils.status_manager import show_status
+from utils.markdown import md_to_html
 from loader import bot
 
 # Локальные импорты модуля (всё внутри handlers/titus/)
 from . import config as titus_config
 from . import texts
 from .memory import save_step_progress, build_smart_context
-from .prompts import TITUS_BASE, TITUS_VOICE_BASE
+from .prompts import TITUS_BASE, TITUS_VOICE_BASE, TITUS_CLARIFY, TITUS_CLARIFY_VOICE
 
 router = Router()
 
@@ -156,6 +157,9 @@ async def create_course(msg: Message, state: FSMContext):
     
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
+    footer = f"\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>"
+    resp_with_footer = f"{resp_clean}{footer}"
+    resp_html = md_to_html(resp_clean)
     
     await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
     await db.increment_requests(msg.from_user.id)
@@ -450,6 +454,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
             await status.stop()
         
         resp_clean = clean_response(resp)
+        resp_html = md_to_html(resp_clean)
         
         # Списываем токены
         print(f"[VIDEO] Списание токенов: {time.time() - start_time:.2f}с")
@@ -589,8 +594,35 @@ async def titus_make_summary(cb: CallbackQuery):
         await cb.message.answer(f"❌ Ошибка: {e}", reply_markup=reply.study_chat_kb())
 
 
-def check_step_transition(resp: str) -> bool:
-    return "---NEXT---" in resp
+# ЗАКОММЕНТИРОВАНО: Старая логика не работала, AI не добавлял маркер
+# def check_step_transition(resp: str) -> bool:
+#     return "---NEXT---" in resp
+
+
+def is_clarification_question(text: str) -> bool:
+    """Определяет, является ли сообщение уточняющим вопросом по теме"""
+    text_lower = text.lower().strip()
+    
+    # Явные маркеры уточнения
+    clarify_markers = [
+        "не понял", "не понимаю", "непонятно",
+        "объясни", "поясни", "расскажи подробнее",
+        "почему", "зачем", "как это", "что значит",
+        "можешь объяснить", "ещё раз", "еще раз",
+        "а если", "а как", "а что",
+        "не ясно", "неясно", "уточни",
+        "в смысле", "то есть", "имеется в виду"
+    ]
+    
+    for marker in clarify_markers:
+        if marker in text_lower:
+            return True
+    
+    # Если есть "?" и текст короткий (до 100 символов) — скорее всего вопрос
+    if "?" in text and len(text) < 100:
+        return True
+    
+    return False
 
 
 async def process_titus_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
@@ -641,12 +673,21 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                 
                 course_mem = await db.get_course_memory(cid)
                 memory_context = build_course_context(course_mem, current_step, student_name)
+                print(f"[DEBUG] Titus memory_context (cid={cid}, step={current_step}): {memory_context}")
                 course_info = f"\n\nКУРС: {course['name']}\nШАГ: {current_step} из {total_steps}\nПРОГРЕСС: {int(current_step/total_steps*100)}%"
                 if memory_context:
                     course_info += f"\n\n{memory_context}"
         
-        # Если включены голосовые ответы — используем voice-ориентированный промпт без HTML/эмодзи
-        sys = (TITUS_VOICE_BASE if voice_enabled else TITUS_BASE) + course_info
+        # Определяем тип сообщения: уточнение или ответ на шаг
+        if is_clarification_question(text):
+            # Уточняющий вопрос — короткий ответ
+            base_prompt = TITUS_CLARIFY_VOICE if voice_enabled else TITUS_CLARIFY
+        else:
+            # Обычный ответ на шаг курса — полная структура
+            base_prompt = TITUS_VOICE_BASE if voice_enabled else TITUS_BASE
+        
+        sys = base_prompt + course_info
+        print(f"[DEBUG] SYSTEM PROMPT (first 500): {sys[:500]}")
         msgs_to_send = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
         
         if request_state['cancelled']:
@@ -668,7 +709,39 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         if request_state['cancelled']:
             return
         
-        should_advance = check_step_transition(resp)
+        print(f"[DEBUG] BEFORE step logic: cid={cid}, current_step={current_step}")
+        
+        # Определяем тип сообщения пользователя
+        user_lower = text.lower().strip()
+        
+        # Слова-вопросы (НЕ переходим на следующий шаг)
+        question_markers = [
+            '?', 'не понял', 'непонял', 'не понимаю', 'объясни', 'поясни', 'почему', 'зачем',
+            'как это', 'что значит', 'что такое', 'можешь объяснить', 'расскажи подробнее',
+            'затрудняюсь', 'сложно', 'не знаю', 'трудно'
+        ]
+        
+        # Слова-пропуска (переходим на следующий шаг)
+        skip_markers = [
+            'понял', 'ясно', 'дальше', 'давай', 'следующий', 'продолжай', 'го', 'далее',
+            'окей', 'ок', 'хорошо', 'ладно', 'да', 'угу', 'ага'
+        ]
+        
+        # Это вопрос? → НЕ переходим
+        is_question = any(q in user_lower for q in question_markers)
+        
+        # Это пропуск/согласие? → Переходим
+        is_skip = any(s in user_lower for s in skip_markers) and not is_question
+        
+        # Это ответ на вопрос курса? (длинное сообщение без вопросительных слов)
+        is_answer = len(text) > 15 and not is_question and not is_skip
+        
+        # ИТОГО: переходим если пропуск ИЛИ ответ
+        should_advance = (is_skip or is_answer) and cid is not None
+        
+        print(f"[DEBUG] user_lower={user_lower[:30]}")
+        print(f"[DEBUG] is_question={is_question}, is_skip={is_skip}, is_answer={is_answer}")
+        print(f"[DEBUG] should_advance={should_advance}")
         resp_clean = resp.replace("---NEXT---", "").strip()
         resp_clean = clean_response(resp_clean)
         
@@ -679,9 +752,12 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         await save_message(msg.from_user.id, 'user', text, 'titus')
         conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
         
+        print(f"[DEBUG] STEP CHECK: cid={cid}, should_advance={should_advance}, current_step={current_step}")
         if cid and should_advance:
+            print(f"[DEBUG] Entering step advance block")
             course = await db.get_course(cid)
             if course:
+                print(f"[DEBUG] Course found: current={course['current']}, total={course['total']}")
                 last_bot_msg = hist[-1]['content'] if hist and hist[-1]['role'] == 'assistant' else ""
                 asyncio.create_task(save_step_progress(cid, current_step, last_bot_msg, text))
                 
@@ -722,54 +798,63 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
         keyboard = get_titus_keyboard(conv_id, len(resp), user_id)
 
-        if voice_enabled:
-            # === ГОЛОСОВОЙ ОТВЕТ ===
-            # Удаляем текстовое сообщение от стриминга
-            if sent_msg:
-                try:
-                    await sent_msg.delete()
-                except Exception:
-                    pass
-            
-            # Под TTS: убираем HTML/эмодзи/служебные маркеры
-            resp_clean = resp.replace("---NEXT---", "").strip()
-            resp_clean = re.sub(r"<[^>]+>", "", resp_clean)  # теги
-            resp_clean = resp_clean.replace("**", "").replace("*", "")
-            resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_clean, flags=re.UNICODE)
+        temp_msg = None
+        try:
+            temp_msg = await msg.answer("💬", reply_markup=reply.study_chat_kb())
+        except Exception:
+            pass
 
-            voice_tts = "onyx" if voice_gender == "male" else "shimmer"
-            audio_path = await text_to_speech(resp_clean, voice=voice_tts)
+        try:
+            if voice_enabled:
+                # === ГОЛОСОВОЙ ОТВЕТ ===
+                # Удаляем текстовое сообщение от стриминга
+                if sent_msg:
+                    try:
+                        await sent_msg.delete()
+                    except Exception:
+                        pass
+                
+                # Под TTS: убираем HTML/эмодзи/служебные маркеры
+                resp_clean = resp.replace("---NEXT---", "").strip()
+                resp_clean = re.sub(r"<[^>]+>", "", resp_clean)  # теги
+                resp_clean = resp_clean.replace("**", "").replace("*", "")
+                resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\'\n]+', '', resp_clean, flags=re.UNICODE)
 
-            if audio_path:
-                from aiogram.types import FSInputFile
-                await msg.answer("💬", reply_markup=reply.study_chat_kb())
-                await msg.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
-                try:
-                    os.remove(audio_path)
-                except:
-                    pass
+                voice_tts = "onyx" if voice_gender == "male" else "shimmer"
+                audio_path = await text_to_speech(resp_clean, voice=voice_tts)
+
+                if audio_path:
+                    from aiogram.types import FSInputFile
+                    await msg.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
+                    try:
+                        os.remove(audio_path)
+                    except:
+                        pass
+                else:
+                    # Fallback на текст
+                    await msg.answer(
+                        f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
+                        reply_markup=keyboard
+                    )
             else:
-                # Fallback на текст
-                await msg.answer("💬", reply_markup=reply.study_chat_kb())
-                await msg.answer(
-                    f"{display_text}\n\n<i>📓 Обучение{step_info}</i>",
-                    reply_markup=keyboard
-                )
-        else:
-            # === ТЕКСТОВЫЙ ОТВЕТ ===
-            # Редактируем существующее сообщение
-            final_text = f"{display_text}\n\n<i>📓 Обучение{step_info}</i>"
-            
-            await msg.answer("💬", reply_markup=reply.study_chat_kb())
-            
-            if sent_msg:
-                try:
-                    await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
-                except Exception:
-                    # Если не удалось отредактировать - отправляем новое
+                # === ТЕКСТОВЫЙ ОТВЕТ ===
+                # Редактируем существующее сообщение
+                final_text = f"{display_text}\n\n<i>📓 Обучение{step_info}</i>"
+                
+                if sent_msg:
+                    try:
+                        await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
+                    except Exception:
+                        # Если не удалось отредактировать - отправляем новое
+                        await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+                else:
                     await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
-            else:
-                await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+        finally:
+            if temp_msg:
+                try:
+                    await temp_msg.delete()
+                except Exception:
+                    pass
 
 
 @router.message(TitusSt.chat, F.text)
@@ -814,11 +899,17 @@ async def titus_photo(msg: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("course:continue:"))
 async def course_continue_step(cb: CallbackQuery, state: FSMContext):
+    print(f"[DEBUG] course_continue_step CALLED, data={cb.data}")
     parts = cb.data.split(":")
     cid = int(parts[2])
     current_step = int(parts[3])
     
     await cb.answer()
+    temp_msg = None
+    try:
+        temp_msg = await cb.message.answer("💬", reply_markup=reply.study_chat_kb())
+    except Exception:
+        pass
     
     data = await state.get_data()
     cname = data.get('cname', 'Курс')
@@ -851,9 +942,20 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     except Exception as e:
         print(f"Stream error in course_continue: {e}")
         raise
+    finally:
+        if temp_msg:
+            try:
+                await temp_msg.delete()
+            except Exception:
+                pass
 
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
+    
+    # Добавляем футер с номером шага
+    footer = f"\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>"
+    resp_with_footer = f"{resp_clean}{footer}"
+    resp_html = md_to_html(resp_with_footer)
 
     await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
     await db.increment_requests(cb.from_user.id)
@@ -891,28 +993,35 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
         
         if audio_path:
             from aiogram.types import FSInputFile
-            await cb.message.answer_voice(FSInputFile(audio_path), reply_markup=keyboard)
+            # Отправляем голос с футером в caption (если поддерживается)
+            caption_text = f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>"
+            await cb.message.answer_voice(
+                FSInputFile(audio_path), 
+                caption=caption_text,
+                caption_parse_mode="HTML",
+                reply_markup=keyboard
+            )
             try:
                 os.remove(audio_path)
             except:
                 pass
+        else:
+            # Fallback: используем preview как в основном потоке
+            needs_preview, display_text = should_show_preview(resp_html, max_length=3000)
+            if needs_preview:
+                await cb.message.answer(display_text, parse_mode="HTML", reply_markup=keyboard)
+            else:
+                await cb.message.answer(resp_html, parse_mode="HTML", reply_markup=keyboard)
     else:
         # === ТЕКСТОВЫЙ ОТВЕТ ===
         # Добавляем клавиатуру к существующему сообщению
         if sent_msg:
             try:
-                await sent_msg.edit_reply_markup(reply_markup=keyboard)
+                await sent_msg.edit_text(resp_with_footer, parse_mode="HTML", reply_markup=keyboard)
             except Exception:
-                # Если не удалось - отправляем отдельное сообщение с инфо
-                await cb.message.answer(
-                    f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
-                    reply_markup=keyboard
-                )
+                await cb.message.answer(resp_with_footer, parse_mode="HTML", reply_markup=keyboard)
         else:
-            await cb.message.answer(
-                f"<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>",
-                reply_markup=keyboard
-            )
+            await cb.message.answer(resp_with_footer, parse_mode="HTML", reply_markup=keyboard)
 
 
 @router.callback_query(F.data.startswith("course:repeat:"))
@@ -920,6 +1029,11 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     cid = int(cb.data.split(":")[2])
     
     await cb.answer()
+    temp_msg = None
+    try:
+        temp_msg = await cb.message.answer("💬", reply_markup=reply.study_chat_kb())
+    except Exception:
+        pass
     
     data = await state.get_data()
     cname = data.get('cname', 'Курс')
@@ -949,9 +1063,12 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     # Проверяем настройки голоса для выбора промпта
     titus_settings_pre = redis_db.get_titus_settings(cb.from_user.id) or {}
     voice_enabled_pre = bool(titus_settings_pre.get("voice_enabled", False))
-    base_prompt = TITUS_VOICE_BASE if voice_enabled_pre else TITUS_BASE
     
-    sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
+    # Для уточнения используем короткий промпт
+    base_prompt = TITUS_CLARIFY_VOICE if voice_enabled_pre else TITUS_CLARIFY
+    course_context = f"Курс: {cname}\nШаг: {current_step} из {total_steps}"
+    
+    sys = f"{base_prompt}\n\n📚 Контекст курса:\n{course_context}\n\n⚠️ Повтори и закрепи сложные темы: {topics_text}"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Разбери подробно темы, которые были сложными: {topics_text}"}]
     
     try:
@@ -1007,6 +1124,13 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                     os.remove(audio_path)
                 except:
                     pass
+            else:
+                # Fallback: используем preview как в основном потоке
+                needs_preview, display_text = should_show_preview(resp_html, max_length=3000)
+                if needs_preview:
+                    await cb.message.answer(display_text, parse_mode="HTML", reply_markup=keyboard)
+                else:
+                    await cb.message.answer(resp_html, parse_mode="HTML", reply_markup=keyboard)
         else:
             # === ТЕКСТОВЫЙ ОТВЕТ ===
             # Добавляем клавиатуру к существующему сообщению
@@ -1026,3 +1150,9 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                 )
     except Exception as e:
         await cb.message.answer(f"❌ Ошибка: {str(e)[:200]}", reply_markup=reply.study_chat_kb())
+    finally:
+        if temp_msg:
+            try:
+                await temp_msg.delete()
+            except Exception:
+                pass

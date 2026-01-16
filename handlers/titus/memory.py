@@ -9,6 +9,7 @@ import config
 
 async def save_step_progress(course_id: int, step: int, bot_message: str, user_response: str):
     """Сохраняет краткую суть пройденного шага"""
+    print(f"[MEMORY] save_step_progress called: course_id={course_id}, step={step}")
     try:
         prompt = f"""Извлеки ключевую информацию из этого шага обучения.
 
@@ -28,7 +29,8 @@ async def save_step_progress(course_id: int, step: int, bot_message: str, user_r
             if clean.startswith("```"):
                 clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
             data = json.loads(clean)
-        except:
+        except Exception as e:
+            print(f"[MEMORY] save_step_progress PARSE ERROR: {e}")
             return
         
         topic = data.get('topic', f'Шаг {step}')
@@ -36,16 +38,44 @@ async def save_step_progress(course_id: int, step: int, bot_message: str, user_r
         difficulty = data.get('difficulty', 'medium')
         
         if data.get('understood', True):
-            await db.add_completed_topic(course_id, step, topic, [key_point], difficulty)
+            await add_completed_topic(course_id, step, topic, [key_point], difficulty)
         else:
-            await db.add_problem_zone(course_id, step, topic, key_point)
+            await add_problem_zone(course_id, step, topic, key_point)
+        print("[MEMORY] save_step_progress SUCCESS")
             
     except Exception as e:
-        print(f"Save step progress error: {e}")
+        print(f"[MEMORY] save_step_progress ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def add_completed_topic(course_id: int, step: int, topic: str, key_points: list, difficulty: str = "medium"):
+    """Прокси-обёртка для логирования add_completed_topic"""
+    print(f"[MEMORY] add_completed_topic called: course_id={course_id}, step={step}, topic={topic}")
+    try:
+        await db.add_completed_topic(course_id, step, topic, key_points, difficulty)
+        print("[MEMORY] add_completed_topic SUCCESS")
+    except Exception as e:
+        print(f"[MEMORY] add_completed_topic ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def add_problem_zone(course_id: int, step: int, topic: str, question: str):
+    """Прокси-обёртка для логирования add_problem_zone"""
+    print(f"[MEMORY] add_problem_zone called: course_id={course_id}, step={step}, topic={topic}")
+    try:
+        await db.add_problem_zone(course_id, step, topic, question)
+        print("[MEMORY] add_problem_zone SUCCESS")
+    except Exception as e:
+        print(f"[MEMORY] add_problem_zone ERROR: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def build_smart_context(course_mem: dict, current_step: int, student_name: str = None) -> str:
     """Строит умный контекст с персонализацией и связями между шагами"""
+    print(f"[MEMORY] build_smart_context called: step={current_step}, has_mem={bool(course_mem)}")
     if not course_mem:
         parts = []
         if student_name:
@@ -72,6 +102,7 @@ def build_smart_context(course_mem: dict, current_step: int, student_name: str =
             problems = []
     
     if problems:
+        print(f"[MEMORY] build_smart_context problem_zones: {len(problems)}")
         parts.append("")
         parts.append("⚠️ ПРОБЛЕМНЫЕ ТЕМЫ (где были трудности):")
         for p in problems[-7:]:
@@ -92,6 +123,7 @@ def build_smart_context(course_mem: dict, current_step: int, student_name: str =
             topics = []
     
     if topics:
+        print(f"[MEMORY] build_smart_context completed_topics: {len(topics)}")
         parts.append("")
         parts.append("✅ ПРОЙДЕННЫЕ ТЕМЫ (ссылайся на них!):")
         
