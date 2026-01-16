@@ -22,7 +22,16 @@ async def socials_menu(msg: Message, state: FSMContext):
         "Инструменты для роста и оформления:\n\n"
         "🎬 <b>Вирусный разбор</b> — анализ роликов\n"
         "🖼 <b>Обложки</b> — обложки / логотипы / презентации\n"
+        "🎨 <b>Креатив</b> — стили / мемы / эффекты\n"
+        "📹 <b>Анализ видео</b> — конспекты по YouTube\n"
         "📖 <b>Как это работает?</b> — короткая инструкция",
         reply_markup=reply.socials_menu_kb(msg.from_user.id),
         parse_mode="HTML",
     )
+
+
+@router.message(F.text == "📹 Анализ видео")
+async def socials_video_analysis(message: Message, state: FSMContext):
+    """Старт анализа видео (логика Titus)."""
+    from handlers.titus.handler import video_analysis_start
+    await video_analysis_start(message, state)

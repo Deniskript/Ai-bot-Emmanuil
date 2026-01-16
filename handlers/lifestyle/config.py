@@ -15,6 +15,10 @@ MODULES = {
         "name": "🗓 Режим дня",
         "enabled": True
     },
+    "mental": {
+        "name": "🧘 Ментальное",
+        "enabled": True
+    },
     "magic": {
         "name": "🔮 Эзотерика",
         "enabled": True
@@ -22,7 +26,6 @@ MODULES = {
     # Удалённые разделы оставляем закомментированными по требованиям
     # "viral": {"name": "🎬 Вирусный разбор", "enabled": True},
     # "goals": {"name": "🎯 Трекер целей", "enabled": True},
-    # "mental": {"name": "🧘 Ментальное", "enabled": True},
     # "finance": {"name": "💰 Финансы", "enabled": True},
 }
 

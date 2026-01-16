@@ -309,7 +309,7 @@ async def delete_select(msg: Message, state: FSMContext):
     await msg.answer(texts.ERROR_SELECT_COURSE)
 
 
-@router.message(TitusSt.menu, F.text == "📚 Анализ видео")
+@router.message(TitusSt.menu, F.text.in_(["📚 Анализ видео", "📹 Анализ видео"]))
 async def video_analysis_start(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.video_analysis)
     await msg.answer(
@@ -327,7 +327,8 @@ async def video_analysis_start(msg: Message, state: FSMContext):
 @router.message(TitusSt.video_analysis, F.text == "◀️ Назад")
 async def video_analysis_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.menu)
-    await msg.answer(texts.MENU_TEXT, reply_markup=reply.study_kb(msg.from_user.id))
+    from keyboards.reply import socials_menu_kb
+    await msg.answer("📲 Соцсети", reply_markup=socials_menu_kb(msg.from_user.id))
 
 
 @router.message(TitusSt.video_analysis, F.text)
@@ -454,12 +455,13 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         
         print(f"[VIDEO] Отправка результата пользователю: {time.time() - start_time:.2f}с")
         await msg.answer(
-            f"📚 <b>Анализ видео</b>\n\n{display_text}",
+            f"📹 <b>Анализ видео</b>\n\n{display_text}",
             reply_markup=keyboard
         )
         
         await state.set_state(TitusSt.menu)
-        await msg.answer(texts.VIDEO_ANALYSIS_COMPLETED, reply_markup=reply.study_kb(user_id))
+        from keyboards.reply import socials_menu_kb
+        await msg.answer(texts.VIDEO_ANALYSIS_COMPLETED, reply_markup=socials_menu_kb(user_id))
         
         print(f"[VIDEO] ✅ ГОТОВО! Общее время: {time.time() - start_time:.2f}с")
         

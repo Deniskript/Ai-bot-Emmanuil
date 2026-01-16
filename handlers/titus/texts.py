@@ -66,7 +66,7 @@ DELETE_COURSE_PROMPT = "🗑 <b>Выберите курс для удалени�
 
 # ========== ВИДЕО АНАЛИЗ ==========
 
-VIDEO_ANALYSIS_START = """📚 <b>Анализ видео с YouTube</b>
+VIDEO_ANALYSIS_START = """📹 <b>Анализ видео с YouTube</b>
 
 Отправьте ссылку на YouTube видео, и я:
 ✅ Извлеку субтитры

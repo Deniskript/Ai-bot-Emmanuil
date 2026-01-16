@@ -911,12 +911,20 @@ async def photo_menu(message: Message):
     await message.answer(
         f"🎨 <b>Творчество</b>\n\n"
         f"💰 Баланс: <b>{tokens:,}</b> токенов\n\n"
-        f"🎬 <b>Видео</b> — настройки и запуск\n"
         f"📷 <b>Фото</b> — создание / 4K / редактор\n"
-        f"🎭 <b>Креатив</b> — стили / мемы / эффекты\n\n"
+        f"🎬 <b>Видео</b> — настройки и запуск\n"
+        f"🎵 <b>Аудио</b> — скоро в разработке\n\n"
         f"Нажмите нужную кнопку — откроются настройки.",
         reply_markup=photo_kb(message.from_user.id),
         parse_mode="HTML"
+    )
+
+
+@router.message(F.text == "🎵 Аудио")
+async def audio_stub(message: Message):
+    await message.answer(
+        "🎵 Аудио — скоро в разработке! Следи за обновлениями ✨",
+        reply_markup=photo_kb(message.from_user.id),
     )
 
 
