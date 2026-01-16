@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul Соцсети — Как это работает?</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 50%, #0EA5E9 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.18);
+            border-radius: 50%;
+            animation: floatSocial 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 18px; height: 18px; top: 5%; left: 8%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 14px; height: 14px; top: 12%; left: 82%; animation-delay: 0.7s; }
+        .particle:nth-child(3) { width: 22px; height: 22px; top: 24%; left: 18%; animation-delay: 1.4s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 35%; left: 75%; animation-delay: 2.1s; }
+        .particle:nth-child(5) { width: 20px; height: 20px; top: 48%; left: 28%; animation-delay: 2.8s; }
+        .particle:nth-child(6) { width: 16px; height: 16px; top: 58%; left: 85%; animation-delay: 3.5s; }
+        .particle:nth-child(7) { width: 24px; height: 24px; top: 70%; left: 42%; animation-delay: 4.2s; }
+        .particle:nth-child(8) { width: 13px; height: 13px; top: 82%; left: 12%; animation-delay: 4.9s; }
+        .particle:nth-child(9) { width: 17px; height: 17px; top: 92%; left: 68%; animation-delay: 5.6s; }
+
+        @keyframes floatSocial {
+            0% {
+                transform: translateY(0px) translateX(0px) scale(1);
+                opacity: 0.2;
+            }
+            20% {
+                transform: translateY(-15px) translateX(8px) scale(1.2);
+                opacity: 0.5;
+            }
+            40% {
+                transform: translateY(-30px) translateX(-5px) scale(1.1);
+                opacity: 0.4;
+            }
+            60% {
+                transform: translateY(-45px) translateX(10px) scale(1.15);
+                opacity: 0.55;
+            }
+            80% {
+                transform: translateY(-25px) translateX(-8px) scale(1.05);
+                opacity: 0.35;
+            }
+            100% {
+                transform: translateY(0px) translateX(0px) scale(1);
+                opacity: 0.2;
+            }
+        }
+
+        .hero {
+            text-align: center;
+            padding: 25px 0 30px;
+            animation: fadeInUp 0.7s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 80px;
+            display: inline-block;
+            animation: ping 2s ease-in-out infinite;
+        }
+
+        @keyframes ping {
+            0%, 100% { 
+                transform: scale(1);
+                filter: drop-shadow(0 0 0px transparent);
+            }
+            15% { 
+                transform: scale(1.15);
+                filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.6));
+            }
+            30% { 
+                transform: scale(1);
+                filter: drop-shadow(0 0 0px transparent);
+            }
+            45% { 
+                transform: scale(1.1);
+                filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.4));
+            }
+            60% { 
+                transform: scale(1);
+            }
+        }
+
+        .hero-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #FFFFFF;
+            margin: 15px 0 10px;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 8px;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tabs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 25px 0;
+            animation: fadeInUp 0.7s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 20px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .tab:active {
+            transform: scale(0.95);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #3B82F6, #0EA5E9);
+            color: white;
+            box-shadow: 0 6px 30px rgba(59, 130, 246, 0.5);
+            animation: glowBlue 2s ease-in-out infinite;
+        }
+
+        @keyframes glowBlue {
+            0%, 100% { box-shadow: 0 6px 25px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 6px 40px rgba(14, 165, 233, 0.6); }
+        }
+
+        .tab-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .tab-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .tab.active .tab-text {
+            color: white;
+        }
+
+        .content-area {
+            animation: fadeInUp 0.7s ease-out 0.4s forwards;
+            opacity: 0;
+            margin-bottom: 20px;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .content-title {
+            font-size: 19px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .content-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .content-text strong {
+            color: #2563EB;
+            font-weight: 700;
+        }
+
+        .content-text p {
+            margin-bottom: 5px;
+        }
+
+        .content-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .content-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 15px;
+            color: #444;
+        }
+
+        .content-list li:last-child {
+            border-bottom: none;
+        }
+
+        .content-list li strong {
+            color: #2563EB;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #3B82F6, #60A5FA, #0EA5E9, #3B82F6);
+            background-size: 300% 300%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(59, 130, 246, 0.45);
+            animation: gradientWave 3.5s ease infinite, fadeInUp 0.7s ease-out 0.6s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes gradientWave {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .cta-button:active {
+            transform: scale(0.98);
+        }
+
+        @media (max-width: 350px) {
+            .hero-title { font-size: 26px; }
+            .hero-icon { font-size: 64px; }
+            .hero-subtitle { font-size: 17px; }
+            .tab { padding: 16px 10px; }
+            .tab-icon { font-size: 26px; }
+            .tab-text { font-size: 13px; }
+            .content-card { padding: 18px; }
+            .content-title { font-size: 17px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">📲</span>
+            <h1 class="hero-title">Soul Соцсети</h1>
+            <p class="hero-subtitle">«Контент, который взрывает охваты»</p>
+            <p class="hero-desc">Тексты, идеи, стратегии — твой SMM-менеджер с AI.</p>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" data-tab="functions">
+                <span class="tab-icon">🚀</span>
+                <span class="tab-text">Функционал</span>
+            </button>
+            <button class="tab" data-tab="prompts">
+                <span class="tab-icon">💬</span>
+                <span class="tab-text">Запросы</span>
+            </button>
+            <button class="tab" data-tab="howto">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Как начать</span>
+            </button>
+            <button class="tab" data-tab="combos">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">Комбинации</span>
+            </button>
+        </div>
+
+        <div class="content-area"></div>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">📲 Создать контент с Soul</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+
+        const tabContent = {
+            functions: `
+                <h3 class="content-title">🚀 Что умеет Soul Соцсети?</h3>
+                <div class="content-text">
+                    
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(14, 165, 233, 0.1)); padding: 18px; border-radius: 16px; margin-bottom: 15px; border-left: 4px solid #3B82F6;">
+                        <p style="font-size: 16px; color: #333;"><strong>📱 Твой персональный SMM-менеджер</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Soul знает как работают алгоритмы. Он поможет создать контент, который <strong>залетает в рекомендации</strong>.</p>
+                    </div>
+                    
+                    <p><strong>Хочешь вести блог, но не знаешь о чём писать?</strong></p>
+                    <p>Тексты не заходят, охваты падают, идеи закончились?</p>
+                    <br>
+                    <p>Soul Соцсети — AI который <strong>понимает тренды</strong>.</p>
+                    <p>Не просто генерирует текст. <strong>Создаёт контент, который цепляет</strong>.</p>
+                    <br>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>✍️ <strong>Тексты для постов</strong></p>
+                        <p style="color: #555; font-size: 14px;">Цепляющие заголовки, вовлекающие тексты, продающие описания — для любой платформы.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>💡 <strong>Идеи для контента</strong></p>
+                        <p style="color: #555; font-size: 14px;">Закончились идеи? Soul накидает 20 тем за минуту. Под твою нишу, аудиторию, тренды.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>📅 <strong>Контент-план</strong></p>
+                        <p style="color: #555; font-size: 14px;">Распланируй посты на неделю или месяц. Soul учтёт разнообразие форматов и оптимальное время.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>#️⃣ <strong>Хэштеги и ключевые слова</strong></p>
+                        <p style="color: #555; font-size: 14px;">Подберёт работающие хэштеги под твою тему. Не спам, а реально продвигающие.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🎬 <strong>Сценарии для Reels/TikTok</strong></p>
+                        <p style="color: #555; font-size: 14px;">Хук → контент → призыв. Soul напишет сценарий, который удержит до конца.</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🔥 Фишки Soul Соцсети:</strong></p>
+                    <ul class="content-list">
+                        <li>🎯 <strong>Под любую платформу</strong> — TikTok, Instagram, YouTube, Telegram, VK</li>
+                        <li>🧠 <strong>Понимает алгоритмы</strong> — знает что продвигается</li>
+                        <li>✨ <strong>Твой стиль</strong> — адаптируется под твой голос</li>
+                        <li>📊 <strong>Анализ конкурентов</strong> — подскажет что работает в нише</li>
+                    </ul>
+                </div>
+            `,
+            
+            prompts: `
+                <h3 class="content-title">💬 Что попросить Soul?</h3>
+                <div class="content-text">
+                    
+                    <p><strong>✍️ Тексты:</strong></p>
+                    <ul class="content-list">
+                        <li>«Напиши пост про [тема] для Instagram»</li>
+                        <li>«Сделай цепляющий заголовок для статьи»</li>
+                        <li>«Придумай описание для Reels про [тема]»</li>
+                        <li>«Напиши продающий текст для [продукт]»</li>
+                        <li>«Сделай пост-знакомство для нового блога»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💡 Идеи:</strong></p>
+                    <ul class="content-list">
+                        <li>«Дай 10 идей для постов про [ниша]»</li>
+                        <li>«Какие темы сейчас в тренде в TikTok?»</li>
+                        <li>«Придумай рубрики для моего блога о [тема]»</li>
+                        <li>«Идеи для сторис на неделю»</li>
+                        <li>«О чём снять Reels новичку?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>📅 Планирование:</strong></p>
+                    <ul class="content-list">
+                        <li>«Составь контент-план на неделю для [ниша]»</li>
+                        <li>«Распиши посты на месяц для Instagram»</li>
+                        <li>«Когда лучше выкладывать посты?»</li>
+                        <li>«Как часто нужно публиковать?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🎬 Видео:</strong></p>
+                    <ul class="content-list">
+                        <li>«Напиши сценарий для Reels про [тема]»</li>
+                        <li>«Придумай хук для начала видео»</li>
+                        <li>«Как снять вирусный TikTok?»</li>
+                        <li>«Идеи для YouTube Shorts»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🎨 Визуал:</strong></p>
+                    <ul class="content-list">
+                        <li>«Какой логотип лучше?» + отправь варианты</li>
+                        <li>«Что написать в промпт для обложки?»</li>
+                        <li>«Как улучшить визуал профиля?»</li>
+                        <li>«Оцени мой дизайн поста»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>#️⃣ Продвижение:</strong></p>
+                    <ul class="content-list">
+                        <li>«Подбери хэштеги для поста про [тема]»</li>
+                        <li>«Как продвигаться без бюджета?»</li>
+                        <li>«Почему у меня падают охваты?»</li>
+                        <li>«Как получить первых подписчиков?»</li>
+                    </ul>
+                    
+                    <p style="color: #2563EB; font-size: 13px; margin-top: 15px;">💡 Совет: отправляй примеры конкурентов — Soul подскажет как сделать лучше!</p>
+                </div>
+            `,
+            
+            howto: `
+                <h3 class="content-title">⚙️ Как создать крутой контент</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📲 Шаг 1: Открой Соцсети</strong></p>
+                        <p style="color: #555; font-size: 14px;">В главном меню нажми «📲 Соцсети»</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>⚙️ Шаг 2: Настройся</strong></p>
+                        <p style="color: #555; font-size: 14px;">Нажми «Настроиться» — расскажи Soul о своём блоге, нише, целях</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎯 Шаг 3: Выбери задачу</strong></p>
+                        <div style="margin-top: 10px;">
+                            <p style="color: #555; font-size: 14px;"><strong>✍️ Текст</strong> — пост, описание, заголовок</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>💡 Идеи</strong> — темы, рубрики, форматы</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>📅 План</strong> — контент на неделю/месяц</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>🎬 Сценарий</strong> — для Reels, TikTok, Shorts</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>#️⃣ Хэштеги</strong> — подборка под тему</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>💬 Шаг 4: Опиши что нужно</strong></p>
+                        <p style="color: #555; font-size: 14px;">Чем подробнее опишешь — тем точнее результат. Укажи платформу, тему, стиль, аудиторию.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>✨ Шаг 5: Получи и адаптируй</strong></p>
+                        <p style="color: #555; font-size: 14px;">Soul выдаст готовый контент. Адаптируй под себя, добавь свой стиль — и публикуй!</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>📱 Для каких платформ:</strong></p>
+                    <ul class="content-list">
+                        <li>📸 <strong>Instagram</strong> — посты, сторис, Reels</li>
+                        <li>🎵 <strong>TikTok</strong> — сценарии, тренды, хуки</li>
+                        <li>▶️ <strong>YouTube</strong> — Shorts, описания, заголовки</li>
+                        <li>✈️ <strong>Telegram</strong> — посты для каналов</li>
+                        <li>💬 <strong>VK</strong> — тексты, идеи, клипы</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💡 Pro-советы:</strong></p>
+                    <ul class="content-list">
+                        <li>Первые 3 секунды видео — решают всё</li>
+                        <li>Хэштеги: 3-5 нишевых лучше 30 общих</li>
+                        <li>Регулярность важнее идеальности</li>
+                        <li>Отвечай на комменты — алгоритмы любят это</li>
+                    </ul>
+                </div>
+            `,
+            
+            combos: `
+                <h3 class="content-title">🔗 Соцсети + другие функции</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📲 + 🎨 Творчество</strong></p>
+                        <p style="color: #555; font-size: 14px;">Полный цикл создания контента.</p>
+                        <p style="color: #2563EB; font-size: 13px; margin-top: 8px;">💡 Создай визуал в Творчестве → напиши текст в Соцсетях → публикуй! Soul закрывает весь цикл от идеи до поста.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📲 + 💬 Soul Чат</strong></p>
+                        <p style="color: #555; font-size: 14px;">Мозгоштурм идей и стратегии.</p>
+                        <p style="color: #2563EB; font-size: 13px; margin-top: 8px;">💡 Обсуди с Soul свой блог — какая ниша, кто аудитория, что отличает от конкурентов. Вместе найдёте уникальный стиль!</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📲 + 📓 Обучение</strong></p>
+                        <p style="color: #555; font-size: 14px;">Научись SMM профессионально.</p>
+                        <p style="color: #2563EB; font-size: 13px; margin-top: 8px;">💡 Soul объяснит как работают алгоритмы, научит анализировать статистику, расскажет про тренды. Стань экспертом!</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📲 + 🏆 Лайфстайл</strong></p>
+                        <p style="color: #555; font-size: 14px;">Контент о саморазвитии.</p>
+                        <p style="color: #2563EB; font-size: 13px; margin-top: 8px;">💡 Веди блог о своём пути! Лайфстайл помогает строить жизнь — Соцсети помогают делиться этим. Твоя история вдохновит других.</p>
+                    </div>
+                    
+                    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📲 + 🛋️ Психолог</strong></p>
+                        <p style="color: #555; font-size: 14px;">Контент про ментальное здоровье.</p>
+                        <p style="color: #2563EB; font-size: 13px; margin-top: 8px;">💡 Хочешь говорить о психологии в блоге? Soul подскажет как делать это экологично, без вреда аудитории. Важная миссия!</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(14, 165, 233, 0.1)); padding: 18px; border-radius: 16px; margin-top: 20px; border-left: 4px solid #3B82F6;">
+                        <p style="font-size: 15px; color: #333;"><strong>🎯 Формула успешного блога:</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 10px;">
+                            <strong>1.</strong> 💬 Soul Чат → определи нишу и стиль<br>
+                            <strong>2.</strong> 📲 Соцсети → контент-план на месяц<br>
+                            <strong>3.</strong> 🎨 Творчество → визуал для постов<br>
+                            <strong>4.</strong> 📲 Соцсети → тексты и хэштеги<br>
+                            <strong>5.</strong> 🚀 Публикуй регулярно<br>
+                            <strong>6.</strong> 📊 Анализируй → корректируй → расти!
+                        </p>
+                    </div>
+                    
+                </div>
+            `
+        };
+
+        const contentArea = document.querySelector('.content-area');
+
+        function renderTab(tabKey) {
+            contentArea.innerHTML = `
+                <div class="content-card">
+                    ${tabContent[tabKey]}
+                </div>
+            `;
+        }
+
+        renderTab('functions');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                renderTab(this.dataset.tab);
+            });
+        });
+    </script>
+</body>
+</html>

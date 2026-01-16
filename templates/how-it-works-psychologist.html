@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Психолог Silas — Как это работает?</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #7B68A6;
+            --primary-light: #9D8EC4;
+            --primary-dark: #5D4E8C;
+            --gradient: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 50%, #6B5B95 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            animation: floatSlow 8s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 25px; height: 25px; top: 5%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 18px; height: 18px; top: 15%; left: 80%; animation-delay: 1s; }
+        .particle:nth-child(3) { width: 30px; height: 30px; top: 35%; left: 20%; animation-delay: 2s; }
+        .particle:nth-child(4) { width: 15px; height: 15px; top: 50%; left: 70%; animation-delay: 3s; }
+        .particle:nth-child(5) { width: 22px; height: 22px; top: 65%; left: 30%; animation-delay: 4s; }
+        .particle:nth-child(6) { width: 12px; height: 12px; top: 80%; left: 85%; animation-delay: 5s; }
+        .particle:nth-child(7) { width: 20px; height: 20px; top: 90%; left: 50%; animation-delay: 6s; }
+
+        @keyframes floatSlow {
+            0% { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.2; }
+            25% { transform: translateY(-20px) translateX(10px) scale(1.1); opacity: 0.4; }
+            50% { transform: translateY(-35px) translateX(-5px) scale(1); opacity: 0.3; }
+            75% { transform: translateY(-15px) translateX(-10px) scale(1.05); opacity: 0.4; }
+            100% { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.2; }
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 25px 0 30px;
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 80px;
+            display: inline-block;
+            animation: breathe 4s ease-in-out infinite;
+        }
+
+        .hero-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #FFFFFF;
+            margin: 15px 0 10px;
+            text-shadow: 0 2px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            margin-top: 8px;
+        }
+
+        @keyframes breathe {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.08); }
+            50% { transform: scale(1.12); }
+            75% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(30px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .tabs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 25px 0;
+            animation: fadeInUp 0.8s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 20px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .tab:active {
+            transform: scale(0.95);
+        }
+
+        .tab.active {
+            background: #7B68A6;
+            color: white;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 6px 25px rgba(123, 104, 166, 0.3); }
+            50% { box-shadow: 0 6px 35px rgba(123, 104, 166, 0.5); }
+            100% { box-shadow: 0 6px 25px rgba(123, 104, 166, 0.3); }
+        }
+
+        .tab-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .tab-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .tab.active .tab-text {
+            color: white;
+        }
+
+        .content-area {
+            animation: fadeInUp 0.8s ease-out 0.4s forwards;
+            opacity: 0;
+            margin-bottom: 20px;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .content-title {
+            font-size: 19px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .content-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .content-text strong {
+            color: #7B68A6;
+            font-weight: 700;
+        }
+
+        .content-text p {
+            margin-bottom: 5px;
+        }
+
+        .content-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .content-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 15px;
+            color: #444;
+        }
+
+        .content-list li:last-child {
+            border-bottom: none;
+        }
+
+        .content-list li strong {
+            color: #7B68A6;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #7B68A6, #9D8EC4, #6B5B95, #7B68A6);
+            background-size: 300% 300%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(123, 104, 166, 0.4);
+            animation: gradientFlow 4s ease infinite, fadeInUp 0.8s ease-out 0.6s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes gradientFlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .cta-button:active {
+            transform: scale(0.98);
+        }
+
+        @media (max-width: 350px) {
+            .hero-title { font-size: 26px; }
+            .hero-icon { font-size: 64px; }
+            .hero-subtitle { font-size: 17px; }
+            .tab { padding: 16px 10px; }
+            .tab-icon { font-size: 26px; }
+            .tab-text { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">🛋️</span>
+            <h1 class="hero-title">Психолог Soul</h1>
+            <p class="hero-subtitle">«Ты заслуживаешь быть счастливым»</p>
+            <p class="hero-desc">Терапия от профессионалов. Без осуждения. Без страха.</p>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" data-tab="functions">
+                <span class="tab-icon">🛋️</span>
+                <span class="tab-text">Функционал</span>
+            </button>
+            <button class="tab" data-tab="prompts">
+                <span class="tab-icon">💭</span>
+                <span class="tab-text">Запросы</span>
+            </button>
+            <button class="tab" data-tab="howto">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Как начать</span>
+            </button>
+            <button class="tab" data-tab="combos">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">Комбинации</span>
+            </button>
+        </div>
+
+        <div class="content-area"></div>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">🛋️ Начать сеанс с Soul</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        const tabContent = {
+            functions: `
+                <h3 class="content-title">🛋️ Что умеет Психолог Soul?</h3>
+                <div class="content-text">
+                    
+                    <div style="background: linear-gradient(135deg, rgba(123, 104, 166, 0.2), rgba(157, 142, 196, 0.15)); padding: 18px; border-radius: 16px; margin-bottom: 15px; border-left: 4px solid #7B68A6;">
+                        <p style="font-size: 16px; color: #333;"><strong>🏛️ Создано с психологами</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Этот проект разработан при участии <strong>практикующих психологов гештальт-терапии</strong>.</p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">AI — это инструмент. <strong>Специалисты построили методологию</strong>. Ты получаешь терапию, созданную профессионалами.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 193, 7, 0.1)); padding: 18px; border-radius: 16px; margin-bottom: 15px; border-left: 4px solid #FFD700;">
+                        <p style="font-size: 16px; color: #333;"><strong>👥 Парная терапия с AI — впервые в мире</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Мы создали то, чего <strong>ещё не существовало</strong>.</p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">Два человека + AI-терапевт в одном пространстве. Soul модерирует диалог, помогает услышать друг друга, находить решения вместе.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💜 Для пар, коллег, семьи — без страха осуждения.</p>
+                    </div>
+                    
+                    <p><strong>Тревога не даёт спать? Отношения разваливаются?</strong></p>
+                    <p>Хочется к психологу, но дорого или страшно?</p>
+                    <br>
+                    <p>Soul — AI-психолог с <strong>методологией реальной терапии</strong>.</p>
+                    <p>Он не даёт советов из интернета. Он помогает тебе <strong>найти ответы внутри себя</strong>.</p>
+                    <br>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🎯 <strong>Сеансы с таймером</strong></p>
+                        <p style="color: #555; font-size: 14px;">15 / 30 / 45 / 60 минут — как у настоящего психолога. Структура = результат.</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🧠 <strong>Сократовский метод</strong></p>
+                        <p style="color: #555; font-size: 14px;">Soul задаёт вопросы, которые помогают тебе самому найти ответ. Так работает настоящая терапия.</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>💡 <strong>Техники КПТ</strong></p>
+                        <p style="color: #555; font-size: 14px;">Когнитивно-поведенческая терапия — доказанный метод работы с тревогой, депрессией, страхами.</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🔥 Фишки Soul:</strong></p>
+                    <ul class="content-list">
+                        <li>🧠 <strong>Помнит ВСЕ сеансы</strong> — долгосрочная работа</li>
+                        <li>🎤 <strong>Голосовой режим</strong> — как разговор с терапевтом</li>
+                        <li>📔 <strong>Дневник настроения</strong> — отслеживай эмоции</li>
+                        <li>🔒 <strong>Без осуждения</strong> — безопасное пространство</li>
+                    </ul>
+                </div>
+            `,
+            
+            prompts: `
+                <h3 class="content-title">💭 О чём можно говорить с Silas?</h3>
+                <div class="content-text">
+                    <p><strong>😰 Тревога и страхи:</strong></p>
+                    <ul class="content-list">
+                        <li>«У меня панические атаки, как справиться?»</li>
+                        <li>«Постоянная тревога, не могу расслабиться»</li>
+                        <li>«Боюсь будущего, всё кажется безнадёжным»</li>
+                        <li>«Страх неудачи парализует меня»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💔 Отношения:</strong></p>
+                    <ul class="content-list">
+                        <li>«Постоянные ссоры с партнёром»</li>
+                        <li>«Как простить измену?»</li>
+                        <li>«Токсичные родители, что делать?»</li>
+                        <li>«Не могу построить близкие отношения»</li>
+                        <li>«Как понять, любовь это или зависимость?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🪞 Самооценка:</strong></p>
+                    <ul class="content-list">
+                        <li>«Я ненавижу себя»</li>
+                        <li>«Синдром самозванца мешает работать»</li>
+                        <li>«Как перестать сравнивать себя с другими?»</li>
+                        <li>«Чувствую себя недостойным любви»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🌑 Депрессия и апатия:</strong></p>
+                    <ul class="content-list">
+                        <li>«Нет сил вставать с кровати»</li>
+                        <li>«Потерял интерес ко всему»</li>
+                        <li>«Чувствую пустоту внутри»</li>
+                        <li>«Как найти смысл жизни?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🩹 Травмы:</strong></p>
+                    <ul class="content-list">
+                        <li>«Детская травма до сих пор болит»</li>
+                        <li>«Не могу отпустить прошлое»</li>
+                        <li>«Как пережить потерю близкого?»</li>
+                    </ul>
+                    
+                    <p style="color: #7B68A6; font-size: 13px; margin-top: 15px;">💜 Silas не заменяет врача при серьёзных состояниях, но поможет разобраться в себе и подготовиться к очной терапии.</p>
+                </div>
+            `,
+            
+            howto: `
+                <h3 class="content-title">⚙️ Как начать сеанс</h3>
+                <div class="content-text">
+                    
+                    <p style="color: #7B68A6; font-weight: 700; margin-bottom: 15px;">🧘 Одиночный сеанс:</p>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>⚡ Шаг 1: Настроиться</strong></p>
+                        <p style="color: #555; font-size: 14px;">В меню Психолога нажми кнопку <strong>«Настроиться»</strong></p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>⏱️ Шаг 2: Выбери время</strong></p>
+                        <div style="margin-top: 10px;">
+                            <p style="color: #555; font-size: 14px;"><strong>15 минут</strong> — экспресс-разгрузка. Выговориться, снять напряжение, получить поддержку.</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 8px;"><strong>30 минут</strong> — стандартный сеанс. Разобрать одну тему, получить инсайты, наметить шаги.</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 8px;"><strong>45 минут</strong> — глубокая работа. Проработка сложных эмоций, паттернов, отношений.</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 8px;"><strong>60 минут</strong> — полноценная терапия. Как у психолога: погружение, анализ, трансформация.</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎤 Шаг 3: Выбери формат</strong></p>
+                        <p style="color: #555; font-size: 14px;"><strong>Текст</strong> — пиши сообщения<br><strong>Голос</strong> — говори как с терапевтом</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🧘 Шаг 4: Начать сеанс</strong></p>
+                        <p style="color: #555; font-size: 14px;">Нажми <strong>«Начать сеанс»</strong> и расскажи что беспокоит. Soul будет задавать вопросы, помогая разобраться.</p>
+                    </div>
+                    
+                    <br>
+                    <p style="color: #7B68A6; font-weight: 700; margin-bottom: 15px;">👥 Парная сессия:</p>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 193, 7, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #FFD700;">
+                        <p><strong>⚡ Шаг 1: Нажми «Парная сессия»</strong></p>
+                        <p style="color: #555; font-size: 14px;">В меню «Настроиться» выбери <strong>«Парная сессия»</strong></p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 193, 7, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #FFD700;">
+                        <p><strong>📝 Шаг 2: Опиши тему</strong></p>
+                        <p style="color: #555; font-size: 14px;">Напиши боту с чем нужно поработать. Это поможет Soul подготовиться.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 193, 7, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #FFD700;">
+                        <p><strong>🔗 Шаг 3: Выбери тип и получи ссылку</strong></p>
+                        <p style="color: #555; font-size: 14px;">Выбери: <strong>Партнёр</strong> / <strong>Коллега</strong> / <strong>Семья</strong><br>Бот сгенерирует уникальную ссылку.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 193, 7, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #FFD700;">
+                        <p><strong>📤 Шаг 4: Отправь ссылку</strong></p>
+                        <p style="color: #555; font-size: 14px;">Партнёр переходит по ссылке → вы оба оказываетесь в <strong>общем веб-чате с Soul</strong>.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 193, 7, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #FFD700;">
+                        <p><strong>💬 Шаг 5: Терапия вместе</strong></p>
+                        <p style="color: #555; font-size: 14px;">Soul модерирует диалог, помогает услышать друг друга, находить решения.</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>📔 Дневник настроения:</strong></p>
+                    <ul class="content-list">
+                        <li>Отмечай эмоции каждый день</li>
+                        <li>Добавляй теги: сон, работа, стресс</li>
+                        <li>Смотри статистику и динамику</li>
+                    </ul>
+                </div>
+            `,
+            
+            combos: `
+                <h3 class="content-title">🔗 Психолог + другие функции</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(123, 104, 166, 0.15); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🛋️ + 💬 Soul Чат</strong></p>
+                        <p style="color: #555; font-size: 14px;">Подготовься к сеансу: обсуди с Soul что тебя волнует.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💡 Soul объяснит как вести себя на терапии, как сделать сеанс максимально продуктивным. Подготовка = результат!</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.15); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🛋️ + 👥 Парная терапия</strong></p>
+                        <p style="color: #555; font-size: 14px;">Терапия для пар — Soul модерирует диалог.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💡 Не знаешь как уговорить партнёра? Спроси Soul — он подскажет как объяснить пользу парной терапии с AI. Без давления, с заботой.</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.15); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🛋️ + 🏆 Лайфстайл</strong></p>
+                        <p style="color: #555; font-size: 14px;">Психолог помогает настроить здоровые привычки.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💡 После сеанса — медитация для закрепления. Режим дня + ментальное здоровье = стабильность.</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.15); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🛋️ + 📓 Обучение</strong></p>
+                        <p style="color: #555; font-size: 14px;">Проработай блоки в обучении.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💡 Прокрастинация, страх неудачи, синдром самозванца — Soul поможет разобраться, почему не получается учиться.</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.15); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🛋️ + 🎨 Творчество</strong></p>
+                        <p style="color: #555; font-size: 14px;">Арт-терапия через AI.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💡 Визуализируй свои эмоции через генерацию изображений. Покажи Soul что чувствуешь — он поможет интерпретировать.</p>
+                    </div>
+                    
+                    <div style="background: rgba(123, 104, 166, 0.15); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🛋️ + 📲 Соцсети</strong></p>
+                        <p style="color: #555; font-size: 14px;">Контент про ментальное здоровье.</p>
+                        <p style="color: #7B68A6; font-size: 13px; margin-top: 8px;">💡 Расскажи свою историю. Помоги другим. Soul подскажет как говорить о психологии экологично.</p>
+                    </div>
+                    
+                </div>
+            `
+        };
+
+        const contentArea = document.querySelector('.content-area');
+
+        function renderTab(tabKey) {
+            contentArea.innerHTML = `
+                <div class="content-card">
+                    ${tabContent[tabKey]}
+                </div>
+            `;
+        }
+
+        renderTab('functions');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                renderTab(this.dataset.tab);
+            });
+        });
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+    </script>
+</body>
+</html>

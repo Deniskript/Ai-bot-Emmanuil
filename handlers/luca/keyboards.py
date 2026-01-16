@@ -16,7 +16,7 @@ def dialog_kb(user_id: int):
     """Главное меню диалога"""
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="💬 Начать"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/luca/settings?user_id={user_id}"))],
-        [KeyboardButton(text="🧹 Очистить"), KeyboardButton(text="📖 Как это работает?", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}&tab=dialog"))],
+        [KeyboardButton(text="🧹 Очистить"), KeyboardButton(text="📖 Как это работает?", web_app=WebAppInfo(url=f"https://soul-bot.ru/how-it-works/dialog-new?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
@@ -24,7 +24,7 @@ def dialog_kb(user_id: int):
 def dialog_chat_kb():
     """Клавиатура в активном чате"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🧹 Очистить")]
+        [KeyboardButton(text="🛑 Завершить")]
     ], resize_keyboard=True)
 
 

@@ -2,6 +2,7 @@ from aiogram import Router, F
 from aiogram.types import (
     Message,
     BufferedInputFile,
+    FSInputFile,
     ReplyKeyboardMarkup,
     KeyboardButton,
     WebAppInfo,
@@ -32,6 +33,21 @@ VSEGPT_API_KEY = os.getenv("VSEGPT_API_KEY", "")
 VSEGPT_VIDEO_BASE_URL = os.getenv("VSEGPT_VIDEO_BASE_URL", "https://api.vsegpt.ru/v1/video")
 VSEGPT_BASE_URL = os.getenv("VSEGPT_BASE_URL", "https://api.vsegpt.ru/v1")
 VSEGPT_IMAGES_URL = f"{VSEGPT_BASE_URL}/images/generations"
+
+# ========== СИСТЕМА ФЛАГОВ ОТМЕНЫ ВИДЕО ==========
+cancelled_video_requests: set[int] = set()
+
+def cancel_video_request(user_id: int):
+    """Отменить генерацию видео — прервать ожидание"""
+    cancelled_video_requests.add(user_id)
+
+def is_video_cancelled(user_id: int) -> bool:
+    """Проверить отменена ли генерация видео"""
+    return user_id in cancelled_video_requests
+
+def clear_video_cancel(user_id: int):
+    """Очистить флаг отмены видео"""
+    cancelled_video_requests.discard(user_id)
 
 # Дефолтные модели (используются если у пользователя нет настроек)
 DEFAULT_MODELS = {
@@ -906,17 +922,12 @@ async def creative_process_photo_handler(message: Message, state: FSMContext):
 @router.message(F.text.in_(["🎨 Творчество", "📷 Фото", "📸 Фото"]))
 async def photo_menu(message: Message):
     """Показать меню творчества (WebApp-кнопки)"""
-    tokens = await get_available_tokens_web(message.from_user.id)
     
-    await message.answer(
-        f"🎨 <b>Творчество</b>\n\n"
-        f"💰 Баланс: <b>{tokens:,}</b> токенов\n\n"
-        f"📷 <b>Фото</b> — создание / 4K / редактор\n"
-        f"🎬 <b>Видео</b> — настройки и запуск\n"
-        f"🎵 <b>Аудио</b> — скоро в разработке\n\n"
-        f"Нажмите нужную кнопку — откроются настройки.",
-        reply_markup=photo_kb(message.from_user.id),
-        parse_mode="HTML"
+    # Отправляем баннер вместо текста
+    banner = FSInputFile("assets/banner_creative.png")
+    await message.answer_photo(
+        photo=banner,
+        reply_markup=photo_kb(message.from_user.id)
     )
 
 
@@ -1249,6 +1260,7 @@ async def _vsegpt_generate_video_and_wait(
     prompt: str,
     image_bytes,
     aspect_ratio: str,
+    user_id: int,
     timeout_seconds: int = 20 * 60
 ) -> bytes:
     if not VSEGPT_API_KEY:
@@ -1283,6 +1295,11 @@ async def _vsegpt_generate_video_and_wait(
         import time
         start = time.time()
         while time.time() - start < timeout_seconds:
+            # Проверка отмены пользователем
+            if is_video_cancelled(user_id):
+                clear_video_cancel(user_id)
+                raise Exception("❌ Генерация видео отменена пользователем")
+            
             # По докам встречается и Bearer, и Key — пробуем оба
             sdata = None
             stext = ""
@@ -1491,6 +1508,9 @@ async def process_video_text(message: Message, state: FSMContext):
         await state.clear()
         return
 
+    # Сбрасываем флаг отмены перед началом
+    clear_video_cancel(user_id)
+    
     status = await show_status(bot, message.chat.id, "generate")
     try:
         model_id = _resolve_vsegpt_video_model_id(video_settings)
@@ -1508,7 +1528,8 @@ async def process_video_text(message: Message, state: FSMContext):
             model_id=model_id,
             prompt=final_prompt,
             image_bytes=None,
-            aspect_ratio=aspect_ratio
+            aspect_ratio=aspect_ratio,
+            user_id=user_id
         )
 
         await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
@@ -1552,6 +1573,9 @@ async def process_video_photo(message: Message, state: FSMContext):
     if not user_caption:
         user_caption = ""
 
+    # Сбрасываем флаг отмены перед началом
+    clear_video_cancel(user_id)
+    
     status = await show_status(bot, message.chat.id, "generate")
     try:
         photo = message.photo[-1]
@@ -1574,7 +1598,8 @@ async def process_video_photo(message: Message, state: FSMContext):
             model_id=model_id,
             prompt=final_prompt,
             image_bytes=image_bytes,
-            aspect_ratio=aspect_ratio
+            aspect_ratio=aspect_ratio,
+            user_id=user_id
         )
 
         await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
@@ -1831,8 +1856,13 @@ async def process_process_photo(message: Message, state: FSMContext):
 @router.message(F.text == "🛑 Отменить")
 async def cancel_operation(message: Message, state: FSMContext):
     """Отменить операцию"""
+    user_id = message.from_user.id
+    
+    # Устанавливаем флаг отмены видео (если идёт генерация)
+    cancel_video_request(user_id)
+    
     await state.clear()
-    await message.answer("❌ Операция отменена", reply_markup=photo_kb(message.from_user.id))
+    await message.answer("❌ Операция отменена", reply_markup=photo_kb(user_id))
 
 
 @router.message(F.text.in_(["🔁 Создать ещё", "🔁 Улучшить ещё", "🔁 Редактировать ещё", "🔁 Ещё видео", "🔁 Обработать ещё", "🔁 Ещё дизайн", "🔁 Ещё креатив"]))

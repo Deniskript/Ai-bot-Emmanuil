@@ -573,6 +573,76 @@ def help_page():
         return f"Error: {e}", 500
 
 
+@app.route('/how-it-works/dialog')
+def how_it_works_dialog():
+    """Telegram Mini App - Как это работает (Диалог)"""
+    try:
+        return render_template('how-it-works-dialog.html')
+    except Exception as e:
+        print(f"Error loading how-it-works dialog: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/how-it-works/dialog-new')
+def how_it_works_dialog_new():
+    """Telegram Mini App - Как это работает (Диалог, новая версия)"""
+    try:
+        return render_template('how-it-works-dialog-new.html')
+    except Exception as e:
+        print(f"Error loading how-it-works dialog new: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/how-it-works/psychologist')
+def how_it_works_psychologist():
+    """Telegram Mini App - Как это работает (Психолог)"""
+    try:
+        return render_template('how-it-works-psychologist.html')
+    except Exception as e:
+        print(f"Error loading how-it-works psychologist: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/how-it-works/education')
+def how_it_works_education():
+    """Telegram Mini App - Как это работает (Обучение)"""
+    try:
+        return render_template('how-it-works-education.html')
+    except Exception as e:
+        print(f"Error loading how-it-works education: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/how-it-works/lifestyle')
+def how_it_works_lifestyle():
+    """Telegram Mini App - Как это работает (Лайфстайл)"""
+    try:
+        return render_template('how-it-works-lifestyle.html')
+    except Exception as e:
+        print(f"Error loading how-it-works lifestyle: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/how-it-works/creative')
+def how_it_works_creative():
+    """Telegram Mini App - Как это работает (Творчество)"""
+    try:
+        return render_template('how-it-works-creative.html')
+    except Exception as e:
+        print(f"Error loading how-it-works creative: {e}")
+        return f"Error: {e}", 500
+
+
+@app.route('/how-it-works/socials')
+def how_it_works_socials():
+    """Telegram Mini App - Как это работает (Соцсети)"""
+    try:
+        return render_template('how-it-works-socials.html')
+    except Exception as e:
+        print(f"Error loading how-it-works socials: {e}")
+        return f"Error: {e}", 500
+
+
 @app.route('/luca/settings')
 def luca_settings():
     """Telegram Mini App - Настройки Luca"""

@@ -8,7 +8,7 @@ import base64
 import asyncio
 import os
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
@@ -78,8 +78,11 @@ async def titus_enter(msg: Message, state: FSMContext):
         await msg.answer(texts.BOT_DISABLED)
         return
     await state.set_state(TitusSt.menu)
-    await msg.answer(
-        texts.MENU_TEXT,
+    
+    # Отправляем баннер вместо текста
+    banner = FSInputFile("assets/banner_titus.png")
+    await msg.answer_photo(
+        photo=banner,
         reply_markup=reply.study_kb(msg.from_user.id)
     )
 
@@ -184,7 +187,7 @@ async def create_course(msg: Message, state: FSMContext):
         await msg.answer(final_text, reply_markup=keyboard)
 
 
-@router.message(TitusSt.menu, F.text == "📂 Ваши курсы")
+@router.message(TitusSt.menu, F.text == "📁 Ваши курсы")
 async def my_courses(msg: Message, state: FSMContext):
     courses = await db.get_courses(msg.from_user.id)
     if not courses:
@@ -192,7 +195,7 @@ async def my_courses(msg: Message, state: FSMContext):
         return
     await state.set_state(TitusSt.courses_menu)
     await state.update_data(courses=[dict(c) for c in courses])
-    await msg.answer("📂 <b>Ваши курсы</b>\n\nВыберите действие:", reply_markup=reply.courses_action_kb())
+    await msg.answer("📁 <b>Ваши курсы</b>\n\nВыберите действие:", reply_markup=reply.courses_action_kb())
 
 
 @router.message(TitusSt.courses_menu, F.text == "◀️ Назад")
@@ -228,7 +231,7 @@ async def delete_menu(msg: Message, state: FSMContext):
 @router.message(TitusSt.continue_course, F.text == "◀️ Назад")
 async def continue_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.courses_menu)
-    await msg.answer("📂 <b>Ваши курсы</b>", reply_markup=reply.courses_action_kb())
+    await msg.answer("📁 <b>Ваши курсы</b>", reply_markup=reply.courses_action_kb())
 
 
 @router.message(TitusSt.continue_course, F.text)
@@ -289,7 +292,7 @@ async def continue_select(msg: Message, state: FSMContext):
 @router.message(TitusSt.delete_course, F.text == "◀️ Назад")
 async def delete_back(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.courses_menu)
-    await msg.answer("📂 <b>Ваши курсы</b>", reply_markup=reply.courses_action_kb())
+    await msg.answer("📁 <b>Ваши курсы</b>", reply_markup=reply.courses_action_kb())
 
 
 @router.message(TitusSt.delete_course, F.text)

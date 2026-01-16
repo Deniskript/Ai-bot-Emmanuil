@@ -16,14 +16,14 @@ def psycho_kb(user_id: int):
     """Главное меню психолога"""
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🛋️ Начать сессию"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/silas/settings?user_id={user_id}"))],
-        [KeyboardButton(text="📖 Как это работает?", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
+        [KeyboardButton(text="📖 Как это работает?", web_app=WebAppInfo(url=f"https://soul-bot.ru/how-it-works/psychologist?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 
 
 def psycho_chat_kb():
     """Клавиатура в активном сеансе"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🗑 Очистить")]
+        [KeyboardButton(text="🛑 Завершить")]
     ], resize_keyboard=True)
 
 

@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul Лайфстайл — Как это работает?</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            animation: floatEnergy 5s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 18px; height: 18px; top: 5%; left: 8%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 14px; height: 14px; top: 12%; left: 85%; animation-delay: 0.6s; }
+        .particle:nth-child(3) { width: 24px; height: 24px; top: 28%; left: 18%; animation-delay: 1.2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 38%; left: 72%; animation-delay: 1.8s; }
+        .particle:nth-child(5) { width: 20px; height: 20px; top: 52%; left: 30%; animation-delay: 2.4s; }
+        .particle:nth-child(6) { width: 16px; height: 16px; top: 65%; left: 80%; animation-delay: 3s; }
+        .particle:nth-child(7) { width: 22px; height: 22px; top: 78%; left: 45%; animation-delay: 3.6s; }
+        .particle:nth-child(8) { width: 15px; height: 15px; top: 90%; left: 15%; animation-delay: 4.2s; }
+
+        @keyframes floatEnergy {
+            0% {
+                transform: translateY(0px) translateX(0px) scale(1);
+                opacity: 0.25;
+            }
+            25% {
+                transform: translateY(-20px) translateX(12px) scale(1.15);
+                opacity: 0.5;
+            }
+            50% {
+                transform: translateY(-35px) translateX(-8px) scale(1);
+                opacity: 0.35;
+            }
+            75% {
+                transform: translateY(-15px) translateX(5px) scale(1.1);
+                opacity: 0.45;
+            }
+            100% {
+                transform: translateY(0px) translateX(0px) scale(1);
+                opacity: 0.25;
+            }
+        }
+
+        .hero {
+            text-align: center;
+            padding: 25px 0 30px;
+            animation: fadeInUp 0.7s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 80px;
+            display: inline-block;
+            animation: shine 2.5s ease-in-out infinite;
+        }
+
+        @keyframes shine {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: brightness(1);
+            }
+            25% { 
+                transform: scale(1.1) rotate(-5deg);
+                filter: brightness(1.2);
+            }
+            50% { 
+                transform: scale(1.15) rotate(0deg);
+                filter: brightness(1.3);
+            }
+            75% { 
+                transform: scale(1.1) rotate(5deg);
+                filter: brightness(1.2);
+            }
+        }
+
+        .hero-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #FFFFFF;
+            margin: 15px 0 10px;
+            text-shadow: 0 2px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 8px;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tabs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 25px 0;
+            animation: fadeInUp 0.7s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 20px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .tab:active {
+            transform: scale(0.95);
+        }
+
+        .tab.active {
+            background: #F59E0B;
+            color: white;
+            box-shadow: 0 6px 25px rgba(245, 158, 11, 0.45);
+            animation: glowGold 2s ease-in-out infinite;
+        }
+
+        @keyframes glowGold {
+            0%, 100% { box-shadow: 0 6px 25px rgba(245, 158, 11, 0.45); }
+            50% { box-shadow: 0 6px 40px rgba(245, 158, 11, 0.7); }
+        }
+
+        .tab-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .tab-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .tab.active .tab-text {
+            color: white;
+        }
+
+        .content-area {
+            animation: fadeInUp 0.7s ease-out 0.4s forwards;
+            opacity: 0;
+            margin-bottom: 20px;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .content-title {
+            font-size: 19px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .content-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .content-text strong {
+            color: #D97706;
+            font-weight: 700;
+        }
+
+        .content-text p {
+            margin-bottom: 5px;
+        }
+
+        .content-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .content-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 15px;
+            color: #444;
+        }
+
+        .content-list li:last-child {
+            border-bottom: none;
+        }
+
+        .content-list li strong {
+            color: #D97706;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #F59E0B, #FBBF24, #F97316, #F59E0B);
+            background-size: 300% 300%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(245, 158, 11, 0.45);
+            animation: gradientSunrise 4s ease infinite, fadeInUp 0.7s ease-out 0.6s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes gradientSunrise {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .cta-button:active {
+            transform: scale(0.98);
+        }
+
+        @media (max-width: 350px) {
+            .hero-title { font-size: 26px; }
+            .hero-icon { font-size: 64px; }
+            .hero-subtitle { font-size: 17px; }
+            .tab { padding: 16px 10px; }
+            .tab-icon { font-size: 26px; }
+            .tab-text { font-size: 13px; }
+            .content-card { padding: 18px; }
+            .content-title { font-size: 17px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">🏆</span>
+            <h1 class="hero-title">Soul Лайфстайл</h1>
+            <p class="hero-subtitle">«Лучшая версия себя — каждый день»</p>
+            <p class="hero-desc">Привычки, режим, цели. Твой путь к идеальной жизни.</p>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" data-tab="functions">
+                <span class="tab-icon">🎯</span>
+                <span class="tab-text">Функционал</span>
+            </button>
+            <button class="tab" data-tab="prompts">
+                <span class="tab-icon">💬</span>
+                <span class="tab-text">Запросы</span>
+            </button>
+            <button class="tab" data-tab="howto">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Как начать</span>
+            </button>
+            <button class="tab" data-tab="combos">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">Комбинации</span>
+            </button>
+        </div>
+
+        <div class="content-area"></div>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">🏆 Начать путь с Soul</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+
+        const tabContent = {
+            functions: `
+                <h3 class="content-title">🎯 Что умеет Soul Лайфстайл?</h3>
+                <div class="content-text">
+                    
+                    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.1)); padding: 18px; border-radius: 16px; margin-bottom: 15px; border-left: 4px solid #F59E0B;">
+                        <p style="font-size: 16px; color: #333;"><strong>🌅 Твой персональный лайф-коуч</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Soul помогает <strong>построить жизнь мечты</strong> — шаг за шагом. Режим, привычки, цели, мотивация.</p>
+                    </div>
+                    
+                    <p><strong>Хочешь изменить жизнь, но не знаешь с чего начать?</strong></p>
+                    <p>Утром нет сил, вечером нет времени, цели забываются?</p>
+                    <br>
+                    <p>Soul Лайфстайл — AI который <strong>поможет стать лучшей версией себя</strong>.</p>
+                    <p>Не нотации. <strong>Реальные инструменты</strong>.</p>
+                    <br>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🌅 <strong>Утренние ритуалы</strong></p>
+                        <p style="color: #555; font-size: 14px;">Soul подскажет как начать день правильно — с энергией, фокусом и настроением на победу.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🌙 <strong>Вечерняя рефлексия</strong></p>
+                        <p style="color: #555; font-size: 14px;">Подведи итоги дня, отметь победы, проанализируй что можно улучшить.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🎯 <strong>Постановка целей</strong></p>
+                        <p style="color: #555; font-size: 14px;">SMART-цели, декомпозиция на шаги, отслеживание прогресса — Soul проведёт через весь процесс.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🧘 <strong>Медитации и практики</strong></p>
+                        <p style="color: #555; font-size: 14px;">Дыхательные техники, осознанность, снятие стресса — Soul научит и проведёт сессию.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>💪 <strong>Привычки и трекер</strong></p>
+                        <p style="color: #555; font-size: 14px;">Внедряй полезные привычки постепенно. Soul напомнит, поддержит, отпразднует успехи.</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🔥 Фишки Soul Лайфстайл:</strong></p>
+                    <ul class="content-list">
+                        <li>📊 <strong>Трекер привычек</strong> — отслеживай прогресс</li>
+                        <li>🎤 <strong>Голосовой режим</strong> — утренний брифинг голосом</li>
+                        <li>💡 <strong>Персональные советы</strong> — Soul помнит твои цели</li>
+                        <li>🏆 <strong>Система достижений</strong> — награды за прогресс</li>
+                    </ul>
+                </div>
+            `,
+            
+            prompts: `
+                <h3 class="content-title">💬 О чём спросить Soul?</h3>
+                <div class="content-text">
+                    
+                    <p><strong>🌅 Утро:</strong></p>
+                    <ul class="content-list">
+                        <li>«С чего лучше начать день?»</li>
+                        <li>«Дай мне утреннюю мотивацию»</li>
+                        <li>«Какой ритуал поможет проснуться?»</li>
+                        <li>«Как перестать откладывать будильник?»</li>
+                        <li>«Составь мне утренний чек-лист»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🌙 Вечер:</strong></p>
+                    <ul class="content-list">
+                        <li>«Давай подведём итоги дня»</li>
+                        <li>«Что я сделал хорошего сегодня?»</li>
+                        <li>«Как лучше завершить вечер?»</li>
+                        <li>«Помоги расслабиться перед сном»</li>
+                        <li>«За что я могу себя похвалить?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🎯 Цели:</strong></p>
+                    <ul class="content-list">
+                        <li>«Помоги поставить цели на месяц»</li>
+                        <li>«Как разбить большую цель на шаги?»</li>
+                        <li>«Почему я не достигаю целей?»</li>
+                        <li>«Как сохранять мотивацию?»</li>
+                        <li>«Составь план достижения цели»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🧘 Практики:</strong></p>
+                    <ul class="content-list">
+                        <li>«Как начать медитировать?»</li>
+                        <li>«Проведи дыхательную практику»</li>
+                        <li>«Упражнение на осознанность»</li>
+                        <li>«Как справиться со стрессом сейчас?»</li>
+                        <li>«Техника для концентрации»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💪 Привычки:</strong></p>
+                    <ul class="content-list">
+                        <li>«Какие привычки изменят мою жизнь?»</li>
+                        <li>«Как внедрить привычку заниматься спортом?»</li>
+                        <li>«Почему я срываюсь с привычек?»</li>
+                        <li>«Помоги составить режим дня»</li>
+                        <li>«Как пить больше воды?»</li>
+                    </ul>
+                    
+                    <p style="color: #D97706; font-size: 13px; margin-top: 15px;">💡 Совет: общайся с Soul утром и вечером — это создаст ритуал, который изменит жизнь!</p>
+                </div>
+            `,
+            
+            howto: `
+                <h3 class="content-title">⚙️ Как начать путь</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🏆 Шаг 1: Открой Лайфстайл</strong></p>
+                        <p style="color: #555; font-size: 14px;">В главном меню нажми «🏆 Лайфстайл»</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>⚙️ Шаг 2: Настройся</strong></p>
+                        <p style="color: #555; font-size: 14px;">Нажми «Настроиться» — расскажи Soul о своих целях и что хочешь изменить</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎯 Шаг 3: Выбери направление</strong></p>
+                        <div style="margin-top: 10px;">
+                            <p style="color: #555; font-size: 14px;"><strong>🌅 Утро</strong> — настройся на продуктивный день</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>🌙 Вечер</strong> — рефлексия и планирование</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>🎯 Цели</strong> — постановка и декомпозиция</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>🧘 Практики</strong> — медитации и техники</p>
+                            <p style="color: #555; font-size: 14px; margin-top: 5px;"><strong>💪 Привычки</strong> — трекер и внедрение</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎤 Шаг 4: Выбери формат</strong></p>
+                        <p style="color: #555; font-size: 14px;"><strong>Текст</strong> — пиши и читай<br><strong>Голос</strong> — слушай утренний брифинг или вечернюю рефлексию</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🚀 Шаг 5: Начни сессию</strong></p>
+                        <p style="color: #555; font-size: 14px;">Soul проведёт тебя через практику — будь то утренняя настройка или постановка целей</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🔔 Рекомендуемый ритуал:</strong></p>
+                    <ul class="content-list">
+                        <li>☀️ <strong>Утро (5-10 мин)</strong> — настройка на день, приоритеты</li>
+                        <li>🌙 <strong>Вечер (5-10 мин)</strong> — итоги, благодарности, планы на завтра</li>
+                        <li>📊 <strong>Раз в неделю</strong> — обзор прогресса, корректировка целей</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💡 Почему это работает:</strong></p>
+                    <ul class="content-list">
+                        <li>Регулярность важнее интенсивности</li>
+                        <li>Маленькие шаги → большие результаты</li>
+                        <li>Soul помнит твой прогресс и поддерживает</li>
+                    </ul>
+                </div>
+            `,
+            
+            combos: `
+                <h3 class="content-title">🔗 Лайфстайл + другие функции</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🏆 + 💬 Soul Чат</strong></p>
+                        <p style="color: #555; font-size: 14px;">Вечерняя рефлексия: обсуди день, эмоции, цели.</p>
+                        <p style="color: #D97706; font-size: 13px; margin-top: 8px;">💡 Расскажи Soul как прошёл день — он поможет найти позитив даже в сложном дне, подскажет что улучшить.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🏆 + 🛋️ Психолог</strong></p>
+                        <p style="color: #555; font-size: 14px;">Глубинная работа с блоками и установками.</p>
+                        <p style="color: #D97706; font-size: 13px; margin-top: 8px;">💡 Не получается внедрить привычку? Психолог найдёт глубинную причину — страх, установку, травму. Лайфстайл + Психолог = трансформация.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🏆 + 📓 Обучение</strong></p>
+                        <p style="color: #555; font-size: 14px;">Построй режим для эффективной учёбы.</p>
+                        <p style="color: #D97706; font-size: 13px; margin-top: 8px;">💡 Soul поможет составить расписание, где есть время на учёбу, отдых, спорт. Баланс = продуктивность.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🏆 + 🎨 Творчество</strong></p>
+                        <p style="color: #555; font-size: 14px;">Визуализируй свои цели и мечты.</p>
+                        <p style="color: #D97706; font-size: 13px; margin-top: 8px;">💡 Создай доску визуализации с AI! Генерируй картинки своих целей — дом мечты, идеальное тело, успешный бизнес. Смотри каждый день = мотивация.</p>
+                    </div>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🏆 + 📲 Соцсети</strong></p>
+                        <p style="color: #555; font-size: 14px;">Делись своим путём и вдохновляй других.</p>
+                        <p style="color: #D97706; font-size: 13px; margin-top: 8px;">💡 Веди блог о своей трансформации! Soul поможет создавать контент о привычках, целях, прогрессе. Твой путь вдохновит других.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.15)); padding: 18px; border-radius: 16px; margin-top: 20px; border-left: 4px solid #F59E0B;">
+                        <p style="font-size: 15px; color: #333;"><strong>🌟 Идеальный день с Soul:</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 10px;">
+                            ☀️ <strong>Утро:</strong> Лайфстайл → настройка на день<br>
+                            📚 <strong>День:</strong> Обучение / Творчество / Работа<br>
+                            💬 <strong>Перерыв:</strong> Soul Чат → разгрузка<br>
+                            🌙 <strong>Вечер:</strong> Лайфстайл → рефлексия<br>
+                            🛋️ <strong>Если нужно:</strong> Психолог → глубинная работа
+                        </p>
+                    </div>
+                    
+                </div>
+            `
+        };
+
+        const contentArea = document.querySelector('.content-area');
+
+        function renderTab(tabKey) {
+            contentArea.innerHTML = `
+                <div class="content-card">
+                    ${tabContent[tabKey]}
+                </div>
+            `;
+        }
+
+        renderTab('functions');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                renderTab(this.dataset.tab);
+            });
+        });
+    </script>
+</body>
+</html>

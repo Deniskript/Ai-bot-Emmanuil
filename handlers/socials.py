@@ -2,7 +2,7 @@
 Обработчик раздела Соцсети
 """
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from keyboards import reply
 from handlers.lifestyle import viral
@@ -17,16 +17,12 @@ router.include_router(viral.router)
 async def socials_menu(msg: Message, state: FSMContext):
     """Меню раздела Соцсети"""
     await state.clear()
-    await msg.answer(
-        "📲 <b>Соцсети</b>\n\n"
-        "Инструменты для роста и оформления:\n\n"
-        "🎬 <b>Вирусный разбор</b> — анализ роликов\n"
-        "🖼 <b>Обложки</b> — обложки / логотипы / презентации\n"
-        "🎨 <b>Креатив</b> — стили / мемы / эффекты\n"
-        "📹 <b>Анализ видео</b> — конспекты по YouTube\n"
-        "📖 <b>Как это работает?</b> — короткая инструкция",
-        reply_markup=reply.socials_menu_kb(msg.from_user.id),
-        parse_mode="HTML",
+    
+    # Отправляем баннер вместо текста
+    banner = FSInputFile("assets/banner_socials.png")
+    await msg.answer_photo(
+        photo=banner,
+        reply_markup=reply.socials_menu_kb(msg.from_user.id)
     )
 
 

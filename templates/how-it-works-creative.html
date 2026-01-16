@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul Творчество — Как это работает?</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #06B6D4 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: floatCreative 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 20px; height: 20px; background: rgba(255, 255, 255, 0.25); top: 5%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; background: rgba(255, 182, 193, 0.3); top: 15%; left: 85%; animation-delay: 0.5s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; background: rgba(255, 255, 255, 0.2); top: 25%; left: 20%; animation-delay: 1s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; background: rgba(147, 197, 253, 0.35); top: 35%; left: 75%; animation-delay: 1.5s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; background: rgba(255, 255, 255, 0.25); top: 45%; left: 30%; animation-delay: 2s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; background: rgba(196, 181, 253, 0.3); top: 55%; left: 80%; animation-delay: 2.5s; }
+        .particle:nth-child(7) { width: 14px; height: 14px; background: rgba(255, 255, 255, 0.2); top: 65%; left: 15%; animation-delay: 3s; }
+        .particle:nth-child(8) { width: 20px; height: 20px; background: rgba(165, 243, 252, 0.3); top: 75%; left: 60%; animation-delay: 3.5s; }
+        .particle:nth-child(9) { width: 16px; height: 16px; background: rgba(255, 255, 255, 0.25); top: 85%; left: 40%; animation-delay: 4s; }
+        .particle:nth-child(10) { width: 19px; height: 19px; background: rgba(251, 207, 232, 0.3); top: 92%; left: 70%; animation-delay: 4.5s; }
+
+        @keyframes floatCreative {
+            0% {
+                transform: translateY(0px) translateX(0px) rotate(0deg) scale(1);
+                opacity: 0.3;
+            }
+            25% {
+                transform: translateY(-30px) translateX(20px) rotate(90deg) scale(1.2);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-15px) translateX(-15px) rotate(180deg) scale(0.9);
+                opacity: 0.4;
+            }
+            75% {
+                transform: translateY(-40px) translateX(10px) rotate(270deg) scale(1.1);
+                opacity: 0.5;
+            }
+            100% {
+                transform: translateY(0px) translateX(0px) rotate(360deg) scale(1);
+                opacity: 0.3;
+            }
+        }
+
+        .hero {
+            text-align: center;
+            padding: 25px 0 30px;
+            animation: fadeInUp 0.7s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 80px;
+            display: inline-block;
+            animation: sparkle 2s ease-in-out infinite;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: brightness(1) drop-shadow(0 0 0px transparent);
+            }
+            25% { 
+                transform: scale(1.1) rotate(-8deg);
+                filter: brightness(1.2) drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
+            }
+            50% { 
+                transform: scale(1.15) rotate(0deg);
+                filter: brightness(1.3) drop-shadow(0 0 25px rgba(255, 255, 255, 0.7));
+            }
+            75% { 
+                transform: scale(1.1) rotate(8deg);
+                filter: brightness(1.2) drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
+            }
+        }
+
+        .hero-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #FFFFFF;
+            margin: 15px 0 10px;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 8px;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tabs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 25px 0;
+            animation: fadeInUp 0.7s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 20px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab:active {
+            transform: scale(0.95);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #EC4899, #8B5CF6);
+            color: white;
+            box-shadow: 0 6px 30px rgba(236, 72, 153, 0.5);
+            animation: glowRainbow 2s ease-in-out infinite;
+        }
+
+        @keyframes glowRainbow {
+            0%, 100% { box-shadow: 0 6px 25px rgba(236, 72, 153, 0.5); }
+            33% { box-shadow: 0 6px 30px rgba(139, 92, 246, 0.5); }
+            66% { box-shadow: 0 6px 30px rgba(6, 182, 212, 0.5); }
+        }
+
+        .tab-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .tab-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .tab.active .tab-text {
+            color: white;
+        }
+
+        .content-area {
+            animation: fadeInUp 0.7s ease-out 0.4s forwards;
+            opacity: 0;
+            margin-bottom: 20px;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .content-title {
+            font-size: 19px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .content-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .content-text strong {
+            color: #DB2777;
+            font-weight: 700;
+        }
+
+        .content-text p {
+            margin-bottom: 5px;
+        }
+
+        .content-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .content-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 15px;
+            color: #444;
+        }
+
+        .content-list li:last-child {
+            border-bottom: none;
+        }
+
+        .content-list li strong {
+            color: #DB2777;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #EC4899, #8B5CF6, #06B6D4, #EC4899);
+            background-size: 300% 300%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(236, 72, 153, 0.4);
+            animation: gradientMagic 3s ease infinite, fadeInUp 0.7s ease-out 0.6s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes gradientMagic {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .cta-button:active {
+            transform: scale(0.98);
+        }
+
+        @media (max-width: 350px) {
+            .hero-title { font-size: 26px; }
+            .hero-icon { font-size: 64px; }
+            .hero-subtitle { font-size: 17px; }
+            .tab { padding: 16px 10px; }
+            .tab-icon { font-size: 26px; }
+            .tab-text { font-size: 13px; }
+            .content-card { padding: 18px; }
+            .content-title { font-size: 17px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">🎨</span>
+            <h1 class="hero-title">Soul Творчество</h1>
+            <p class="hero-subtitle">«Создавай вирусный контент»</p>
+            <p class="hero-desc">Картинки, видео, музыка — твоя AI-студия в кармане.</p>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" data-tab="functions">
+                <span class="tab-icon">🚀</span>
+                <span class="tab-text">Вирусные видео</span>
+            </button>
+            <button class="tab" data-tab="prompts">
+                <span class="tab-icon">💬</span>
+                <span class="tab-text">Запросы</span>
+            </button>
+            <button class="tab" data-tab="howto">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Как начать</span>
+            </button>
+            <button class="tab" data-tab="combos">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">Комбинации</span>
+            </button>
+        </div>
+
+        <div class="content-area"></div>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">🎨 Создать с Soul</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+
+        const tabContent = {
+            functions: `
+                <h3 class="content-title">🚀 Секрет вирусных видео</h3>
+                <div class="content-text">
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(139, 92, 246, 0.1)); padding: 18px; border-radius: 16px; margin-bottom: 15px; border-left: 4px solid #EC4899;">
+                        <p style="font-size: 16px; color: #333;"><strong>🔥 НОУ-ХАУ: Как делаются вирусные видео</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Ты видел эти залипательные видео в TikTok и Reels? Теперь ты знаешь секрет — и можешь делать такие же!</p>
+                    </div>
+                    
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 18px; border-radius: 16px; margin-bottom: 12px;">
+                        <p style="font-size: 15px; color: #333;"><strong>⚡ Шаг 1: Создай картинку</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Сгенерируй AI-изображение в Soul или используй своё фото. Это основа будущего видео.</p>
+                        <p style="color: #8B5CF6; font-size: 13px; margin-top: 5px;">💡 Чем необычнее картинка — тем больше просмотров!</p>
+                    </div>
+                    
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 18px; border-radius: 16px; margin-bottom: 12px;">
+                        <p style="font-size: 15px; color: #333;"><strong>🎬 Шаг 2: Оживи картинку</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Преврати статичное изображение в видео с движением. Soul сделает это за секунды — камера летит, объекты двигаются, сцена оживает.</p>
+                        <p style="color: #8B5CF6; font-size: 13px; margin-top: 5px;">💡 Именно это делает видео залипательным!</p>
+                    </div>
+                    
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 18px; border-radius: 16px; margin-bottom: 12px;">
+                        <p style="font-size: 15px; color: #333;"><strong>🎵 Шаг 3: Добавь музыку</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Открой CapCut, VN или любой редактор → загрузи видео → наложи трендовый звук.</p>
+                        <p style="color: #8B5CF6; font-size: 13px; margin-top: 5px;">💡 Трендовая музыка = алгоритмы продвигают видео!</p>
+                    </div>
+                    
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 18px; border-radius: 16px; margin-bottom: 12px;">
+                        <p style="font-size: 15px; color: #333;"><strong>🚀 Шаг 4: Публикуй и собирай просмотры</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Готово! Выкладывай в TikTok, Reels, Shorts. Это те самые вирусные видео из ленты — и теперь ты умеешь их делать.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(139, 92, 246, 0.1)); padding: 18px; border-radius: 16px; margin-top: 20px; border-left: 4px solid #06B6D4;">
+                        <p style="font-size: 15px; color: #333;"><strong>🎯 Что умеет Soul Творчество:</strong></p>
+                        <ul class="content-list" style="margin-top: 10px;">
+                            <li>🖼️ <strong>Генерация картинок</strong> — любой стиль, любая идея</li>
+                            <li>🎬 <strong>Картинка → Видео</strong> — оживление с движением</li>
+                            <li>🎵 <strong>Генерация музыки</strong> — уникальные треки под твой контент</li>
+                            <li>✨ <strong>Улучшение фото</strong> — апскейл, ретушь, стилизация</li>
+                            <li>🎤 <strong>Голос → Текст</strong> — расшифровка для субтитров</li>
+                        </ul>
+                    </div>
+                    
+                </div>
+            `,
+            
+            prompts: `
+                <h3 class="content-title">💬 Что попросить Soul?</h3>
+                <div class="content-text">
+                    
+                    <p><strong>🖼️ Генерация картинок:</strong></p>
+                    <ul class="content-list">
+                        <li>«Создай картинку: девушка в неоновом городе будущего»</li>
+                        <li>«Нарисуй кота-самурая в стиле аниме»</li>
+                        <li>«Сгенерируй фото еды для ресторана»</li>
+                        <li>«Сделай обложку для подкаста про бизнес»</li>
+                        <li>«Создай мем-картинку про понедельник»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🎬 Видео из картинки:</strong></p>
+                    <ul class="content-list">
+                        <li>«Оживи эту картинку» + отправь изображение</li>
+                        <li>«Сделай видео с движением камеры»</li>
+                        <li>«Добавь эффект полёта через сцену»</li>
+                        <li>«Создай зацикленное видео для Reels»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🎵 Музыка:</strong></p>
+                    <ul class="content-list">
+                        <li>«Создай лоу-фай трек для учёбы»</li>
+                        <li>«Сгенерируй энергичную музыку для видео»</li>
+                        <li>«Нужен эмбиент для медитации»</li>
+                        <li>«Сделай бит в стиле trap»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>✨ Улучшение:</strong></p>
+                    <ul class="content-list">
+                        <li>«Улучши качество этого фото»</li>
+                        <li>«Убери фон с картинки»</li>
+                        <li>«Сделай фото в стиле Pixar»</li>
+                        <li>«Увеличь разрешение для печати»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💡 Идеи для контента:</strong></p>
+                    <ul class="content-list">
+                        <li>«Какой промпт написать для вирусной картинки?»</li>
+                        <li>«Придумай идею для Reels про [тема]»</li>
+                        <li>«Какие тренды сейчас в TikTok?»</li>
+                        <li>«Помоги с концепцией визуала для бренда»</li>
+                    </ul>
+                    
+                    <p style="color: #DB2777; font-size: 13px; margin-top: 15px;">💡 Совет: Soul подскажет идеальный промпт — просто опиши что хочешь создать!</p>
+                </div>
+            `,
+            
+            howto: `
+                <h3 class="content-title">⚙️ Как создать вирусное видео</h3>
+                <div class="content-text">
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #EC4899;">
+                        <p><strong>🎨 Шаг 1: Открой Творчество</strong></p>
+                        <p style="color: #555; font-size: 14px;">В главном меню нажми «🎨 Творчество»</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #8B5CF6;">
+                        <p><strong>🖼️ Шаг 2: Создай картинку</strong></p>
+                        <p style="color: #555; font-size: 14px;">Выбери «Генерация изображений» → опиши что хочешь → получи картинку</p>
+                        <p style="color: #8B5CF6; font-size: 13px; margin-top: 5px;">Или отправь своё фото!</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #06B6D4;">
+                        <p><strong>🎬 Шаг 3: Преврати в видео</strong></p>
+                        <p style="color: #555; font-size: 14px;">Выбери «Картинка → Видео» → отправь картинку → Soul оживит её с эффектом движения</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #EC4899;">
+                        <p><strong>📥 Шаг 4: Скачай видео</strong></p>
+                        <p style="color: #555; font-size: 14px;">Сохрани видео на телефон</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #8B5CF6;">
+                        <p><strong>🎵 Шаг 5: Добавь музыку (CapCut / VN)</strong></p>
+                        <p style="color: #555; font-size: 14px;">Открой CapCut или другой редактор:<br>
+                        1. Импортируй видео<br>
+                        2. Добавь трендовый звук из библиотеки<br>
+                        3. Подгони под музыку (обрежь если нужно)<br>
+                        4. Экспортируй</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08)); padding: 15px; border-radius: 14px; margin-bottom: 12px; border-left: 4px solid #06B6D4;">
+                        <p><strong>🚀 Шаг 6: Публикуй!</strong></p>
+                        <p style="color: #555; font-size: 14px;">Выкладывай в TikTok, Reels, Shorts → собирай просмотры!</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🛠️ Другие инструменты Soul:</strong></p>
+                    <ul class="content-list">
+                        <li>🖼️ <strong>Генерация картинок</strong> — опиши → получи</li>
+                        <li>🎵 <strong>Генерация музыки</strong> — уникальные треки</li>
+                        <li>✨ <strong>Улучшение фото</strong> — апскейл качества</li>
+                        <li>🎨 <strong>Стилизация</strong> — фото в стиле Pixar, аниме, арт</li>
+                        <li>🔇 <strong>Удаление фона</strong> — чистый объект</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💡 Pro-советы:</strong></p>
+                    <ul class="content-list">
+                        <li>Трендовый звук = больше просмотров</li>
+                        <li>Первые 3 секунды решают — делай яркий старт</li>
+                        <li>Выкладывай регулярно — алгоритмы любят активность</li>
+                        <li>Soul подскажет промпт для любой идеи!</li>
+                    </ul>
+                </div>
+            `,
+            
+            combos: `
+                <h3 class="content-title">🔗 Творчество + другие функции</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(236, 72, 153, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎨 + 💬 Soul Чат</strong></p>
+                        <p style="color: #555; font-size: 14px;">Мозгоштурм идей перед созданием.</p>
+                        <p style="color: #DB2777; font-size: 13px; margin-top: 8px;">💡 Не знаешь что создать? Обсуди с Soul — он накидает идеи, поможет сформулировать промпт, подскажет тренды. Идеи → Творчество → Контент!</p>
+                    </div>
+                    
+                    <div style="background: rgba(236, 72, 153, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎨 + 📲 Соцсети</strong></p>
+                        <p style="color: #555; font-size: 14px;">Полный цикл создания контента.</p>
+                        <p style="color: #DB2777; font-size: 13px; margin-top: 8px;">💡 Создай визуал в Творчестве → напиши текст и хэштеги в Соцсетях → публикуй! Soul поможет на каждом этапе.</p>
+                    </div>
+                    
+                    <div style="background: rgba(236, 72, 153, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎨 + 📓 Обучение</strong></p>
+                        <p style="color: #555; font-size: 14px;">Учись создавать профессиональный контент.</p>
+                        <p style="color: #DB2777; font-size: 13px; margin-top: 8px;">💡 Soul научит писать промпты, работать с нейросетями, редактировать видео. Теория в Обучении → практика в Творчестве!</p>
+                    </div>
+                    
+                    <div style="background: rgba(236, 72, 153, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎨 + 🏆 Лайфстайл</strong></p>
+                        <p style="color: #555; font-size: 14px;">Визуализируй свои цели и мечты.</p>
+                        <p style="color: #DB2777; font-size: 13px; margin-top: 8px;">💡 Создай доску визуализации! Генерируй картинки своей мечты — дом, путешествия, успех. Смотри каждый день = мотивация!</p>
+                    </div>
+                    
+                    <div style="background: rgba(236, 72, 153, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎨 + 🛋️ Психолог</strong></p>
+                        <p style="color: #555; font-size: 14px;">Арт-терапия через AI.</p>
+                        <p style="color: #DB2777; font-size: 13px; margin-top: 8px;">💡 Визуализируй свои эмоции через картинки. Покажи Психологу что чувствуешь — он поможет интерпретировать и проработать.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(139, 92, 246, 0.15)); padding: 18px; border-radius: 16px; margin-top: 20px; border-left: 4px solid #EC4899;">
+                        <p style="font-size: 15px; color: #333;"><strong>🔥 Формула вирусного контента:</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 10px;">
+                            <strong>1.</strong> 💬 Soul Чат → идея<br>
+                            <strong>2.</strong> 🎨 Творчество → картинка<br>
+                            <strong>3.</strong> 🎬 Творчество → видео<br>
+                            <strong>4.</strong> 🎵 CapCut → музыка<br>
+                            <strong>5.</strong> 📲 Соцсети → текст + хэштеги<br>
+                            <strong>6.</strong> 🚀 Публикация → ВИРУС!
+                        </p>
+                    </div>
+                    
+                </div>
+            `
+        };
+
+        const contentArea = document.querySelector('.content-area');
+
+        function renderTab(tabKey) {
+            contentArea.innerHTML = `
+                <div class="content-card">
+                    ${tabContent[tabKey]}
+                </div>
+            `;
+        }
+
+        renderTab('functions');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                renderTab(this.dataset.tab);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 100% автономный модуль
 """
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from keyboards import reply
 
@@ -34,14 +34,10 @@ router.include_router(magic.router)
 @router.message(F.text == "🏆 Лайфстайл")
 async def lifestyle_menu(msg: Message, state: FSMContext):
     """Меню раздела Лайфстайл"""
-    await msg.answer(
-        "🏆 <b>Лайфстайл</b>\n\n"
-        "Улучшай качество жизни:\n\n"
-        "🗓 <b>Режим дня</b> — оптимизация расписания\n"
-        "🍎 <b>Здоровье</b> — калории и питание\n"
-        "🧘 <b>Ментальное</b> — забота о себе\n"
-        "🔮 <b>Эзотерика</b> — гороскопы, таро и ритуалы\n"
-        "📖 <b>Как это работает?</b> — короткая инструкция",
-        reply_markup=reply.lifestyle_kb(msg.from_user.id),
-        parse_mode="HTML"
+    
+    # Отправляем баннер вместо текста
+    banner = FSInputFile("assets/banner_lifestyle.png")
+    await msg.answer_photo(
+        photo=banner,
+        reply_markup=reply.lifestyle_kb(msg.from_user.id)
     )

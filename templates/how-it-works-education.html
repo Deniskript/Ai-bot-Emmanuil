@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul Репетитор — Как это работает?</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: floatBooks 7s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 22px; height: 22px; top: 8%; left: 12%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 16px; height: 16px; top: 20%; left: 78%; animation-delay: 1.2s; }
+        .particle:nth-child(3) { width: 28px; height: 28px; top: 40%; left: 22%; animation-delay: 2.4s; }
+        .particle:nth-child(4) { width: 14px; height: 14px; top: 55%; left: 75%; animation-delay: 3.6s; }
+        .particle:nth-child(5) { width: 20px; height: 20px; top: 72%; left: 35%; animation-delay: 4.8s; }
+        .particle:nth-child(6) { width: 18px; height: 18px; top: 88%; left: 65%; animation-delay: 6s; }
+
+        @keyframes floatBooks {
+            0% {
+                transform: translateY(0px) translateX(0px) rotate(0deg);
+                opacity: 0.2;
+            }
+            33% {
+                transform: translateY(-25px) translateX(15px) rotate(120deg);
+                opacity: 0.5;
+            }
+            66% {
+                transform: translateY(-40px) translateX(-10px) rotate(240deg);
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(0px) translateX(0px) rotate(360deg);
+                opacity: 0.2;
+            }
+        }
+
+        .hero {
+            text-align: center;
+            padding: 25px 0 30px;
+            animation: fadeInUp 0.7s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 80px;
+            display: inline-block;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            25% { transform: translateY(-8px) scale(1.05); }
+            50% { transform: translateY(0) scale(1); }
+            75% { transform: translateY(-4px) scale(1.02); }
+        }
+
+        .hero-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #FFFFFF;
+            margin: 15px 0 10px;
+            text-shadow: 0 2px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            margin-top: 8px;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tabs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 25px 0;
+            animation: fadeInUp 0.7s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 20px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .tab:active {
+            transform: scale(0.95);
+        }
+
+        .tab.active {
+            background: #10B981;
+            color: white;
+            box-shadow: 0 6px 25px rgba(16, 185, 129, 0.4);
+            animation: glowGreen 2s ease-in-out infinite;
+        }
+
+        @keyframes glowGreen {
+            0%, 100% { box-shadow: 0 6px 25px rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 6px 35px rgba(16, 185, 129, 0.6); }
+        }
+
+        .tab-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .tab-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .tab.active .tab-text {
+            color: white;
+        }
+
+        .content-area {
+            animation: fadeInUp 0.7s ease-out 0.4s forwards;
+            opacity: 0;
+            margin-bottom: 20px;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .content-title {
+            font-size: 19px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .content-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .content-text strong {
+            color: #10B981;
+            font-weight: 700;
+        }
+
+        .content-text p {
+            margin-bottom: 5px;
+        }
+
+        .content-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .content-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 15px;
+            color: #444;
+        }
+
+        .content-list li:last-child {
+            border-bottom: none;
+        }
+
+        .content-list li strong {
+            color: #10B981;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #10B981, #34D399, #059669, #10B981);
+            background-size: 300% 300%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.4);
+            animation: gradientMove 4s ease infinite, fadeInUp 0.7s ease-out 0.6s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .cta-button:active {
+            transform: scale(0.98);
+        }
+
+        @media (max-width: 350px) {
+            .hero-title { font-size: 26px; }
+            .hero-icon { font-size: 64px; }
+            .hero-subtitle { font-size: 17px; }
+            .tab { padding: 16px 10px; }
+            .tab-icon { font-size: 26px; }
+            .tab-text { font-size: 13px; }
+            .content-card { padding: 18px; }
+            .content-title { font-size: 17px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">📓</span>
+            <h1 class="hero-title">Soul Репетитор</h1>
+            <p class="hero-subtitle">«Учиться легко, когда тебя понимают»</p>
+            <p class="hero-desc">Персональный AI-репетитор. Любой предмет. Твой темп.</p>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" data-tab="functions">
+                <span class="tab-icon">🎯</span>
+                <span class="tab-text">Функционал</span>
+            </button>
+            <button class="tab" data-tab="prompts">
+                <span class="tab-icon">💬</span>
+                <span class="tab-text">Запросы</span>
+            </button>
+            <button class="tab" data-tab="howto">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Как начать</span>
+            </button>
+            <button class="tab" data-tab="combos">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">Комбинации</span>
+            </button>
+        </div>
+
+        <div class="content-area"></div>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">📓 Начать обучение с Soul</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+
+        const tabContent = {
+            functions: `
+                <h3 class="content-title">🎯 Что умеет Soul Репетитор?</h3>
+                <div class="content-text">
+                    
+                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(52, 211, 153, 0.1)); padding: 18px; border-radius: 16px; margin-bottom: 15px; border-left: 4px solid #10B981;">
+                        <p style="font-size: 16px; color: #333;"><strong>🎓 Персональный репетитор 24/7</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 8px;">Soul подстраивается под <strong>твой уровень и темп</strong>. Не понял — объяснит по-другому. Понял быстро — пойдём дальше.</p>
+                    </div>
+                    
+                    <p><strong>Школа, универ, экзамены — всё давит?</strong></p>
+                    <p>Репетиторы дорого, а сам не разобраться?</p>
+                    <br>
+                    <p>Soul Репетитор — AI который <strong>объясняет так, что понятно</strong>.</p>
+                    <p>Не читает лекции. <strong>Учит думать</strong>.</p>
+                    <br>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>📚 <strong>Любой предмет</strong></p>
+                        <p style="color: #555; font-size: 14px;">Математика, физика, химия, языки, история, программирование — Soul знает всё.</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🧠 <strong>Объясняет понятно</strong></p>
+                        <p style="color: #555; font-size: 14px;">Сложное — простыми словами. С примерами из жизни. Пока не поймёшь — не отстанет.</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>📝 <strong>Решает задачи пошагово</strong></p>
+                        <p style="color: #555; font-size: 14px;">Не просто ответ — а разбор каждого шага. Чтобы ты сам мог повторить.</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>📷 <strong>Читает фото задач</strong></p>
+                        <p style="color: #555; font-size: 14px;">Сфоткай задачу из учебника — Soul разберёт и объяснит решение.</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin: 12px 0;">
+                        <p>🎤 <strong>Голосовой режим</strong></p>
+                        <p style="color: #555; font-size: 14px;">Спрашивай голосом — получай объяснения как от живого репетитора.</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🔥 Фишки Soul Репетитора:</strong></p>
+                    <ul class="content-list">
+                        <li>🧠 <strong>Помнит твой уровень</strong> — не повторяет то, что ты уже знаешь</li>
+                        <li>📊 <strong>Адаптивное обучение</strong> — подстраивается под твои пробелы</li>
+                        <li>🎯 <strong>Подготовка к экзаменам</strong> — ЕГЭ, ОГЭ, поступление</li>
+                        <li>💡 <strong>Учит учиться</strong> — техники запоминания, планирования</li>
+                    </ul>
+                </div>
+            `,
+            
+            prompts: `
+                <h3 class="content-title">💬 Что можно спросить у Soul?</h3>
+                <div class="content-text">
+                    
+                    <p><strong>📐 Математика:</strong></p>
+                    <ul class="content-list">
+                        <li>«Объясни теорему Пифагора простыми словами»</li>
+                        <li>«Как решать квадратные уравнения?»</li>
+                        <li>«Разбери эту задачу пошагово» + фото</li>
+                        <li>«Почему минус на минус даёт плюс?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🔬 Физика и химия:</strong></p>
+                    <ul class="content-list">
+                        <li>«Объясни закон Ома на пальцах»</li>
+                        <li>«Как работает ядерный реактор?»</li>
+                        <li>«Помоги уравнять химическую реакцию»</li>
+                        <li>«Зачем нужна таблица Менделеева?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🌍 Языки:</strong></p>
+                    <ul class="content-list">
+                        <li>«Объясни Present Perfect vs Past Simple»</li>
+                        <li>«Проверь мой текст на ошибки»</li>
+                        <li>«Как произносится это слово?»</li>
+                        <li>«Давай попрактикуем разговорный английский»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>📖 История и обществознание:</strong></p>
+                    <ul class="content-list">
+                        <li>«Почему началась Первая мировая война?»</li>
+                        <li>«Объясни три ветви власти»</li>
+                        <li>«Помоги подготовить эссе по истории»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💻 Программирование:</strong></p>
+                    <ul class="content-list">
+                        <li>«Объясни циклы в Python для новичка»</li>
+                        <li>«Почему мой код не работает?» + скрин</li>
+                        <li>«Как сделать бота для Telegram?»</li>
+                        <li>«С чего начать учить программирование?»</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>🎯 Экзамены:</strong></p>
+                    <ul class="content-list">
+                        <li>«Помоги подготовиться к ЕГЭ по математике»</li>
+                        <li>«Какие темы нужно повторить для ОГЭ?»</li>
+                        <li>«Разбери типичные ошибки на экзамене»</li>
+                    </ul>
+                    
+                    <p style="color: #10B981; font-size: 13px; margin-top: 15px;">💡 Совет: отправляй фото задач — Soul разберёт их детально!</p>
+                </div>
+            `,
+            
+            howto: `
+                <h3 class="content-title">⚙️ Как начать урок</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 Шаг 1: Открой Обучение</strong></p>
+                        <p style="color: #555; font-size: 14px;">В главном меню нажми «📓 Обучение»</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>⚙️ Шаг 2: Настройся</strong></p>
+                        <p style="color: #555; font-size: 14px;">Нажми «Настроиться» — выбери предмет и свой уровень</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>🎤 Шаг 3: Выбери формат</strong></p>
+                        <p style="color: #555; font-size: 14px;"><strong>Текст</strong> — пиши вопросы, отправляй фото задач<br><strong>Голос</strong> — спрашивай и слушай объяснения</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📚 Шаг 4: Начни урок</strong></p>
+                        <p style="color: #555; font-size: 14px;">Нажми «Начать урок» и задай свой первый вопрос</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📷 Шаг 5: Отправляй фото</strong></p>
+                        <p style="color: #555; font-size: 14px;">Сфоткай задачу из учебника — Soul разберёт её пошагово</p>
+                    </div>
+                    
+                    <br>
+                    <p><strong>🎛 Режимы обучения:</strong></p>
+                    <ul class="content-list">
+                        <li>📖 <strong>Объяснение</strong> — Soul объясняет тему с нуля</li>
+                        <li>📝 <strong>Решение задач</strong> — разбор по шагам</li>
+                        <li>❓ <strong>Тест</strong> — Soul задаёт вопросы, проверяет знания</li>
+                        <li>🔄 <strong>Повторение</strong> — закрепление пройденного</li>
+                    </ul>
+                    
+                    <br>
+                    <p><strong>💡 Советы:</strong></p>
+                    <ul class="content-list">
+                        <li>Не стесняйся говорить «не понял» — Soul объяснит иначе</li>
+                        <li>Проси примеры из жизни — так легче запомнить</li>
+                        <li>Занимайся регулярно — 20 минут в день лучше 3 часов раз в неделю</li>
+                    </ul>
+                </div>
+            `,
+            
+            combos: `
+                <h3 class="content-title">🔗 Обучение + другие функции</h3>
+                <div class="content-text">
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 + 💬 Soul Чат</strong></p>
+                        <p style="color: #555; font-size: 14px;">После урока обсуди сложные моменты с Soul Чатом.</p>
+                        <p style="color: #10B981; font-size: 13px; margin-top: 8px;">💡 Не понял тему? Поговори с Soul — он объяснит ещё проще, поддержит, поможет не сдаться.</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 + 💡 Идеи для заработка</strong></p>
+                        <p style="color: #555; font-size: 14px;">Придумай идею вместе с Soul и сразу учись её реализовывать.</p>
+                        <p style="color: #10B981; font-size: 13px; margin-top: 8px;">💡 Хочешь заработать в интернете? Soul поможет найти нишу, а потом научит нужным навыкам — дизайн, копирайтинг, SMM, код.</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 + 🎨 Творчество</strong></p>
+                        <p style="color: #555; font-size: 14px;">Учись создавать контент с AI-инструментами.</p>
+                        <p style="color: #10B981; font-size: 13px; margin-top: 8px;">💡 Soul научит генерировать изображения, делать видео, работать с нейросетями. Теория + практика в одном месте!</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 + 📲 Соцсети</strong></p>
+                        <p style="color: #555; font-size: 14px;">Научись продвигать себя в соцсетях.</p>
+                        <p style="color: #10B981; font-size: 13px; margin-top: 8px;">💡 Soul объяснит алгоритмы, научит писать цепляющие тексты, создавать контент-план. Стань блогером!</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 + 🛋️ Психолог</strong></p>
+                        <p style="color: #555; font-size: 14px;">Прокрастинация мешает учиться? Психолог поможет.</p>
+                        <p style="color: #10B981; font-size: 13px; margin-top: 8px;">💡 Страх экзаменов, синдром самозванца, «я тупой» — разберись с блоками и учёба пойдёт легче!</p>
+                    </div>
+                    
+                    <div style="background: rgba(16, 185, 129, 0.12); padding: 15px; border-radius: 14px; margin-bottom: 12px;">
+                        <p><strong>📓 + 🏆 Лайфстайл</strong></p>
+                        <p style="color: #555; font-size: 14px;">Построй режим для эффективной учёбы.</p>
+                        <p style="color: #10B981; font-size: 13px; margin-top: 8px;">💡 Сон, питание, перерывы — Soul поможет создать расписание, в котором есть время и для учёбы, и для отдыха.</p>
+                    </div>
+                    
+                </div>
+            `
+        };
+
+        const contentArea = document.querySelector('.content-area');
+
+        function renderTab(tabKey) {
+            contentArea.innerHTML = `
+                <div class="content-card">
+                    ${tabContent[tabKey]}
+                </div>
+            `;
+        }
+
+        renderTab('functions');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                renderTab(this.dataset.tab);
+            });
+        });
+    </script>
+</body>
+</html>

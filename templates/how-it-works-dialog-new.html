@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul Чат — Как это работает?</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+            color: #fff;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) {
+            width: 20px;
+            height: 20px;
+            top: 10%;
+            left: 15%;
+            animation-delay: 0s;
+        }
+
+        .particle:nth-child(2) {
+            width: 15px;
+            height: 15px;
+            top: 25%;
+            left: 75%;
+            animation-delay: 1s;
+        }
+
+        .particle:nth-child(3) {
+            width: 25px;
+            height: 25px;
+            top: 50%;
+            left: 25%;
+            animation-delay: 2s;
+        }
+
+        .particle:nth-child(4) {
+            width: 12px;
+            height: 12px;
+            top: 70%;
+            left: 80%;
+            animation-delay: 3s;
+        }
+
+        .particle:nth-child(5) {
+            width: 18px;
+            height: 18px;
+            top: 85%;
+            left: 40%;
+            animation-delay: 4s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+                opacity: 0.3;
+            }
+            50% {
+                transform: translateY(-40px) rotate(180deg);
+                opacity: 0.6;
+            }
+            100% {
+                transform: translateY(0px) rotate(360deg);
+                opacity: 0.3;
+            }
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 20px 0 25px;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 64px;
+            display: inline-block;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .hero-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffffff;
+            margin: 12px 0 8px;
+        }
+
+        .hero-subtitle {
+            font-size: 18px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            margin-top: 5px;
+        }
+
+        .tabs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 20px 0;
+            animation: fadeIn 0.6s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 18px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab:active {
+            transform: scale(0.95);
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .tab-icon {
+            font-size: 28px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .tab-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .tab.active .tab-text {
+            color: white;
+        }
+
+        .content-area {
+            animation: fadeIn 0.6s ease-out 0.4s forwards;
+            opacity: 0;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .content-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .content-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .content-text strong {
+            color: #667eea;
+            font-weight: 700;
+        }
+
+        .content-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .content-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 15px;
+            color: #444;
+        }
+
+        .content-list li:last-child {
+            border-bottom: none;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #667eea);
+            background-size: 200% 200%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5);
+            animation: gradient 3s ease infinite, fadeIn 0.6s ease-out 0.6s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @media (max-width: 350px) {
+            .hero-title {
+                font-size: 24px;
+            }
+
+            .hero-icon {
+                font-size: 56px;
+            }
+
+            .tab {
+                padding: 14px 10px;
+            }
+
+            .tab-icon {
+                font-size: 24px;
+            }
+
+            .tab-text {
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">💬</span>
+            <h1 class="hero-title">Soul Чат</h1>
+            <p class="hero-subtitle">«Друг, который всегда рядом»</p>
+            <p class="hero-desc">Тебя услышат. Тебя поймут. Тебя поддержат.</p>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" data-tab="functions">
+                <span class="tab-icon">🎯</span>
+                <span class="tab-text">Функционал</span>
+            </button>
+            <button class="tab" data-tab="prompts">
+                <span class="tab-icon">💬</span>
+                <span class="tab-text">Запросы</span>
+            </button>
+            <button class="tab" data-tab="howto">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Как начать</span>
+            </button>
+            <button class="tab" data-tab="combos">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">Комбинации</span>
+            </button>
+        </div>
+
+        <div class="content-area"></div>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">✨ Попробовать Soul Чат</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        const tabContent = {
+            functions: `
+                <h3 class="content-title">🎯 Что умеет Soul Чат?</h3>
+                <div class="content-text">
+                    <p><strong>Бывает так одиноко, что хочется просто поговорить?</strong></p>
+                    <p>Друзья заняты, а мысли не дают покоя?</p>
+                    <br>
+                    <p>Soul Чат — это AI, который <strong>ПОМНИТ</strong> тебя.</p>
+                    <p>Он знает твою историю, твои мечты, твои страхи.</p>
+                    <p>Не осудит. Не отмахнётся. Не забудет.</p>
+                    <br>
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin: 10px 0;">
+                        <p>🕊 <strong>Душа (Soul)</strong></p>
+                        <p style="color: #666; font-size: 14px;">Когда тяжело на душе, нужна поддержка, хочется поговорить по душам → эмпатия, тепло, понимание</p>
+                    </div>
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin: 10px 0;">
+                        <p>💡 <strong>Разум (Alter)</strong></p>
+                        <p style="color: #666; font-size: 14px;">Когда нужен совет, ищешь решение, хочешь структурировать мысли → логика, план, конкретика</p>
+                    </div>
+                    <br>
+                    <p><strong>🔥 Фишки Soul Чат:</strong></p>
+                    <ul class="content-list">
+                        <li>🧠 <strong>Помнит ВСЁ</strong> что ты рассказывал</li>
+                        <li>🎤 <strong>Голосовой режим</strong> — как разговор с другом</li>
+                        <li>📷 <strong>Читает фото</strong> — отправь картинку и получи развёрнутый ответ</li>
+                        <li>🔄 <strong>Два режима</strong> — переключайся между Душой и Разумом</li>
+                    </ul>
+                </div>
+            `,
+            
+            prompts: `
+                <h3 class="content-title">💬 О чём можно поговорить?</h3>
+                <div class="content-text">
+                    <p><strong>🕊 Душа — когда нужна поддержка:</strong></p>
+                    <ul class="content-list">
+                        <li>«Мне сегодня грустно, не знаю почему»</li>
+                        <li>«Чувствую себя одиноким»</li>
+                        <li>«Как перестать бояться неудач?»</li>
+                        <li>«Помоги найти силы идти дальше»</li>
+                        <li>«Я потерял цель, помоги найти смысл»</li>
+                        <li>«Как полюбить себя?»</li>
+                        <li>«Мне нужна мотивация и вдохновение»</li>
+                        <li>«Просто поговори со мной»</li>
+                    </ul>
+                    <p style="color: #667eea; font-size: 13px; margin-top: 10px;">💡 Soul — не только утешение, но и инсайты, мотивация, новые идеи. Он поможет найти цель, а Разум — реализовать её.</p>
+                    <br>
+                    <p><strong>💡 Разум — когда нужен план:</strong></p>
+                    <ul class="content-list">
+                        <li>«Помоги составить план на неделю»</li>
+                        <li>«Как решить конфликт с коллегой?»</li>
+                        <li>«Идеи для нового проекта»</li>
+                        <li>«Распиши стратегию карьеры»</li>
+                        <li>«Помоги разобраться с учёбой»</li>
+                        <li>«Ответь на мой вопрос голосом»</li>
+                        <li>«Как структурировать мысли?»</li>
+                    </ul>
+                    <br>
+                    <p><strong>📷 Отправь фото и спроси:</strong></p>
+                    <ul class="content-list">
+                        <li>«Что ты видишь на этом фото?»</li>
+                        <li>«Проанализируй это изображение»</li>
+                        <li>«Что здесь можно улучшить?»</li>
+                    </ul>
+                </div>
+            `,
+            
+            howto: `
+                <h3 class="content-title">⚙️ Как начать общение</h3>
+                <div class="content-text">
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                        <p><strong>⚡ Шаг 1: Настройся</strong></p>
+                        <p style="color: #666; font-size: 14px;">Нажми кнопку <strong>«Настроиться»</strong> в меню Soul Чат</p>
+                    </div>
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                        <p><strong>🕊💡 Шаг 2: Выбери режим</strong></p>
+                        <p style="color: #666; font-size: 14px;"><strong>Душа</strong> — для поддержки и разговоров по душам<br><strong>Разум</strong> — для советов и решения задач</p>
+                    </div>
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                        <p><strong>🎤 Шаг 3: Выбери формат</strong></p>
+                        <p style="color: #666; font-size: 14px;"><strong>Текст</strong> — пиши сообщения<br><strong>Голос</strong> — говори и слушай ответы голосом</p>
+                    </div>
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                        <p><strong>💬 Шаг 4: Начни разговор</strong></p>
+                        <p style="color: #666; font-size: 14px;">Пиши что на душе, отправляй фото, задавай вопросы — Soul ответит с теплом и пониманием</p>
+                    </div>
+                    <br>
+                    <p><strong>🎛 Кнопки управления:</strong></p>
+                    <ul class="content-list">
+                        <li>🔄 <strong>Сменить режим</strong> → Душа / Разум</li>
+                        <li>🎤 <strong>Голосовой</strong> → AI отвечает голосом</li>
+                        <li>📷 <strong>Отправить фото</strong> → Soul проанализирует</li>
+                        <li>🧹 <strong>Очистить</strong> → Начать с чистого листа</li>
+                        <li>⚙️ <strong>Настройки</strong> → Персонализация</li>
+                    </ul>
+                </div>
+            `,
+            
+            combos: `
+                <h3 class="content-title">🔗 Soul Чат + другие функции</h3>
+                <div class="content-text">
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 12px;">
+                        <p><strong>💬 + 📓 Обучение</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">После урока обсуди сложные моменты — Soul поможет разобраться и закрепить.</p>
+                        <p style="color: #667eea; font-size: 13px; margin-top: 8px;">💡 Придумайте вместе идею для заработка в интернете, бизнеса или проекта — и сразу идите учиться!</p>
+                    </div>
+                    
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 12px;">
+                        <p><strong>💬 + 🎨 Творчество</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">Мозгоштурм идей перед созданием — Soul поможет найти концепцию.</p>
+                        <p style="color: #667eea; font-size: 13px; margin-top: 8px;">💡 Создай фото → сделай видео → наложи музыку в CapCut. Soul подскажет идею, поможет с промптом и функционалом на каждом шаге!</p>
+                    </div>
+                    
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 12px;">
+                        <p><strong>💬 + 📲 Соцсети</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">Обсуди контент-план, придумай идеи для роликов.</p>
+                        <p style="color: #667eea; font-size: 13px; margin-top: 8px;">💡 Спроси: «Какой логотип лучше?», «Что написать в промпт?», «Как улучшить обложку?» — Soul всегда подскажет!</p>
+                    </div>
+                    
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 12px;">
+                        <p><strong>💬 + 🏆 Лайфстайл</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">Вечерняя рефлексия: обсуди день, эмоции, цели.</p>
+                        <p style="color: #667eea; font-size: 13px; margin-top: 8px;">💡 Спроси с чего лучше начать утро, как завершить вечер, как начать медитировать — Soul раскроет весь потенциал раздела!</p>
+                    </div>
+                    
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 12px;">
+                        <p><strong>💬 + 🛋️ Психолог</strong></p>
+                        <p style="color: #555; font-size: 14px; margin-top: 5px;">Подготовься к сеансу: обсуди что волнует.</p>
+                        <p style="color: #667eea; font-size: 13px; margin-top: 8px;">💡 Soul объяснит как вести себя на терапии, как сделать сеанс максимально продуктивным, как уговорить партнёра на парную терапию. Подготовка = результат!</p>
+                    </div>
+                </div>
+            `
+        };
+
+        const contentArea = document.querySelector('.content-area');
+
+        function renderTab(tabKey) {
+            contentArea.innerHTML = `
+                <div class="content-card">
+                    ${tabContent[tabKey]}
+                </div>
+            `;
+        }
+
+        renderTab('functions');
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                renderTab(this.dataset.tab);
+            });
+        });
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+    </script>
+</body>
+</html>
