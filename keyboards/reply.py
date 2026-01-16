@@ -46,7 +46,7 @@ def back_kb():
 
 def study_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📝 Новый курс"), KeyboardButton(text="☕️ Настроиться", web_app=WebAppInfo(url=f"https://soul-bot.ru/titus/settings?user_id={user_id}"))],
+        [KeyboardButton(text="📝 Новый курс")],
         [KeyboardButton(text="📂 Ваши курсы"), KeyboardButton(text="📚 Анализ видео")],
         [KeyboardButton(text="🔍 Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}")), KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)

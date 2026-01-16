@@ -587,11 +587,7 @@ def silas_settings():
     return render_template('silas_settings.html', user_id=user_id)
 
 
-@app.route('/titus/settings')
-def titus_settings():
-    """Telegram Mini App - Настройки Titus"""
-    user_id = request.args.get('user_id', '')
-    return render_template('titus_settings.html', user_id=user_id)
+# Удалено: Настройки голоса Titus больше не нужны
 
 
 @app.route('/luca/settings/save', methods=['POST'])
@@ -691,42 +687,10 @@ def silas_settings_load():
 
 # ========== TITUS SETTINGS ==========
 
-@app.route('/titus/settings/save', methods=['POST'])
-def titus_settings_save():
-    """API для сохранения настроек Titus в Redis"""
-    try:
-        data = request.get_json()
-        user_id = data.get('user_id')
-
-        if not user_id:
-            return jsonify({'success': False, 'error': 'user_id required'}), 400
-
-        success = redis_db.set_titus_settings(
-            user_id=int(user_id),
-            voice_enabled=bool(data.get('voice_enabled', False)),
-            voice_gender=data.get('voice_gender') or 'male'
-        )
-
-        if success:
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Redis not available'}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+# Удалено: API сохранения настроек голоса Titus
 
 
-@app.route('/titus/settings/load', methods=['GET'])
-def titus_settings_load():
-    """API для загрузки настроек Titus из Redis"""
-    try:
-        user_id = request.args.get('user_id')
-
-        if not user_id:
-            return jsonify({'success': False, 'error': 'user_id required'}), 400
-
-        settings = redis_db.get_titus_settings(int(user_id))
-        return jsonify({'success': True, 'settings': settings})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+# Удалено: API загрузки настроек голоса Titus
 
 
 # ========== MAGIC WEBAPP ==========

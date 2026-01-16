@@ -8,7 +8,7 @@ import base64
 import asyncio
 import os
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import db
@@ -316,6 +316,7 @@ async def video_analysis_start(msg: Message, state: FSMContext):
         texts.VIDEO_ANALYSIS_START,
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
+                [KeyboardButton(text="📂 Мои конспекты", web_app=WebAppInfo(url=f"https://soul-bot.ru/creativity/video-notes?user_id={msg.from_user.id}"))],
                 [KeyboardButton(text="◀️ Назад")],
             ],
             resize_keyboard=True

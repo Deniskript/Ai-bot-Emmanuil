@@ -135,46 +135,8 @@ def clear_silas_settings_cache(user_id: int):
         print(f"Redis error in clear_silas_settings_cache: {e}")
 
 
-# ========== TITUS НАСТРОЙКИ ==========
-
-def get_titus_settings(user_id: int) -> dict:
-    """Получить настройки Titus из Redis"""
-    try:
-        if redis_client:
-            data = redis_client.hgetall(f"titus:settings:{user_id}")
-            if data:
-                return {
-                    "voice_enabled": data.get("voice_enabled", "0") == "1",
-                    "voice_gender": data.get("voice_gender", "male")  # на будущее
-                }
-    except Exception as e:
-        print(f"Redis error in get_titus_settings: {e}")
-    return {"voice_enabled": False, "voice_gender": "male"}
-
-
-def set_titus_settings(user_id: int, voice_enabled: bool = None, voice_gender: str = None):
-    """Сохранить настройки Titus в Redis"""
-    try:
-        if redis_client:
-            key = f"titus:settings:{user_id}"
-            current = redis_client.hgetall(key) or {}
-
-            mapping = {}
-            if voice_enabled is not None:
-                mapping["voice_enabled"] = "1" if voice_enabled else "0"
-            else:
-                mapping["voice_enabled"] = current.get("voice_enabled", "0")
-
-            if voice_gender:
-                mapping["voice_gender"] = voice_gender
-            else:
-                mapping["voice_gender"] = current.get("voice_gender", "male")
-
-            redis_client.hset(key, mapping=mapping)
-            return True
-    except Exception as e:
-        print(f"Redis error in set_titus_settings: {e}")
-    return False
+# ========== TITUS НАСТРОЙКИ (УДАЛЕНО) ==========
+# Функции настроек голоса Titus больше не нужны
 
 
 # ========== ПАРНЫЕ СЕССИИ SILAS (REAL-TIME) ==========
