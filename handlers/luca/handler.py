@@ -1,5 +1,5 @@
 """
-Обработчик Luca (Soul AI) - 100% автономный модуль
+-+ Luca (Soul AI) - 100% автономный модуль
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
@@ -17,6 +17,7 @@ from utils.telegraph import create_telegraph_page
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from utils.status_manager import show_status
 from utils.streaming import stream_response
+from utils.balance_guard import ensure_balance
 from loader import bot
 import asyncio
 import base64
@@ -36,6 +37,7 @@ from .memory import (
     CHAR_NAMES
 )
 from .prompts import LUCA_VOICE_RULES, LUCA_VOICE_STYLE_SOUL, LUCA_VOICE_STYLE_MIND
+from handlers.ai_buttons import CANCEL_REQUEST_BTN, get_waiting_kb, is_cancelled, clear_cancel, cancel_user_request
 
 router = Router()
 
@@ -82,23 +84,6 @@ def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
         keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
         for key in keys_to_remove:
             cache_dict.pop(key, None)
-
-
-async def check_tokens_and_notify(user_id: int, min_tokens: int, msg: Message) -> bool:
-    """
-    Проверяет наличие достаточного количества токенов у пользователя.
-    Возвращает True если токенов достаточно, False если нет (и отправляет уведомление).
-    """
-    available = await db.get_available_tokens(user_id)
-    
-    if available < min_tokens:
-        await msg.answer(
-            texts.NO_TOKENS.format(min_tokens=min_tokens, available=available),
-            parse_mode="HTML"
-        )
-        return False
-    
-    return True
 
 
 # ========== МЕНЮ ==========
@@ -270,10 +255,12 @@ async def voice_change_gender(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.voice_chat, F.text == "⌛️ Отменить запрос")
-async def voice_cancel(msg: Message):
+@router.message(LukaSt.voice_chat, F.text == CANCEL_REQUEST_BTN)
+async def voice_cancel(msg: Message, state: FSMContext):
     """Отмена запроса в голосовом режиме"""
     user_id = msg.from_user.id
+    cancel_user_request(user_id)
+    
     if user_id in active_requests:
         active_requests[user_id]['cancelled'] = True
         try:
@@ -281,13 +268,14 @@ async def voice_cancel(msg: Message):
                 await active_requests[user_id]['status'].stop()
         except:
             pass
-        try:
-            await msg.delete()
-        except:
-            pass
-        await msg.answer(texts.REQUEST_CANCELLED, reply_markup=kb.voice_chat_kb())
-    else:
-        await msg.answer(texts.NO_ACTIVE_REQUEST, reply_markup=kb.voice_chat_kb())
+    
+    try:
+        await msg.delete()
+    except:
+        pass
+    
+    await state.set_state(LukaSt.char)
+    await msg.answer("❌ Запрос отменён", reply_markup=kb.dialog_char_kb())
 
 
 # ========== ЧАТ ==========
@@ -310,9 +298,12 @@ async def luka_chat_clear(msg: Message):
     await msg.answer(texts.HISTORY_CLEARED + " Продолжай:")
 
 
-@router.message(LukaSt.chat, F.text == "⌛️ Отменить запрос")
-async def luka_cancel(msg: Message):
+@router.message(LukaSt.chat, F.text == CANCEL_REQUEST_BTN)
+async def luka_cancel(msg: Message, state: FSMContext):
+    """Отмена запроса в текстовом чате"""
     user_id = msg.from_user.id
+    cancel_user_request(user_id)
+    
     if user_id in active_requests:
         active_requests[user_id]['cancelled'] = True
         try:
@@ -325,13 +316,14 @@ async def luka_cancel(msg: Message):
                 await active_requests[user_id]['status'].stop()
         except:
             pass
-        try:
-            await msg.delete()
-        except:
-            pass
-        await msg.answer(texts.REQUEST_CANCELLED, reply_markup=kb.dialog_chat_kb())
-    else:
-        await msg.answer(texts.NO_ACTIVE_REQUEST, reply_markup=kb.dialog_chat_kb())
+    
+    try:
+        await msg.delete()
+    except:
+        pass
+    
+    await state.set_state(LukaSt.menu)
+    await msg.answer("❌ Запрос отменён", reply_markup=kb.dialog_kb(user_id))
 
 
 @router.callback_query(F.data == "luca:tg")
@@ -373,14 +365,20 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
         return
     
     # Проверка токенов с красивым сообщением
-    if not await check_tokens_and_notify(user_id, MIN_TOKENS, msg):
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
+    
+    # Сбрасываем флаг отмены
+    clear_cancel(user_id)
+    
+    # Показываем клавиатуру ожидания
+    waiting_msg = await msg.answer("⏳", reply_markup=get_waiting_kb())
     
     # Модель
     model = await db.get_user_model(user_id)
     
     # Статус запроса
-    request_state = {'cancelled': False, 'loading_msg': None, 'status': None}
+    request_state = {'cancelled': False, 'loading_msg': waiting_msg, 'status': None}
     active_requests[user_id] = request_state
     
     # Получаем настройки пользователя из Redis
@@ -454,8 +452,20 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     
     active_requests.pop(user_id, None)
     
+    # Удаляем сообщение ожидания
+    if waiting_msg:
+        try:
+            await waiting_msg.delete()
+        except:
+            pass
+    
+    # Проверяем отмену запроса
+    if is_cancelled(user_id):
+        clear_cancel(user_id)
+        return  # Не отправляем ответ
+    
     if not resp:
-        await msg.answer(texts.ERROR_EMPTY_RESPONSE)
+        await msg.answer(texts.ERROR_EMPTY_RESPONSE, reply_markup=kb.dialog_kb(user_id))
         return
     
     # Очищаем ответ от служебных строк
@@ -545,11 +555,14 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                 await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
         else:
             await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+    
+    # Возвращаем меню раздела
+    await msg.answer("💬", reply_markup=kb.dialog_chat_kb())
 
 
 @router.message(LukaSt.chat, F.text)
 async def luka_chat_text(msg: Message, state: FSMContext):
-    if msg.text in ["🛑 Завершить", "🧹 Очистить", "⏹ Стоп", "⌛️ Отменить запрос"]:
+    if msg.text in ["🛑 Завершить", "🧹 Очистить", "⏹ Стоп", CANCEL_REQUEST_BTN]:
         return
     await process_luka_message(msg, state, msg.text)
 
@@ -608,7 +621,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         return
     
     # Проверка токенов с красивым сообщением
-    if not await check_tokens_and_notify(user_id, MIN_TOKENS, msg):
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     # Статус запроса с кнопкой отмены
@@ -747,7 +760,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
 @router.message(LukaSt.voice_chat, F.voice)
 async def voice_chat_voice(msg: Message, state: FSMContext):
     """Обработка голосового сообщения от пользователя"""
-    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
+    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", CANCEL_REQUEST_BTN]:
         return
     
     status = await show_status(bot, msg.chat.id, "voice")
@@ -781,7 +794,7 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
 @router.message(LukaSt.voice_chat, F.text)
 async def voice_chat_text(msg: Message, state: FSMContext):
     """Обработка текстового сообщения (бот отвечает голосом)"""
-    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", "⌛️ Отменить запрос"]:
+    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", CANCEL_REQUEST_BTN]:
         return
     
     await process_voice_message(msg, state, msg.text)

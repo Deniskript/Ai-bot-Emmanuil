@@ -22,6 +22,7 @@ from utils.conversations import save_message, clean_response, should_show_previe
 from utils.streaming import stream_response
 from utils.status_manager import show_status
 from utils.markdown import md_to_html
+from utils.balance_guard import ensure_balance
 from loader import bot
 
 # Локальные импорты модуля (всё внутри handlers/titus/)
@@ -119,9 +120,7 @@ async def steps_back(msg: Message, state: FSMContext):
 
 @router.message(TitusSt.select_steps, F.text.in_({"🚀 10 шагов", "📘 40 шагов", "📖 80 шагов"}))
 async def create_course(msg: Message, state: FSMContext):
-    remaining = await db.get_available_tokens(msg.from_user.id)
-    if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -345,9 +344,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
     print(f"[VIDEO] Начало анализа для пользователя {user_id}")
     
     # Проверка токенов
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(user_id))
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     print(f"[VIDEO] Токены проверены: {time.time() - start_time:.2f}с")
@@ -537,9 +534,7 @@ async def titus_make_summary(cb: CallbackQuery):
         await cb.answer(texts.NO_TEXT_FOR_SUMMARY, show_alert=True)
         return
     
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < MIN_TOKENS:
-        await cb.answer(texts.SUMMARY_NOT_ENOUGH_TOKENS, show_alert=True)
+    if not await ensure_balance(cb, required=MIN_TOKENS):
         return
     
     await cb.answer(texts.SUMMARY_CREATING)
@@ -603,9 +598,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         await msg.answer(error_msg, reply_markup=reply.study_chat_kb())
         return
     
-    remaining = await db.get_available_tokens(msg.from_user.id)
-    if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -836,9 +829,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     cname = data.get('cname', 'Курс')
     total_steps = data.get('total_steps', 10)
     
-    remaining = await db.get_available_tokens(cb.from_user.id)
-    if remaining < MIN_TOKENS:
-        await cb.message.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+    if not await ensure_balance(cb, required=MIN_TOKENS):
         return
     
     model = await db.get_user_model(cb.from_user.id)
@@ -914,9 +905,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     current_step = data.get('current_step', 1)
     total_steps = data.get('total_steps', 10)
     
-    remaining = await db.get_available_tokens(cb.from_user.id)
-    if remaining < MIN_TOKENS:
-        await cb.message.answer("❌ Токены закончились!\n\n💎 Докупите в разделе 💠 Подписка", reply_markup=reply.main_kb(msg.from_user.id))
+    if not await ensure_balance(cb, required=MIN_TOKENS):
         return
     
     model = await db.get_user_model(cb.from_user.id)

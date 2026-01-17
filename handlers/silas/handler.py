@@ -20,6 +20,7 @@ from utils.telegraph import create_telegraph_page
 from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from utils.status_manager import show_status
 from utils.streaming import stream_response
+from utils.balance_guard import ensure_balance
 from config import MIN_TOKENS
 from loader import bot
 from datetime import datetime
@@ -317,9 +318,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await msg.answer(error_msg)
         return
     
-    remaining = await db.get_available_tokens(msg.from_user.id)
-    if remaining < MIN_TOKENS:
-        await msg.answer(texts.NO_TOKENS, reply_markup=global_reply.main_kb(msg.from_user.id))
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     model = await db.get_user_model(msg.from_user.id)
