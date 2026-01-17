@@ -1,242 +1,602 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soul Bot - Мои конспекты</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #111827 0%, #2563eb 100%);
-      min-height: 100vh;
-      padding: 18px;
-    }
-    .container { max-width: 760px; margin: 0 auto; }
-    .header {
-      color:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-bottom: 12px;
-    }
-    .title { font-size: 20px; font-weight: 900; }
-    .search {
-      width: 100%;
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.22);
-      border-radius: 12px;
-      padding: 10px 12px;
-      color:#fff;
-      outline:none;
-    }
-    .card {
-      background:#fff;
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
-    }
-    .note {
-      padding: 14px;
-      border: 2px solid #e9ecef;
-      border-radius: 14px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .note:hover { border-color:#2563eb; background:#f3f7ff; }
-    .note-title { font-weight: 900; color:#111827; margin-bottom: 6px; }
-    .note-meta { font-size: 12px; color:#6b7280; margin-bottom: 6px; }
-    .note-preview { font-size: 13px; color:#374151; line-height:1.35; }
-    .empty { color:#6b7280; text-align:center; padding: 22px 0; }
-    .detail { display:none; }
-    .detail-title { font-weight: 900; font-size: 18px; color:#111827; margin-bottom: 6px; }
-    .detail-meta { font-size: 12px; color:#6b7280; margin-bottom: 10px; }
-    .detail-text {
-      white-space: pre-wrap;
-      font-size: 13px;
-      line-height: 1.4;
-      color:#111827;
-      padding: 12px;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      background: #fafafa;
-    }
-    .btnrow { display:flex; gap:10px; margin-top: 12px; flex-wrap:wrap; }
-    .btn {
-      flex:1;
-      padding: 12px;
-      border-radius: 12px;
-      border:none;
-      font-weight: 900;
-      cursor:pointer;
-    }
-    .btn-secondary { background:#e5e7eb; color:#111827; }
-    .btn-danger { background:#ef4444; color:#fff; }
-    .btn-primary { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); color:#fff; }
-    .toast {
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #dcfce7;
-      color:#14532d;
-      display:none;
-      font-weight:700;
-      text-align:center;
-    }
-    .toast.show { display:block; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul — Мои конспекты</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 50%, #0EA5E9 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 40px;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: floatUp 7s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 18px; height: 18px; left: 8%; bottom: -20px; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 14px; height: 14px; left: 22%; bottom: -20px; animation-delay: 1s; }
+        .particle:nth-child(3) { width: 20px; height: 20px; left: 38%; bottom: -20px; animation-delay: 2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; left: 55%; bottom: -20px; animation-delay: 3s; }
+        .particle:nth-child(5) { width: 16px; height: 16px; left: 70%; bottom: -20px; animation-delay: 4s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; left: 85%; bottom: -20px; animation-delay: 5s; }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.4;
+            }
+            90% {
+                opacity: 0.2;
+            }
+            100% {
+                transform: translateY(-100vh) scale(0.5);
+                opacity: 0;
+            }
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === HEADER === */
+        .header {
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .title {
+            font-size: 26px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 15px rgba(0,0,0,0.2);
+        }
+
+        .title-icon {
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* === ПОИСК === */
+        .search {
+            width: 100%;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.25);
+            border-radius: 14px;
+            padding: 14px 16px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            outline: none;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease-out 0.1s backwards;
+        }
+
+        .search::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .search:focus {
+            border-color: rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.2);
+            box-shadow: 0 0 0 4px rgba(255,255,255,0.1);
+        }
+
+        /* === КАРТОЧКА === */
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            margin-top: 16px;
+            animation: fadeInUp 0.6s ease-out 0.2s backwards;
+        }
+
+        /* === ЗАМЕТКИ === */
+        .note {
+            padding: 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: fadeIn 0.4s ease-out backwards;
+        }
+
+        .note:nth-child(1) { animation-delay: 0s; }
+        .note:nth-child(2) { animation-delay: 0.05s; }
+        .note:nth-child(3) { animation-delay: 0.1s; }
+        .note:nth-child(4) { animation-delay: 0.15s; }
+        .note:nth-child(5) { animation-delay: 0.2s; }
+
+        .note:hover {
+            border-color: #3B82F6;
+            background: rgba(59, 130, 246, 0.05);
+            transform: translateX(5px);
+        }
+
+        .note:active {
+            transform: scale(0.98);
+        }
+
+        .note-title {
+            font-weight: 800;
+            color: #1E3A8A;
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+
+        .note-meta {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .note-preview {
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.45;
+        }
+
+        /* === EMPTY === */
+        .empty {
+            color: #6b7280;
+            text-align: center;
+            padding: 40px 20px;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.7;
+        }
+
+        /* === DETAIL === */
+        .detail {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .detail-title {
+            font-weight: 800;
+            font-size: 20px;
+            color: #1E3A8A;
+            margin-bottom: 8px;
+        }
+
+        .detail-meta {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 14px;
+            font-weight: 600;
+            white-space: pre-line;
+        }
+
+        .detail-text {
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #1f2937;
+            padding: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            background: #fafafa;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* === КНОПКИ === */
+        .btnrow {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            font-weight: 800;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #3B82F6 100%);
+            background-size: 200% 200%;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.35);
+            animation: gradientShift 3s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(59, 130, 246, 0.45);
+        }
+
+        /* === TOAST === */
+        .toast {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            color: #065F46;
+            display: none;
+            font-weight: 700;
+            text-align: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+            color: #991B1B;
+        }
+
+        /* === BACK BUTTON === */
+        .btn-back {
+            width: 100%;
+            padding: 16px;
+            background: rgba(255,255,255,0.95);
+            color: #3B82F6;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease-out 0.3s backwards;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 400px) {
+            .title { font-size: 22px; }
+            .btnrow { flex-direction: column; }
+            .btn { min-width: 100%; }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="title">📂 Мои конспекты</div>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
     </div>
-    <input class="search" id="search" placeholder="🔍 Поиск по заголовку и тексту..." />
 
-    <div class="card" style="margin-top:12px;">
-      <div id="list">
-        <div class="empty">Загрузка...</div>
-      </div>
-
-      <div class="detail" id="detail">
-        <div class="detail-title" id="d-title"></div>
-        <div class="detail-meta" id="d-meta"></div>
-        <div class="detail-text" id="d-text"></div>
-        <div class="btnrow">
-          <button class="btn btn-secondary" onclick="backToList()">← Назад</button>
-          <button class="btn btn-danger" onclick="deleteNote()">🗑 Удалить</button>
-          <button class="btn btn-primary" onclick="shareNote()">📤 Поделиться</button>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="title">
+                <span class="title-icon">📂</span> Мои конспекты
+            </div>
         </div>
-        <div class="toast" id="toast">Скопировано</div>
-      </div>
+
+        <!-- ПОИСК -->
+        <input class="search" id="search" placeholder="🔍 Поиск по заголовку и тексту..." />
+
+        <!-- КАРТОЧКА -->
+        <div class="card">
+            <!-- СПИСОК -->
+            <div id="list">
+                <div class="empty">
+                    <div class="empty-icon">⏳</div>
+                    Загрузка...
+                </div>
+            </div>
+
+            <!-- ДЕТАЛИ -->
+            <div class="detail" id="detail">
+                <div class="detail-title" id="d-title"></div>
+                <div class="detail-meta" id="d-meta"></div>
+                <div class="detail-text" id="d-text"></div>
+                <div class="btnrow">
+                    <button class="btn btn-secondary" onclick="backToList()">← Назад</button>
+                    <button class="btn btn-danger" onclick="deleteNote()">🗑 Удалить</button>
+                    <button class="btn btn-primary" onclick="shareNote()">📤 Поделиться</button>
+                </div>
+                <div class="toast" id="toast">Скопировано</div>
+            </div>
+        </div>
+
+        <!-- НАЗАД В БОТ -->
+        <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
     </div>
-  </div>
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready(); tg.expand();
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
 
-    function parseUserId() {
-      let userId = tg.initDataUnsafe?.user?.id;
-      if (!userId && tg.initData) {
-        try {
-          const params = new URLSearchParams(tg.initData);
-          const userStr = params.get('user');
-          if (userStr) userId = JSON.parse(userStr).id;
-        } catch (e) {}
-      }
-      if (!userId) userId = new URLSearchParams(window.location.search).get('user_id');
-      return userId ? parseInt(userId, 10) : null;
-    }
-    const userId = parseUserId();
+        // ========== HELPERS ==========
+        function parseUserId() {
+            let userId = tg.initDataUnsafe?.user?.id;
+            if (!userId && tg.initData) {
+                try {
+                    const params = new URLSearchParams(tg.initData);
+                    const userStr = params.get('user');
+                    if (userStr) userId = JSON.parse(userStr).id;
+                } catch (e) {}
+            }
+            if (!userId) userId = new URLSearchParams(window.location.search).get('user_id');
+            return userId ? parseInt(userId, 10) : null;
+        }
 
-    let notes = [];
-    let current = null;
+        const userId = parseUserId();
 
-    function esc(s){ return (s||'').toString(); }
-    function formatDate(iso){
-      try{
-        const d = new Date(iso);
-        return d.toLocaleDateString('ru-RU', { day:'2-digit', month:'short', year:'numeric' });
-      }catch(e){ return iso || ''; }
-    }
+        let notes = [];
+        let current = null;
 
-    async function loadNotes() {
-      if (!userId) {
-        document.getElementById('list').innerHTML = '<div class="empty">Нет user_id</div>';
-        return;
-      }
-      const resp = await fetch(`/api/video-notes/list/${userId}`);
-      if (!resp.ok) {
-        document.getElementById('list').innerHTML = '<div class="empty">Ошибка загрузки</div>';
-        return;
-      }
-      const data = await resp.json();
-      notes = data.notes || [];
-      renderList();
-    }
+        function esc(s) {
+            return (s || '').toString();
+        }
 
-    function renderList() {
-      document.getElementById('detail').style.display = 'none';
-      const q = (document.getElementById('search').value || '').trim().toLowerCase();
-      const filtered = q ? notes.filter(n =>
-        (n.title||'').toLowerCase().includes(q) ||
-        (n.text||'').toLowerCase().includes(q) ||
-        (n.url||'').toLowerCase().includes(q)
-      ) : notes;
+        function formatDate(iso) {
+            try {
+                const d = new Date(iso);
+                return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+            } catch (e) {
+                return iso || '';
+            }
+        }
 
-      if (!filtered.length) {
-        document.getElementById('list').innerHTML = '<div class="empty">Пока нет конспектов</div>';
-        return;
-      }
-      const html = filtered.map(n => `
-        <div class="note" onclick="openNote(${n.id})">
-          <div class="note-title">🎬 ${esc(n.title)}</div>
-          <div class="note-meta">📅 ${esc(n.date_label)} • ${esc(n.source)}</div>
-          <div class="note-preview">📝 ${esc(n.preview)}</div>
-        </div>
-      `).join('');
-      document.getElementById('list').innerHTML = html;
-    }
+        // ========== ЗАГРУЗКА ==========
+        async function loadNotes() {
+            if (!userId) {
+                document.getElementById('list').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">⚠️</div>
+                        Не удалось определить пользователя
+                    </div>
+                `;
+                return;
+            }
 
-    async function openNote(id) {
-      const resp = await fetch(`/api/video-notes/get/${userId}/${id}`);
-      if (!resp.ok) return;
-      const data = await resp.json();
-      current = data.note;
-      document.getElementById('list').innerHTML = '';
-      document.getElementById('detail').style.display = 'block';
-      document.getElementById('d-title').textContent = `🎬 ${current.title}`;
-      document.getElementById('d-meta').textContent = `🔗 ${current.url}\n📅 ${current.date_label}`;
-      document.getElementById('d-text').textContent = current.text;
-    }
+            try {
+                const resp = await fetch(`/api/video-notes/list/${userId}`);
+                if (!resp.ok) throw new Error('Load failed');
+                const data = await resp.json();
+                notes = data.notes || [];
+                renderList();
+            } catch (e) {
+                document.getElementById('list').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">❌</div>
+                        Ошибка загрузки
+                    </div>
+                `;
+            }
+        }
 
-    function backToList() {
-      current = null;
-      renderList();
-    }
+        // ========== РЕНДЕР СПИСКА ==========
+        function renderList() {
+            document.getElementById('detail').style.display = 'none';
+            document.getElementById('list').style.display = 'block';
 
-    async function deleteNote() {
-      if (!current) return;
-      const resp = await fetch('/api/video-notes/delete', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ user_id: userId, note_id: current.id })
-      });
-      if (!resp.ok) return;
-      notes = notes.filter(n => n.id !== current.id);
-      backToList();
-    }
+            const q = (document.getElementById('search').value || '').trim().toLowerCase();
+            const filtered = q ? notes.filter(n =>
+                (n.title || '').toLowerCase().includes(q) ||
+                (n.text || '').toLowerCase().includes(q) ||
+                (n.url || '').toLowerCase().includes(q)
+            ) : notes;
 
-    function toast(msg){
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(()=>t.classList.remove('show'), 1800);
-    }
+            if (!filtered.length) {
+                document.getElementById('list').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">📭</div>
+                        ${q ? 'Ничего не найдено' : 'Пока нет конспектов'}
+                    </div>
+                `;
+                return;
+            }
 
-    async function shareNote() {
-      if (!current) return;
-      const text = `${current.title}\n${current.url}\n\n${current.text}`;
-      try {
-        await navigator.clipboard.writeText(text);
-        toast('✅ Скопировано');
-      } catch (e) {
-        toast('⚠️ Не удалось скопировать');
-      }
-      // optional: send to bot to share in chat
-      try {
-        tg.sendData(JSON.stringify({ type:'video_notes_share', note_id: current.id }));
-      } catch (e) {}
-    }
+            const html = filtered.map((n, i) => `
+                <div class="note" onclick="openNote(${n.id})" style="animation-delay: ${i * 0.05}s">
+                    <div class="note-title">🎬 ${esc(n.title)}</div>
+                    <div class="note-meta">📅 ${esc(n.date_label)} • ${esc(n.source)}</div>
+                    <div class="note-preview">📝 ${esc(n.preview)}</div>
+                </div>
+            `).join('');
 
-    document.getElementById('search').addEventListener('input', renderList);
-    loadNotes();
-  </script>
+            document.getElementById('list').innerHTML = html;
+        }
+
+        // ========== ОТКРЫТЬ ЗАМЕТКУ ==========
+        async function openNote(id) {
+            try {
+                const resp = await fetch(`/api/video-notes/get/${userId}/${id}`);
+                if (!resp.ok) throw new Error('Get failed');
+                const data = await resp.json();
+                current = data.note;
+
+                document.getElementById('list').style.display = 'none';
+                document.getElementById('detail').style.display = 'block';
+                document.getElementById('d-title').textContent = `🎬 ${current.title}`;
+                document.getElementById('d-meta').textContent = `🔗 ${current.url}\n📅 ${current.date_label}`;
+                document.getElementById('d-text').textContent = current.text;
+            } catch (e) {
+                showToast('❌ Ошибка загрузки', true);
+            }
+        }
+
+        // ========== НАЗАД К СПИСКУ ==========
+        function backToList() {
+            current = null;
+            renderList();
+        }
+
+        // ========== УДАЛИТЬ ==========
+        async function deleteNote() {
+            if (!current) return;
+
+            if (!confirm('Удалить этот конспект?')) return;
+
+            try {
+                const resp = await fetch('/api/video-notes/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, note_id: current.id })
+                });
+
+                if (!resp.ok) throw new Error('Delete failed');
+
+                notes = notes.filter(n => n.id !== current.id);
+                showToast('✅ Конспект удалён');
+                setTimeout(() => backToList(), 1000);
+            } catch (e) {
+                showToast('❌ Ошибка удаления', true);
+            }
+        }
+
+        // ========== ПОДЕЛИТЬСЯ ==========
+        async function shareNote() {
+            if (!current) return;
+
+            const text = `${current.title}\n${current.url}\n\n${current.text}`;
+
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('✅ Скопировано в буфер');
+            } catch (e) {
+                showToast('⚠️ Не удалось скопировать', true);
+            }
+
+            // Отправка в бот
+            try {
+                tg.sendData(JSON.stringify({ type: 'video_notes_share', note_id: current.id }));
+            } catch (e) {}
+        }
+
+        // ========== TOAST ==========
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.remove('error');
+            if (isError) t.classList.add('error');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        // ========== СОБЫТИЯ ==========
+        document.getElementById('search').addEventListener('input', renderList);
+
+        // ========== INIT ==========
+        loadNotes();
+    </script>
 </body>
 </html>
-
