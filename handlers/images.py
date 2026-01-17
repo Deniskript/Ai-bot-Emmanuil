@@ -22,7 +22,7 @@ import traceback
 from PIL import Image, ImageDraw, ImageFont
 import io
 from database import db
-from database.db import get_available_tokens as get_available_tokens_web, use_tokens_smart as use_tokens_smart_web
+from utils.balance_guard import ensure_balance
 from utils.status_manager import show_status
 from loader import bot
 
@@ -327,9 +327,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
     subtype = (data.get("creative_subtype") or "style").strip().lower()
     price = int(data.get("creative_price") or 0)
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -420,9 +418,7 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
     bottom = (data.get("creative_meme_bottom") or "").strip()
     idea = (data.get("creative_meme_idea") or "").strip()
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -442,8 +438,8 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
             img_bytes = _overlay_meme_text(img_bytes, top, bottom)
 
         if price > 0:
-            await use_tokens_smart_web(user_id, price, bot_name="images")
-        new_balance = await get_available_tokens_web(user_id)
+            await db.use_tokens_smart(user_id, price, bot_name="images")
+        new_balance = await db.get_available_tokens(user_id)
 
         await message.answer_photo(
             BufferedInputFile(img_bytes, filename="meme.png"),
@@ -493,9 +489,7 @@ async def creative_process_photo(message: Message, state: FSMContext):
     tier = data.get("creative_model") or "standard"
     model_id = _resolve_creative_model(subtype, str(tier))
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -545,8 +539,8 @@ async def creative_process_photo(message: Message, state: FSMContext):
         out_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=jpeg_bytes)
 
         if price > 0:
-            await use_tokens_smart_web(user_id, price, bot_name="images")
-        new_balance = await get_available_tokens_web(user_id)
+            await db.use_tokens_smart(user_id, price, bot_name="images")
+        new_balance = await db.get_available_tokens(user_id)
 
         await message.answer_photo(
             BufferedInputFile(out_bytes, filename="creative.png"),
@@ -723,9 +717,7 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
     model_key = data.get("blogger_model")
     allow_text = bool(data.get("blogger_allow_text")) if subtype in ("presentation", "cover") else False
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -832,9 +824,7 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -883,8 +873,8 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             img_bytes = _overlay_text_on_image(img_bytes, prompt_ru, layout="presentation")
 
         if price > 0:
-            await use_tokens_smart_web(user_id, price, bot_name="images")
-        new_balance = await get_available_tokens_web(user_id)
+            await db.use_tokens_smart(user_id, price, bot_name="images")
+        new_balance = await db.get_available_tokens(user_id)
 
         await message.answer_photo(
             BufferedInputFile(img_bytes, filename="blogger.png"),
@@ -1436,10 +1426,8 @@ async def video_start(message: Message, state: FSMContext, user_id: int | None =
     video_settings = await _get_user_video_settings(user_id)
 
     # Проверяем баланс
-    tokens = await get_available_tokens_web(user_id)
     price = int(video_settings.get("price") or 0)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         return
 
     mode = video_settings.get("mode", "photo_to_video")
@@ -1502,9 +1490,7 @@ async def process_video_text(message: Message, state: FSMContext):
 
     video_settings = await _get_user_video_settings(user_id)
     price = int(video_settings.get("price") or 0)
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -1532,8 +1518,8 @@ async def process_video_text(message: Message, state: FSMContext):
             user_id=user_id
         )
 
-        await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await get_available_tokens_web(user_id)
+        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await db.get_available_tokens(user_id)
 
         video_file = BufferedInputFile(vbytes, filename="video.mp4")
         await message.answer_video(
@@ -1562,9 +1548,7 @@ async def process_video_photo(message: Message, state: FSMContext):
     video_settings = await _get_user_video_settings(user_id)
     price = int(video_settings.get("price") or 0)
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -1602,8 +1586,8 @@ async def process_video_photo(message: Message, state: FSMContext):
             user_id=user_id
         )
 
-        await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await get_available_tokens_web(user_id)
+        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await db.get_available_tokens(user_id)
 
         video_file = BufferedInputFile(vbytes, filename="video.mp4")
         await message.answer_video(
@@ -1630,11 +1614,8 @@ async def process_video_photo(message: Message, state: FSMContext):
 async def create_photo_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Начать создание фото"""
     uid = user_id or message.from_user.id
-    tokens = await get_available_tokens_web(uid)
-    
     model = await get_user_model_settings(uid, 'create')
-    if tokens < model['price']:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=model['price']):
         return
     
     await state.set_state(ImageStates.waiting_create_prompt)
@@ -1655,11 +1636,8 @@ async def create_photo_start(message: Message, state: FSMContext, user_id: int |
 async def upscale_photo_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Начать upscale фото"""
     uid = user_id or message.from_user.id
-    tokens = await get_available_tokens_web(uid)
-    
     model = await get_user_model_settings(uid, 'upscale')
-    if tokens < model['price']:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=model['price']):
         return
     
     await state.set_state(ImageStates.waiting_upscale_photo)
@@ -1679,11 +1657,8 @@ async def upscale_photo_start(message: Message, state: FSMContext, user_id: int 
 async def editor_start(message: Message, state: FSMContext, user_id: int | None = None):
     """Начать редактирование - фото с подписью в одном сообщении"""
     uid = user_id or message.from_user.id
-    tokens = await get_available_tokens_web(uid)
-    
     model = await get_user_model_settings(uid, 'edit')
-    if tokens < model['price']:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=model['price']):
         return
     
     await state.set_state(ImageStates.waiting_for_photo_with_caption)
@@ -1744,9 +1719,7 @@ async def process_start(message: Message, state: FSMContext, user_id: int | None
         proc_action, proc_model, proc_price = s["action"], s["model"], s["price"]
         await state.update_data(process_action=proc_action, process_model=proc_model, process_price=proc_price)
 
-    tokens = await get_available_tokens_web(user_id)
-    if int(proc_price) > 0 and tokens < int(proc_price):
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=int(proc_price)):
         await state.clear()
         return
 
@@ -1785,9 +1758,7 @@ async def process_process_photo(message: Message, state: FSMContext):
     model_id = data.get("process_model")
     price = int(data.get("process_price") or 0)
 
-    tokens = await get_available_tokens_web(user_id)
-    if price > 0 and tokens < price:
-        await message.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(message, required=price):
         await state.clear()
         return
 
@@ -1831,8 +1802,8 @@ async def process_process_photo(message: Message, state: FSMContext):
 
         out_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=jpeg_bytes)
 
-        await use_tokens_smart_web(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await get_available_tokens_web(user_id)
+        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await db.get_available_tokens(user_id)
 
         await message.answer_photo(
             BufferedInputFile(out_bytes, filename="processed.png"),
@@ -1959,11 +1930,8 @@ async def process_create(message: Message, state: FSMContext):
     if not message.text:
         return
     
-    tokens = await get_available_tokens_web(message.from_user.id)
     model = await get_user_model_settings(message.from_user.id, 'create')
-    
-    if tokens < model['price']:
-        await message.answer("❌ Недостаточно токенов!")
+    if not await ensure_balance(message, required=model['price']):
         await state.clear()
         return
     
@@ -1985,8 +1953,8 @@ async def process_create(message: Message, state: FSMContext):
         photo = BufferedInputFile(image_data, filename="created.png")
         
         # Используем единую систему токенов (поддержка подписок)
-        await use_tokens_smart_web(message.from_user.id, model['price'], bot_name='images')
-        new_balance = await get_available_tokens_web(message.from_user.id)
+        await db.use_tokens_smart(message.from_user.id, model['price'], bot_name='images')
+        new_balance = await db.get_available_tokens(message.from_user.id)
         
         await message.answer_photo(
             photo,
@@ -2012,11 +1980,8 @@ async def process_create(message: Message, state: FSMContext):
 @router.message(ImageStates.waiting_upscale_photo, F.photo)
 async def process_upscale(message: Message, state: FSMContext):
     """Улучшить фото до 4K"""
-    tokens = await get_available_tokens_web(message.from_user.id)
     model = await get_user_model_settings(message.from_user.id, 'upscale')
-    
-    if tokens < model['price']:
-        await message.answer("❌ Недостаточно токенов!")
+    if not await ensure_balance(message, required=model['price']):
         await state.clear()
         return
     
@@ -2058,8 +2023,8 @@ async def process_upscale(message: Message, state: FSMContext):
         photo_result = BufferedInputFile(image_data, filename="upscaled.png")
         
         # Списываем токены
-        await use_tokens_smart_web(message.from_user.id, model['price'], bot_name='images')
-        new_balance = await get_available_tokens_web(message.from_user.id)
+        await db.use_tokens_smart(message.from_user.id, model['price'], bot_name='images')
+        new_balance = await db.get_available_tokens(message.from_user.id)
         
         await message.answer_photo(
             photo_result,
@@ -2150,15 +2115,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
     model = await get_user_model_settings(user_id, 'edit')
     
     # Проверяем баланс
-    tokens = await get_available_tokens_web(user_id)
-    if tokens < model['price']:
-        await message.answer(
-            f"❌ <b>Недостаточно токенов</b>\n\n"
-            f"💰 Нужно: {model['price']:,} токенов\n"
-            f"👛 У вас: {tokens:,} токенов\n\n"
-            f"Пополните баланс в разделе 💎 Токены",
-            parse_mode="HTML"
-        )
+    if not await ensure_balance(message, required=model['price']):
         await state.clear()
         return
     
@@ -2188,8 +2145,8 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
 
         result_photo = BufferedInputFile(img_bytes, filename="edited.png")
 
-        await use_tokens_smart_web(user_id, model['price'], bot_name='images')
-        new_balance = await get_available_tokens_web(user_id)
+        await db.use_tokens_smart(user_id, model['price'], bot_name='images')
+        new_balance = await db.get_available_tokens(user_id)
 
         await message.answer_photo(
             result_photo,
