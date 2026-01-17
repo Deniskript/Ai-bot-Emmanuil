@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Присоединиться к сессии — Soul</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -13,56 +14,147 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 100%);
             min-height: 100vh;
             padding: 20px;
+            padding-bottom: 40px;
             color: #333;
+            overflow-x: hidden;
+        }
+
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            animation: floatCalm 8s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 20px; height: 20px; top: 8%; left: 12%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 14px; height: 14px; top: 22%; left: 78%; animation-delay: 1.5s; }
+        .particle:nth-child(3) { width: 24px; height: 24px; top: 40%; left: 18%; animation-delay: 3s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 55%; left: 82%; animation-delay: 4.5s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; top: 70%; left: 28%; animation-delay: 6s; }
+        .particle:nth-child(6) { width: 16px; height: 16px; top: 85%; left: 72%; animation-delay: 7.5s; }
+
+        @keyframes floatCalm {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px);
+                opacity: 0.12;
+            }
+            50% {
+                transform: translateY(-25px) translateX(15px);
+                opacity: 0.25;
+            }
         }
 
         .container {
             max-width: 500px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
 
+        /* === HEADER === */
         .header {
             text-align: center;
             color: white;
             margin-bottom: 24px;
+            animation: fadeInUp 0.6s ease-out;
         }
 
-        .header h1 {
-            font-size: 24px;
+        .header-icon {
+            font-size: 50px;
+            display: inline-block;
+            animation: pulse 2s ease-in-out infinite;
             margin-bottom: 8px;
         }
 
-        .header p {
-            font-size: 14px;
-            opacity: 0.9;
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
 
-        .card {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        .header h1 {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
         }
+
+        .header p {
+            font-size: 15px;
+            opacity: 0.9;
+            font-weight: 600;
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* === КАРТОЧКИ === */
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+
+        .card:nth-child(2) { animation-delay: 0.1s; }
+        .card:nth-child(3) { animation-delay: 0.2s; }
 
         .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #667eea;
+            font-size: 17px;
+            font-weight: 700;
+            color: #7B68A6;
             margin-bottom: 16px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
+        .card-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+            line-height: 1.6;
+            padding: 12px;
+            background: rgba(123, 104, 166, 0.08);
+            border-radius: 12px;
+        }
+
+        /* === INFO ROWS === */
         .info-row {
             display: flex;
             justify-content: space-between;
-            padding: 12px 0;
+            padding: 14px 0;
             border-bottom: 1px solid #f0f0f0;
         }
 
@@ -73,30 +165,33 @@
         .info-label {
             color: #888;
             font-size: 14px;
+            font-weight: 600;
         }
 
         .info-value {
-            font-weight: 600;
+            font-weight: 700;
             font-size: 14px;
-            color: #333;
+            color: #7B68A6;
         }
 
+        /* === TEXTAREA === */
         .pair-textarea {
             width: 100%;
             min-height: 120px;
-            padding: 14px;
+            padding: 16px;
             border: 2px solid #e0e0e0;
-            border-radius: 12px;
+            border-radius: 14px;
             font-family: inherit;
-            font-size: 14px;
-            line-height: 1.5;
+            font-size: 15px;
+            line-height: 1.6;
             resize: vertical;
-            transition: border-color 0.2s;
+            transition: all 0.3s ease;
         }
 
         .pair-textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #7B68A6;
+            box-shadow: 0 0 0 4px rgba(123, 104, 166, 0.15);
         }
 
         .pair-textarea::placeholder {
@@ -105,87 +200,105 @@
 
         .textarea-counter {
             text-align: right;
-            font-size: 12px;
+            font-size: 13px;
             color: #999;
             margin-top: 8px;
+            font-weight: 600;
         }
 
-        .card-description {
-            font-size: 13px;
-            color: #888;
-            margin-bottom: 16px;
-            line-height: 1.5;
-        }
-
+        /* === КНОПКИ === */
         .ready-btn {
             width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 18px;
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 50%, #7B68A6 100%);
+            background-size: 200% 200%;
             color: white;
             border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
+            border-radius: 16px;
+            font-size: 17px;
+            font-weight: 700;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 25px rgba(123, 104, 166, 0.4);
+            animation: fadeInUp 0.6s ease-out 0.3s backwards, gradientShift 3s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .ready-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 35px rgba(123, 104, 166, 0.5);
+        }
+
+        .ready-btn:active {
+            transform: scale(0.98);
         }
 
         .ready-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            animation: fadeInUp 0.6s ease-out 0.3s backwards;
         }
 
         .back-btn {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             background: transparent;
             color: white;
             border: none;
-            font-size: 14px;
-            font-weight: 500;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
             margin-top: 12px;
+            transition: opacity 0.2s;
         }
 
+        .back-btn:hover {
+            opacity: 0.8;
+        }
+
+        /* === ERROR CARD === */
         .error-card {
-            background: #fff5f5;
-            border: 1px solid #ffcdd2;
+            background: linear-gradient(135deg, #FFF5F5 0%, #FEE2E2 100%);
+            border: 2px solid #FECACA;
         }
 
         .error-icon {
-            font-size: 48px;
+            font-size: 56px;
             text-align: center;
             margin-bottom: 16px;
         }
 
         .error-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #c62828;
+            font-size: 20px;
+            font-weight: 800;
+            color: #DC2626;
             text-align: center;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         .error-text {
             font-size: 14px;
             color: #666;
             text-align: center;
+            line-height: 1.5;
         }
 
+        /* === LOADING === */
         .loading {
             text-align: center;
-            padding: 40px;
+            padding: 60px 20px;
         }
 
         .loading-spinner {
-            font-size: 48px;
+            font-size: 56px;
             animation: spin 1s linear infinite;
+            margin-bottom: 20px;
         }
 
         @keyframes spin {
@@ -194,34 +307,55 @@
         }
 
         .loading-text {
-            margin-top: 16px;
-            font-size: 14px;
+            font-size: 16px;
             color: white;
+            font-weight: 600;
         }
 
+        /* === TOAST === */
         .toast {
             position: fixed;
             bottom: 100px;
             left: 50%;
-            transform: translateX(-50%);
-            background: #333;
+            transform: translateX(-50%) translateY(20px);
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
             color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
             opacity: 0;
-            transition: opacity 0.3s;
+            transition: all 0.4s ease;
             z-index: 1000;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
         }
 
         .toast.show {
             opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 350px) {
+            .header h1 { font-size: 22px; }
+            .header-icon { font-size: 40px; }
+            .card { padding: 18px; }
         }
     </style>
 </head>
 <body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
     <div class="container">
-        <!-- Загрузка -->
+        <!-- ========== ЗАГРУЗКА ========== -->
         <div id="loading-screen">
             <div class="loading">
                 <div class="loading-spinner">🔄</div>
@@ -229,10 +363,11 @@
             </div>
         </div>
 
-        <!-- Ошибка -->
+        <!-- ========== ОШИБКА ========== -->
         <div id="error-screen" style="display: none;">
             <div class="header">
-                <h1>👥 Парная сессия</h1>
+                <div class="header-icon">👥</div>
+                <h1>Парная сессия</h1>
             </div>
             <div class="card error-card">
                 <div class="error-icon">😔</div>
@@ -242,13 +377,15 @@
             <button class="back-btn" onclick="tg.close()">Закрыть</button>
         </div>
 
-        <!-- Форма присоединения -->
+        <!-- ========== ФОРМА ПРИСОЕДИНЕНИЯ ========== -->
         <div id="join-screen" style="display: none;">
             <div class="header">
-                <h1>👥 Приглашение на сессию</h1>
+                <div class="header-icon">👥</div>
+                <h1>Приглашение на сессию</h1>
                 <p>Вас приглашают на парную терапию</p>
             </div>
 
+            <!-- Информация -->
             <div class="card">
                 <div class="card-title">📋 Информация о сессии</div>
                 <div class="info-row">
@@ -261,6 +398,7 @@
                 </div>
             </div>
 
+            <!-- Описание -->
             <div class="card">
                 <div class="card-title">📝 Ваша точка зрения</div>
                 <div class="card-description">
@@ -277,6 +415,7 @@
                 </div>
             </div>
 
+            <!-- Кнопки -->
             <button class="ready-btn" id="join-btn" onclick="joinSession()">
                 🚀 Присоединиться к сессии
             </button>
@@ -285,6 +424,7 @@
         </div>
     </div>
 
+    <!-- TOAST -->
     <div class="toast" id="toast"></div>
 
     <script>
@@ -304,11 +444,12 @@
             'other': '🎯 Другое'
         };
 
-        // Счётчик символов
+        // ========== СЧЁТЧИК СИМВОЛОВ ==========
         document.getElementById('description').addEventListener('input', function() {
             document.getElementById('char-count').textContent = this.value.length;
         });
 
+        // ========== TOAST ==========
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
@@ -316,6 +457,7 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
+        // ========== ПОКАЗАТЬ ЭКРАНЫ ==========
         function showError(title, text) {
             document.getElementById('loading-screen').style.display = 'none';
             document.getElementById('join-screen').style.display = 'none';
@@ -333,6 +475,7 @@
             document.getElementById('session-code').textContent = code;
         }
 
+        // ========== ЗАГРУЗКА СЕССИИ ==========
         async function loadSession() {
             if (!code) {
                 showError('Ошибка', 'Код сессии не указан');
@@ -373,11 +516,12 @@
             }
         }
 
+        // ========== ПРИСОЕДИНЕНИЕ ==========
         async function joinSession() {
             const description = document.getElementById('description').value.trim();
             
             if (description.length < 10) {
-                showToast('Опишите ситуацию подробнее (минимум 10 символов)');
+                showToast('⚠️ Опишите ситуацию подробнее (минимум 10 символов)');
                 return;
             }
 
@@ -406,20 +550,20 @@
                         window.location.href = `/silas/pair/session?user_id=${userId}&code=${code}`;
                     }, 1500);
                 } else {
-                    showToast(data.error || 'Ошибка присоединения');
+                    showToast(data.error || '❌ Ошибка присоединения');
                     btn.textContent = '🚀 Присоединиться к сессии';
                     btn.disabled = false;
                 }
 
             } catch (error) {
                 console.error('Error:', error);
-                showToast('Ошибка соединения');
+                showToast('❌ Ошибка соединения');
                 btn.textContent = '🚀 Присоединиться к сессии';
                 btn.disabled = false;
             }
         }
 
-        // Загружаем данные сессии при старте
+        // ========== INIT ==========
         loadSession();
     </script>
 </body>
