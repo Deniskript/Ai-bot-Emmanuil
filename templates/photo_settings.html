@@ -2,178 +2,309 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soul Bot - Фото</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul — Фото</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        .container { max-width: 650px; margin: 0 auto; }
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #06B6D4 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 40px;
+            color: #333;
+            overflow-x: hidden;
+        }
 
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: floatCreative 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 20px; height: 20px; background: rgba(255,255,255,0.2); top: 5%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; background: rgba(255,182,193,0.25); top: 15%; left: 85%; animation-delay: 0.5s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; background: rgba(255,255,255,0.15); top: 28%; left: 20%; animation-delay: 1s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; background: rgba(147,197,253,0.3); top: 42%; left: 78%; animation-delay: 1.5s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; background: rgba(255,255,255,0.2); top: 58%; left: 32%; animation-delay: 2s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; background: rgba(196,181,253,0.25); top: 72%; left: 82%; animation-delay: 2.5s; }
+        .particle:nth-child(7) { width: 16px; height: 16px; background: rgba(165,243,252,0.25); top: 88%; left: 18%; animation-delay: 3s; }
+
+        @keyframes floatCreative {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) rotate(0deg) scale(1);
+                opacity: 0.3;
+            }
+            25% {
+                transform: translateY(-30px) translateX(20px) rotate(90deg) scale(1.2);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-15px) translateX(-15px) rotate(180deg) scale(0.9);
+                opacity: 0.4;
+            }
+            75% {
+                transform: translateY(-40px) translateX(10px) rotate(270deg) scale(1.1);
+                opacity: 0.5;
+            }
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === HEADER === */
         .header {
             color: white;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 12px;
             flex-wrap: wrap;
+            animation: fadeInUp 0.6s ease-out;
         }
 
         .title {
-            font-size: 22px;
+            font-size: 26px;
             font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 15px rgba(0,0,0,0.2);
+        }
+
+        .title-icon {
+            animation: sparkle 2s ease-in-out infinite;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: brightness(1);
+            }
+            50% { 
+                transform: scale(1.15) rotate(5deg);
+                filter: brightness(1.3) drop-shadow(0 0 15px rgba(255,255,255,0.6));
+            }
         }
 
         .balance-badge {
-            background: rgba(255,255,255,0.16);
-            border: 1px solid rgba(255,255,255,0.28);
-            border-radius: 999px;
-            padding: 8px 12px;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 30px;
+            padding: 10px 16px;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 13px;
-            white-space: nowrap;
+            font-size: 14px;
+            font-weight: 700;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
-        .balance-amount { font-weight: 900; }
+        .balance-amount {
+            font-weight: 900;
+        }
 
+        /* === АНИМАЦИИ === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* === КАРТОЧКА === */
         .card {
-            background: white;
-            border-radius: 16px;
-            padding: 18px;
-            margin-bottom: 14px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            animation: fadeInUp 0.6s ease-out 0.1s backwards;
         }
 
-        /* Табы — строго "таблица", чтобы не съезжали */
+        /* === ТАБЫ === */
         .tabs {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 14px;
+            margin-bottom: 18px;
         }
+
         @media (min-width: 640px) {
-            .tabs { grid-template-columns: repeat(4, 1fr); }
+            .tabs {
+                grid-template-columns: repeat(4, 1fr);
+            }
         }
 
         .tab {
-            padding: 14px;
-            border-radius: 12px;
+            padding: 14px 10px;
+            border-radius: 14px;
             border: 2px solid #e9ecef;
             background: #fff;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
             user-select: none;
             text-align: left;
-            min-height: 78px;
+            min-height: 72px;
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
 
         .tab:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+            border-color: #EC4899;
+            background: rgba(236,72,153,0.05);
+            transform: translateY(-2px);
+        }
+
+        .tab:active {
+            transform: scale(0.97);
         }
 
         .tab.active {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-color: #EC4899;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            box-shadow: 0 4px 15px rgba(236,72,153,0.2);
         }
 
         .tab-title {
-            font-weight: 900;
+            font-weight: 800;
             color: #333;
             font-size: 15px;
             margin-bottom: 4px;
+        }
+
+        .tab.active .tab-title {
+            color: #EC4899;
         }
 
         .tab-desc {
             color: #666;
-            font-size: 12.5px;
+            font-size: 12px;
             line-height: 1.3;
         }
 
+        /* === HINT === */
         .hint {
             font-size: 13px;
             color: #666;
-            line-height: 1.45;
-            margin-bottom: 14px;
-        }
-
-        .section-title {
-            font-weight: 900;
-            color: #333;
-            margin: 12px 0 8px;
-        }
-
-        .option {
-            padding: 14px;
-            border: 2px solid #e9ecef;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(236,72,153,0.08);
             border-radius: 12px;
+        }
+
+        .hint b {
+            color: #EC4899;
+        }
+
+        /* === SECTION TITLE === */
+        .section-title {
+            font-weight: 800;
+            color: #EC4899;
+            margin: 16px 0 12px;
+            font-size: 15px;
+        }
+
+        /* === ОПЦИИ === */
+        .option {
+            padding: 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 14px;
             margin-bottom: 10px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
         }
 
         .option:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+            border-color: #EC4899;
+            background: rgba(236,72,153,0.05);
+            transform: translateX(5px);
+        }
+
+        .option:active {
+            transform: scale(0.98);
         }
 
         .option.selected {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-color: #EC4899;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            box-shadow: 0 4px 20px rgba(236,72,153,0.2);
         }
 
         .opt-name {
-            font-weight: 900;
+            font-weight: 800;
             font-size: 15px;
             color: #333;
             margin-bottom: 4px;
         }
 
+        .option.selected .opt-name {
+            color: #EC4899;
+        }
+
         .opt-price {
-            color: #667eea;
-            font-weight: 900;
-            font-size: 13px;
+            color: #EC4899;
+            font-weight: 800;
+            font-size: 14px;
             margin-bottom: 4px;
         }
 
         .opt-desc {
             font-size: 13px;
             color: #666;
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
+        /* === DIVIDER === */
         .divider {
             height: 1px;
-            background: #eef2f7;
-            margin: 14px 0;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 18px 0;
         }
 
-        .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 12px;
-        }
-
+        /* === TOTAL === */
         .total {
-            margin-top: 14px;
-            padding: 12px;
-            border-radius: 12px;
-            background: #f0f8ff;
-            border-left: 4px solid #667eea;
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            border-left: 4px solid #EC4899;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -181,73 +312,168 @@
             flex-wrap: wrap;
         }
 
-        .total strong {
-            color: #667eea;
-            font-size: 16px;
+        .total-label {
+            font-size: 15px;
+            font-weight: 700;
+            color: #333;
         }
 
+        .total strong {
+            color: #EC4899;
+            font-size: 17px;
+            font-weight: 900;
+        }
+
+        /* === КНОПКИ === */
         .btn {
             width: 100%;
-            padding: 14px;
+            padding: 16px;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             font-size: 16px;
-            font-weight: 900;
+            font-weight: 800;
             cursor: pointer;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin-top: 12px;
+            transition: all 0.3s ease;
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+            margin-top: 14px;
+            box-shadow: 0 4px 15px rgba(16,185,129,0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(16,185,129,0.4);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #EC4899 100%);
+            background-size: 200% 200%;
             color: white;
             margin-top: 10px;
+            box-shadow: 0 4px 20px rgba(236,72,153,0.35);
+            animation: gradientShift 3s ease infinite;
         }
 
-        .btn-disabled {
-            opacity: 0.55;
-            cursor: not-allowed;
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
-        .status {
-            padding: 12px;
-            background: #d4edda;
-            color: #155724;
-            border-radius: 10px;
-            text-align: center;
-            margin-top: 12px;
-            display: none;
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(236,72,153,0.45);
         }
-        .status.show { display: block; }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
 
         .btn-back {
             width: 100%;
-            padding: 14px;
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            border-radius: 12px;
+            padding: 16px;
+            background: rgba(255,255,255,0.95);
+            color: #EC4899;
+            border: none;
+            border-radius: 14px;
             font-size: 16px;
-            font-weight: 900;
+            font-weight: 800;
             cursor: pointer;
-            margin-top: 14px;
+            margin-top: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease-out 0.3s backwards;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        /* === STATUS === */
+        .status {
+            padding: 14px;
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            color: #065F46;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 12px;
+            font-weight: 700;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        /* === TOAST === */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* === PANEL === */
+        .panel {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 400px) {
+            .title { font-size: 22px; }
+            .header { flex-direction: column; align-items: flex-start; }
+            .balance-badge { width: 100%; justify-content: center; }
+            .tab { padding: 12px 8px; min-height: 65px; }
+            .tab-title { font-size: 14px; }
         }
     </style>
 </head>
 <body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
-            <div class="title">📷 Фото</div>
+            <div class="title">
+                <span class="title-icon">📷</span> Фото
+            </div>
             <div class="balance-badge">
                 💰 Баланс: <span class="balance-amount" id="balance">0</span>
             </div>
         </div>
 
+        <!-- КАРТОЧКА -->
         <div class="card">
+            <!-- ТАБЫ -->
             <div class="tabs" id="tabs">
                 <div class="tab active" data-tab="create">
                     <div class="tab-title">✨ Создать</div>
@@ -263,11 +489,11 @@
                 </div>
                 <div class="tab" data-tab="process">
                     <div class="tab-title">🧰 Обработка</div>
-                    <div class="tab-desc">Инструменты (скоро)</div>
+                    <div class="tab-desc">Инструменты</div>
                 </div>
             </div>
 
-            <!-- CREATE -->
+            <!-- CREATE PANEL -->
             <div class="panel" id="panel-create">
                 <div class="hint">Выберите качество генерации. Запуск — в боте.</div>
                 <div class="section-title">💎 Модель</div>
@@ -294,7 +520,7 @@
                 </div>
 
                 <div class="total">
-                    <div>💵 Итого:</div>
+                    <div class="total-label">💵 Итого:</div>
                     <strong id="total-create">3 600 токенов</strong>
                 </div>
 
@@ -303,7 +529,7 @@
                 <div class="status" id="status-create">✅ Сохранено</div>
             </div>
 
-            <!-- UPSCALE -->
+            <!-- UPSCALE PANEL -->
             <div class="panel" id="panel-upscale" style="display:none;">
                 <div class="hint">Улучшение качества на VseGPT. Запуск — в боте.</div>
 
@@ -345,7 +571,7 @@
                 </div>
 
                 <div class="total">
-                    <div>💵 Итого:</div>
+                    <div class="total-label">💵 Итого:</div>
                     <strong id="total-upscale">15 000 токенов</strong>
                 </div>
 
@@ -354,7 +580,7 @@
                 <div class="status" id="status-upscale">✅ Сохранено</div>
             </div>
 
-            <!-- EDIT -->
+            <!-- EDIT PANEL -->
             <div class="panel" id="panel-edit" style="display:none;">
                 <div class="hint">Выберите модель для редактирования. Запуск — в боте (фото + подпись).</div>
                 <div class="section-title">💎 Модель</div>
@@ -376,7 +602,7 @@
                 </div>
 
                 <div class="total">
-                    <div>💵 Итого:</div>
+                    <div class="total-label">💵 Итого:</div>
                     <strong id="total-edit">15 000 токенов</strong>
                 </div>
 
@@ -385,10 +611,10 @@
                 <div class="status" id="status-edit">✅ Сохранено</div>
             </div>
 
-            <!-- PROCESS -->
+            <!-- PROCESS PANEL -->
             <div class="panel" id="panel-process" style="display:none;">
                 <div class="hint">
-                    🧰 <b>Обработка</b> — быстрые инструменты без “перерисовки лица”.
+                    🧰 <b>Обработка</b> — быстрые инструменты без "перерисовки лица".
                     Запуск — в боте (нужно отправить фото).
                 </div>
 
@@ -426,7 +652,7 @@
                 </div>
 
                 <div class="total">
-                    <div>💵 Итого:</div>
+                    <div class="total-label">💵 Итого:</div>
                     <strong id="total-process">19 800 токенов</strong>
                 </div>
 
@@ -436,14 +662,19 @@
             </div>
         </div>
 
+        <!-- НАЗАД -->
         <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
     </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast">Сохранено!</div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
 
+        // ========== HELPERS ==========
         function formatTokens(num) {
             return (num || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
         }
@@ -466,6 +697,7 @@
 
         const userId = parseUserId();
 
+        // ========== ТАБЫ ==========
         function setTab(tab) {
             document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
             const tabEl = document.querySelector(`.tab[data-tab="${tab}"]`);
@@ -482,6 +714,7 @@
             setTab(t.dataset.tab);
         });
 
+        // ========== ВЫБОР ОПЦИЙ ==========
         function selectOne(selector, el) {
             document.querySelectorAll(selector).forEach(x => x.classList.remove('selected'));
             el.classList.add('selected');
@@ -490,14 +723,19 @@
         document.addEventListener('click', (e) => {
             const cm = e.target.closest?.('.create-model');
             if (cm) { selectOne('.create-model', cm); updateTotals(); }
+            
             const em = e.target.closest?.('.edit-model');
             if (em) { selectOne('.edit-model', em); updateTotals(); }
+            
             const us = e.target.closest?.('.up-size');
             if (us) { selectOne('.up-size', us); }
+            
             const ut = e.target.closest?.('.up-tier');
             if (ut) { selectOne('.up-tier', ut); updateTotals(); }
+            
             const pa = e.target.closest?.('.proc-action');
             if (pa) { selectOne('.proc-action', pa); }
+            
             const pm = e.target.closest?.('.proc-model');
             if (pm) { selectOne('.proc-model', pm); updateTotals(); }
         });
@@ -506,6 +744,7 @@
             return document.querySelector(`${selector}.selected`);
         }
 
+        // ========== ОБНОВЛЕНИЕ ИТОГОВ ==========
         function updateTotals() {
             const c = getSelected('.create-model');
             if (c) document.getElementById('total-create').textContent = `${formatTokens(parseInt(c.dataset.price, 10))} токенов`;
@@ -520,6 +759,7 @@
             if (pm) document.getElementById('total-process').textContent = `${formatTokens(parseInt(pm.dataset.price, 10))} токенов`;
         }
 
+        // ========== API ==========
         async function apiSaveStandard({ action, model, price }) {
             const resp = await fetch('/api/image-settings/save', {
                 method: 'POST',
@@ -536,11 +776,26 @@
             setTimeout(() => el.classList.remove('show'), 2200);
         }
 
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        // ========== CREATE ==========
         async function saveCreate() {
             const c = getSelected('.create-model');
             if (!c) return;
-            await apiSaveStandard({ action: 'create', model: c.dataset.model, price: parseInt(c.dataset.price, 10) });
-            showSaved('status-create');
+            try {
+                await apiSaveStandard({ action: 'create', model: c.dataset.model, price: parseInt(c.dataset.price, 10) });
+                showSaved('status-create');
+                showToast('✨ Настройки сохранены!');
+            } catch (e) {
+                showToast('❌ Ошибка сохранения');
+            }
         }
 
         async function startCreate() {
@@ -551,11 +806,17 @@
             tg.close();
         }
 
+        // ========== EDIT ==========
         async function saveEdit() {
             const e = getSelected('.edit-model');
             if (!e) return;
-            await apiSaveStandard({ action: 'edit', model: e.dataset.model, price: parseInt(e.dataset.price, 10) });
-            showSaved('status-edit');
+            try {
+                await apiSaveStandard({ action: 'edit', model: e.dataset.model, price: parseInt(e.dataset.price, 10) });
+                showSaved('status-edit');
+                showToast('✨ Настройки сохранены!');
+            } catch (err) {
+                showToast('❌ Ошибка сохранения');
+            }
         }
 
         async function startEdit() {
@@ -566,50 +827,107 @@
             tg.close();
         }
 
+        // ========== UPSCALE ==========
         async function saveUpscale() {
             const size = getSelected('.up-size');
             const tier = getSelected('.up-tier');
             if (!size || !tier) return;
+            
             const price = parseInt(tier.dataset.price, 10);
             const model = tier.dataset.model;
             const sizeKey = size.dataset.size || 'auto';
-            const resp = await fetch('/api/image-settings/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    action: 'upscale',
-                    model,
-                    price,
-                    extra_settings: { photo: { upscale_size: sizeKey } }
-                })
-            });
-            const result = await resp.json().catch(() => ({}));
-            if (!resp.ok || !result.success) throw new Error(result.error || 'save failed');
-            showSaved('status-upscale');
+            
+            try {
+                const resp = await fetch('/api/image-settings/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        action: 'upscale',
+                        model,
+                        price,
+                        extra_settings: { photo: { upscale_size: sizeKey } }
+                    })
+                });
+                const result = await resp.json().catch(() => ({}));
+                if (!resp.ok || !result.success) throw new Error(result.error || 'save failed');
+                showSaved('status-upscale');
+                showToast('✨ Настройки сохранены!');
+            } catch (e) {
+                showToast('❌ Ошибка сохранения');
+            }
         }
 
         async function startUpscale() {
             const size = getSelected('.up-size');
             const tier = getSelected('.up-tier');
             if (!size || !tier) return;
+            
             const price = parseInt(tier.dataset.price, 10);
             const model = tier.dataset.model;
             const sizeKey = size.dataset.size || 'auto';
+            
             try { await saveUpscale(); } catch (err) {}
             tg.sendData(JSON.stringify({ type: 'images_start', action: 'upscale', model, price, upscale_size: sizeKey }));
             tg.close();
         }
 
+        // ========== PROCESS ==========
+        async function saveProcess() {
+            const act = getSelected('.proc-action');
+            const mdl = getSelected('.proc-model');
+            if (!act || !mdl) return;
+            
+            const process_action = act.dataset.action;
+            const model = mdl.dataset.model;
+            const price = parseInt(mdl.dataset.price, 10);
+
+            try {
+                const resp = await fetch('/api/image-settings/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        action: 'process',
+                        extra_settings: { photo: { process: { action: process_action, model, price } } }
+                    })
+                });
+                const result = await resp.json().catch(() => ({}));
+                if (!resp.ok || !result.success) throw new Error(result.error || 'save failed');
+                showSaved('status-process');
+                showToast('✨ Настройки сохранены!');
+            } catch (e) {
+                showToast('❌ Ошибка сохранения');
+            }
+        }
+
+        async function startProcess() {
+            const act = getSelected('.proc-action');
+            const mdl = getSelected('.proc-model');
+            if (!act || !mdl) return;
+            
+            const process_action = act.dataset.action;
+            const model = mdl.dataset.model;
+            const price = parseInt(mdl.dataset.price, 10);
+            
+            try { await saveProcess(); } catch (e) {}
+            tg.sendData(JSON.stringify({ type: 'images_start', action: 'process', process_action, model, price }));
+            tg.close();
+        }
+
+        // ========== ЗАГРУЗКА НАСТРОЕК ==========
         async function loadSettings() {
             if (!userId) return;
             try {
                 const resp = await fetch(`/api/image-settings/${userId}`);
                 if (!resp.ok) return;
                 const data = await resp.json();
-                if (data.balance !== undefined) document.getElementById('balance').textContent = formatTokens(data.balance);
+                
+                if (data.balance !== undefined) {
+                    document.getElementById('balance').textContent = formatTokens(data.balance);
+                }
 
-                // legacy -> new mapping
+                // Legacy -> new mapping
                 const legacyCreate = {
                     'gpt-image-1-mini': 'img-flux/schnell',
                     'gpt-image-1': 'img-flux/flux-2',
@@ -621,39 +939,37 @@
                     'gpt-image-1.5': 'img2img-flux/kontext-max-edit',
                 };
                 const legacyUpscale = {
-                    // старые значения из Proxy/OpenAI -> безопасный апскейлер
                     'auto_max': 'img2img-recraft/v3-upscale-crisp',
                     'standard_1024': 'img2img-recraft/v3-upscale-crisp',
                     'wide_1536': 'img2img-recraft/v3-upscale-crisp',
                     'tall_1536': 'img2img-recraft/v3-upscale-crisp',
-                    // если раньше был recraft edit — тоже переведём на апскейлер (он меньше меняет лицо)
                     'img2img-recraft/v3-edit': 'img2img-recraft/v3-upscale-crisp',
                 };
 
-                // create
+                // Create
                 const cm0 = data.create_model || 'img-flux/schnell';
                 const cm = legacyCreate[cm0] || cm0;
                 const csel = document.querySelector(`.create-model[data-model="${cm}"]`);
                 if (csel) selectOne('.create-model', csel);
 
-                // edit
+                // Edit
                 const em0 = data.edit_model || 'img2img-flux/kontext-pro-edit';
                 const em = legacyEdit[em0] || em0;
                 const esel = document.querySelector(`.edit-model[data-model="${em}"]`);
                 if (esel) selectOne('.edit-model', esel);
 
-                // upscale model
+                // Upscale model
                 const um0 = data.upscale_model || 'img2img-recraft/v3-upscale-crisp';
                 const um = legacyUpscale[um0] || um0;
                 const tsel = document.querySelector(`.up-tier[data-model="${um}"]`) || document.querySelector('.up-tier.selected') || document.querySelector('.up-tier');
                 if (tsel) selectOne('.up-tier', tsel);
 
-                // upscale size from extra_settings
+                // Upscale size
                 const sizeKey = data.extra_settings?.photo?.upscale_size || 'auto';
                 const usel = document.querySelector(`.up-size[data-size="${sizeKey}"]`) || document.querySelector('.up-size.selected') || document.querySelector('.up-size');
                 if (usel) selectOne('.up-size', usel);
 
-                // process settings from extra_settings
+                // Process settings
                 const proc = data.extra_settings?.photo?.process;
                 if (proc?.action) {
                     const psel = document.querySelector(`.proc-action[data-action="${proc.action}"]`);
@@ -665,47 +981,14 @@
                 }
 
                 updateTotals();
-            } catch (e) {}
+            } catch (e) {
+                console.error('Load error:', e);
+            }
         }
 
-        // init
+        // ========== INIT ==========
         loadSettings();
         updateTotals();
-
-        async function saveProcess() {
-            const act = getSelected('.proc-action');
-            const mdl = getSelected('.proc-model');
-            if (!act || !mdl) return;
-            const process_action = act.dataset.action;
-            const model = mdl.dataset.model;
-            const price = parseInt(mdl.dataset.price, 10);
-
-            const resp = await fetch('/api/image-settings/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    action: 'process',
-                    extra_settings: { photo: { process: { action: process_action, model, price } } }
-                })
-            });
-            const result = await resp.json().catch(() => ({}));
-            if (!resp.ok || !result.success) throw new Error(result.error || 'save failed');
-            showSaved('status-process');
-        }
-
-        async function startProcess() {
-            const act = getSelected('.proc-action');
-            const mdl = getSelected('.proc-model');
-            if (!act || !mdl) return;
-            const process_action = act.dataset.action;
-            const model = mdl.dataset.model;
-            const price = parseInt(mdl.dataset.price, 10);
-            try { await saveProcess(); } catch (e) {}
-            tg.sendData(JSON.stringify({ type: 'images_start', action: 'process', process_action, model, price }));
-            tg.close();
-        }
     </script>
 </body>
 </html>
-
