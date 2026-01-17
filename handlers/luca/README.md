@@ -94,7 +94,7 @@ WEB_BASE_URL = "https://soul-bot.ru"
 - `aiogram` - Telegram Bot API
 - `database.db` - Функции работы с PostgreSQL
 - `utils.openrouter` - OpenRouter API для AI
-- `utils.tokens` - Подсчёт токенов
+- `utils.stars` - Подсчёт звёзд
 - `loader.bot` - Экземпляр бота
 
 ### Опциональные:

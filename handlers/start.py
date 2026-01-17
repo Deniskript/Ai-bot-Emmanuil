@@ -4,9 +4,12 @@ from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import StateFilter
-from database import db
+import logging
+from database import postgres_db as db
 from keyboards import reply, inline
 from config import SUBSCRIPTIONS, NEW_USER_BONUS
+
+logger = logging.getLogger(__name__)
 HELP_TEXT = """💫 <b>От создателя</b>
 
 Когда мне было очень тяжело — я нашёл поддержку в искусственном интеллекте. Он помог мне стать лучше.
@@ -146,30 +149,41 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
         return
     
     # Если не deep link для парной сессии - продолжаем обычную логику
-    u = await db.get_user(msg.from_user.id)
-    
-    # Проверяем реферальную ссылку
+    logger.info("START: user_id=%s", msg.from_user.id)
+
+    # Проверяем реферальную ссылку (используем args, если есть)
     referrer_id = None
-    if msg.text and len(msg.text.split()) > 1:
-        args = msg.text.split()[1]  # После /start
-        if args.startswith('ref_'):
-            try:
-                referrer_id = int(args.replace('ref_', ''))
-                # Проверяем что реферер существует и это не сам пользователь
-                if referrer_id == msg.from_user.id:
-                    referrer_id = None
-                elif referrer_id:
-                    referrer = await db.get_user(referrer_id)
-                    if not referrer:
-                        referrer_id = None
-            except:
+    if args and args.startswith('ref_'):
+        try:
+            referrer_id = int(args.replace('ref_', ''))
+            # Проверяем что реферер существует и это не сам пользователь
+            if referrer_id == msg.from_user.id:
                 referrer_id = None
+            elif referrer_id:
+                referrer = await db.get_user(referrer_id)
+                if not referrer:
+                    referrer_id = None
+        except Exception:
+            referrer_id = None
+
+    existing_user = await db.get_user(msg.from_user.id)
+    u = await db.get_or_create_user(
+        msg.from_user.id,
+        msg.from_user.username,
+        msg.from_user.first_name,
+        referrer_id
+    )
+    logger.info("START: user_from_db=%s, referrer_id=%s", u, referrer_id)
     
     if not u:
-        u = await db.create_user(msg.from_user.id, msg.from_user.username, msg.from_user.first_name, referrer_id)
-        
-        # Уведомляем реферера о новом пользователе
-        if referrer_id:
+        logger.error("START: get_or_create_user returned None for %s", msg.from_user.id)
+        await msg.answer("❌ Ошибка регистрации. Попробуйте позже.")
+        return
+
+    # Уведомляем реферера о новом пользователе
+    if referrer_id and existing_user is None:
+        # Отправляем уведомление только если пользователь только что создан
+        if u.get("referred_by") == referrer_id:
             try:
                 from aiogram import Bot
                 from config import BOT_TOKEN
@@ -178,32 +192,28 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
                     referrer_id,
                     f"🎉 <b>Новый реферал!</b>\n\n"
                     f"Пользователь {msg.from_user.first_name or 'Новый пользователь'} зарегистрировался по вашей ссылке!\n\n"
-                    f"💡 Когда он оформит подписку, вы получите бонусные токены."
+                    f"💡 Когда он оформит подписку, вы получите бонусные звёзды."
                 )
-            except:
-                pass
-        
-        agreement_text = await get_text("agreement", DEFAULT_AGREEMENT)
-        await msg.answer(agreement_text, reply_markup=inline.agree_kb())
-        return
+            except Exception as e:
+                logger.warning("START: referrer notify failed: %s", e)
     
     if not u['agreement']:
         agreement_text = await get_text("agreement", DEFAULT_AGREEMENT)
         await msg.answer(agreement_text, reply_markup=inline.agree_kb())
         return
     
-    # Получаем токены универсальной функцией
-    tokens = await db.get_available_tokens(msg.from_user.id)
+    # Получаем звёзды универсальной функцией
+    stars = await db.get_available_stars(msg.from_user.id)
     has_sub = await db.has_active_subscription(msg.from_user.id)
     
     if has_sub:
         sub = await db.get_subscription(msg.from_user.id)
         sub_info = SUBSCRIPTIONS.get(sub['type'], {})
-        start_text = f"✨ <b>С возвращением в Душа AI!</b>\n\n💎 Подписка: <b>{sub_info.get('name', sub['type'])}</b>\n🔢 Токенов: <b>{fmt(tokens)}</b>"
-    elif tokens > 0:
-        start_text = f"✨ <b>С возвращением в Душа AI!</b>\n\n🎁 Бонусных токенов: <b>{fmt(tokens)}</b>\n\n💡 Оформите подписку для полного доступа"
+        start_text = f"✨ <b>С возвращением в Душа AI!</b>\n\n⭐ Подписка: <b>{sub_info.get('name', sub['type'])}</b>\n⭐ Звёзд: <b>{fmt(stars)}</b>"
+    elif stars > 0:
+        start_text = f"✨ <b>С возвращением в Душа AI!</b>\n\n🎁 Бонусных звёзд: <b>{fmt(stars)}</b>\n\n💡 Оформите подписку для полного доступа"
     else:
-        start_text = "✨ <b>С возвращением в Душа AI!</b>\n\n⚠️ Токены закончились\n👉 Оформите подписку в разделе 💠 Подписка"
+        start_text = "✨ <b>С возвращением в Душа AI!</b>\n\n⚠️ Звёзды закончились\n👉 Оформите подписку в разделе 💠 Подписка"
     
     await msg.answer(start_text, reply_markup=reply.main_kb(msg.from_user.id))
 @router.callback_query(F.data == "agree_yes")
@@ -308,7 +318,7 @@ async def reg_gender(cb: CallbackQuery, state: FSMContext):
     # Бонус отдельным сообщением
     await cb.message.answer(
         f"🎁🎁🎁\n\n"
-        f"<b>Вам начислено {fmt(NEW_USER_BONUS)} токенов!</b>\n\n"
+        f"<b>Вам начислено {fmt(NEW_USER_BONUS)} звёзд!</b>\n\n"
         f"Попробуйте бесплатно"
     )
     
@@ -348,7 +358,7 @@ async def cabinet(msg: Message):
     u = await db.get_user(msg.from_user.id)
     if not u: return
     
-    tokens = await db.get_available_tokens(msg.from_user.id)
+    stars = await db.get_available_stars(msg.from_user.id)
     has_sub = await db.has_active_subscription(msg.from_user.id)
     profile = await db.get_profile(msg.from_user.id)
     
@@ -370,8 +380,8 @@ async def cabinet(msg: Message):
         f"👋 Имя: {name}\n"
         f"🎂 Возраст: {age}\n"
         f"👤 Пол: {gender}\n\n"
-        f"💎 {sub_name}\n"
-        f"🔢 {fmt(tokens)} токенов"
+        f"⭐ {sub_name}\n"
+        f"⭐ {fmt(stars)} звёзд"
     )
     
     await msg.answer(text, reply_markup=inline.cabinet_kb())
@@ -387,24 +397,24 @@ async def my_stats_cb(cb: CallbackQuery):
     total_requests = u.get("total_requests", 0)
     created = u.get("created_at", "—")
     
-    tokens = await db.get_available_tokens(cb.from_user.id)
+    stars = await db.get_available_stars(cb.from_user.id)
     
     # Получаем статистику по ботам
-    bots_tokens = await db.get_all_bots_tokens(cb.from_user.id)
-    luca_tokens = bots_tokens.get('luca', 0)
-    silas_tokens = bots_tokens.get('silas', 0)
-    titus_tokens = bots_tokens.get('titus', 0)
+    bots_stars = await db.get_all_bots_stars(cb.from_user.id)
+    luca_stars = bots_stars.get('luca', 0)
+    silas_stars = bots_stars.get('silas', 0)
+    titus_stars = bots_stars.get('titus', 0)
     
     text = (
         f"📊 <b>Статистика</b>\n\n"
         f"📅 Регистрация: {created[:10] if created else '—'}\n"
         f"💬 Всего запросов: {fmt(total_requests)}\n\n"
-        f"💰 <b>Баланс:</b> {fmt(tokens)} токенов\n"
-        f"📉 <b>Потрачено всего:</b> {fmt(total_used)} токенов\n\n"
+        f"⭐ <b>Баланс:</b> {fmt(stars)} звёзд\n"
+        f"📉 <b>Потрачено всего:</b> {fmt(total_used)} звёзд\n\n"
         f"🤖 <b>Использование по ботам:</b>\n"
-        f"💭 Luca (Диалог): {fmt(luca_tokens)}\n"
-        f"🛋️ Silas (Психолог): {fmt(silas_tokens)}\n"
-        f"📓 Titus (Обучение): {fmt(titus_tokens)}"
+        f"💭 Luca (Диалог): {fmt(luca_stars)}\n"
+        f"🛋️ Silas (Психолог): {fmt(silas_stars)}\n"
+        f"📓 Titus (Обучение): {fmt(titus_stars)}"
     )
     await cb.message.edit_text(text, reply_markup=inline.back_kb("cabinet"))
 
@@ -413,7 +423,7 @@ async def cabinet_cb(cb: CallbackQuery):
     u = await db.get_user(cb.from_user.id)
     if not u: return
     
-    tokens = await db.get_available_tokens(cb.from_user.id)
+    stars = await db.get_available_stars(cb.from_user.id)
     has_sub = await db.has_active_subscription(cb.from_user.id)
     profile = await db.get_profile(cb.from_user.id)
     
@@ -433,8 +443,8 @@ async def cabinet_cb(cb: CallbackQuery):
         f"👋 Имя: {name}\n"
         f"🎂 Возраст: {age}\n"
         f"👤 Пол: {gender}\n\n"
-        f"💎 {sub_name}\n"
-        f"🔢 {fmt(tokens)} токенов"
+        f"⭐ {sub_name}\n"
+        f"⭐ {fmt(stars)} звёзд"
     )
     
     await cb.message.edit_text(text, reply_markup=inline.cabinet_kb())
@@ -443,10 +453,10 @@ async def cabinet_cb(cb: CallbackQuery):
 async def topup_cb(cb: CallbackQuery):
     has_sub = await db.has_active_subscription(cb.from_user.id)
     if has_sub:
-        await cb.message.edit_text("💰 <b>Докупка токенов</b>", reply_markup=inline.tokens_packages_kb())
+        await cb.message.edit_text("⭐ <b>Докупка звёзд</b>", reply_markup=inline.stars_packages_kb())
     else:
         await cb.answer("⚠️ Докупка доступна только подписчикам", show_alert=True)
-        await cb.message.edit_text("⚠️ Для докупки токенов нужна подписка", reply_markup=inline.subscription_plans_kb())
+        await cb.message.edit_text("⚠️ Для докупки звёзд нужна подписка", reply_markup=inline.subscription_plans_kb())
 # === ПОМОЩЬ ===
 @router.message(F.text == "🔍 Помощь")
 async def help_cmd(msg: Message):
@@ -502,9 +512,9 @@ async def cmd_restart(msg: Message, state: FSMContext):
         await msg.answer(agreement_text, reply_markup=inline.agree_kb())
         return
     
-    tokens = await db.get_available_tokens(msg.from_user.id)
+    stars = await db.get_available_stars(msg.from_user.id)
     await msg.answer(
-        f"🔄 Бот перезапущен!\n\n💎 Ваши токены: {fmt(tokens)}\n\nВыберите собеседника:",
+        f"🔄 Бот перезапущен!\n\n⭐ Ваши звёзды: {fmt(stars)}\n\nВыберите собеседника:",
         reply_markup=reply.main_kb(msg.from_user.id)
     )
 

@@ -218,7 +218,7 @@
             transition: width 0.3s;
         }
 
-        .token-package {
+        .stars-package {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border: 2px solid #dee2e6;
             border-radius: 12px;
@@ -229,12 +229,12 @@
             text-align: center;
         }
 
-        .token-package:hover {
+        .stars-package:hover {
             border-color: #667eea;
             transform: scale(1.02);
         }
 
-        .token-package.popular {
+        .stars-package.popular {
             background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
             border-color: #667eea;
         }
@@ -249,7 +249,7 @@
             margin-bottom: 8px;
         }
 
-        .package-tokens {
+        .package-stars {
             font-size: 24px;
             font-weight: 700;
             color: #333;
@@ -311,7 +311,7 @@
             width: 100%;
             max-width: 400px;
         }
-        .token-package {
+        .stars-package {
             background: #f8f9fa;
             border: 2px solid #dee2e6;
             border-radius: 12px;
@@ -320,10 +320,10 @@
             cursor: pointer;
             text-align: center;
         }
-        .token-package:hover {
+        .stars-package:hover {
             border-color: #667eea;
         }
-        .token-package.popular {
+        .stars-package.popular {
             border-color: #667eea;
             background: #f0f0ff;
         }
@@ -336,7 +336,7 @@
             display: inline-block;
             margin-bottom: 8px;
         }
-        .package-tokens {
+        .package-stars {
             font-size: 24px;
             font-weight: 700;
         }
@@ -361,9 +361,9 @@
         <div id="content" style="display: none;">
             <!-- Баланс -->
             <div class="card">
-                <div class="card-title">💰 Баланс токенов</div>
+                <div class="card-title">💰 Баланс звёзд</div>
                 <div class="balance-amount" id="balance">0</div>
-                <div class="balance-label">Доступно токенов</div>
+                <div class="balance-label">Доступно звёзд</div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progress" style="width: 0%"></div>
                 </div>
@@ -371,7 +371,7 @@
 
             <!-- Подписка -->
             <div class="card">
-                <div class="card-title">💎 Подписка</div>
+                <div class="card-title">⭐ Подписка</div>
                 <div class="subscription-info">
                     <div>
                         <div class="subscription-type" id="subType">Не активна</div>
@@ -379,7 +379,7 @@
                     </div>
                     <div style="font-size: 48px;" id="subEmoji">🎁</div>
                 </div>
-                <button class="btn" onclick="openSubscription()">💎 Управление подпиской</button>
+                <button class="btn" onclick="openSubscription()">⭐ Управление подпиской</button>
             </div>
 
             <!-- Статистика -->
@@ -401,10 +401,10 @@
             <!-- Реферальная программа -->
             <div class="card">
                 <div class="card-title">👥 Реферальная программа</div>
-                <p style="color: #555; margin-bottom: 16px;">Приглашай друзей — получай токены!</p>
+                <p style="color: #555; margin-bottom: 16px;">Приглашай друзей — получай звёзды!</p>
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="margin-bottom: 8px;">🌟 Друг оплатил Mini → <strong>+100K токенов</strong></div>
-                    <div>💎 Друг оплатил Standard → <strong>+200K токенов</strong></div>
+                    <div style="margin-bottom: 8px;">🌟 Друг оплатил Mini → <strong>+1,000 ⭐</strong></div>
+                    <div>⭐ Друг оплатил Standard → <strong>+2,000 ⭐</strong></div>
                 </div>
                 <div style="display: flex; gap: 8px; margin-top: 16px;">
                     <input id="refLink" readonly value="https://t.me/iisoul_bot?start=ref_USERID" 
@@ -499,23 +499,23 @@
 
         function displayUserData(data) {
             // Баланс
-            const balance = data.tokens || 0;
+            const balance = data.stars || 0;
             document.getElementById('balance').textContent = formatNumber(balance);
             
-            // Прогресс (пример: из 1M токенов)
+            // Прогресс (пример: из 10K звёзд)
             const progress = Math.min((balance / 1000000) * 100, 100);
             document.getElementById('progress').style.width = progress + '%';
 
             // Подписка
             if (data.subscription && data.subscription.is_active) {
                 const sub = data.subscription;
-                document.getElementById('subType').textContent = sub.type === 'mini' ? '🌟 Mini' : '💎 Standard';
+                document.getElementById('subType').textContent = sub.type === 'mini' ? '🌟 Mini' : '⭐ Standard';
                 document.getElementById('subExpires').textContent = sub.expires_at ? 
                     'До ' + formatDate(sub.expires_at) : 'Активна';
                 document.getElementById('subEmoji').textContent = sub.type === 'standard' ? '👑' : '🌟';
             } else {
                 document.getElementById('subType').textContent = 'Не активна';
-                document.getElementById('subExpires').textContent = 'Используете бонусные токены';
+                document.getElementById('subExpires').textContent = 'Используете бонусные звёзды';
                 document.getElementById('subEmoji').textContent = '🎁';
             }
 
@@ -534,7 +534,7 @@
                 badges.innerHTML += '<div class="badge">⭐️ Эксперт</div>';
             }
             if (data.subscription && data.subscription.is_active) {
-                badges.innerHTML += '<div class="badge">💎 Подписчик</div>';
+                badges.innerHTML += '<div class="badge">⭐ Подписчик</div>';
             }
         }
 
@@ -566,18 +566,18 @@
 
         window.openSubscription = function() {
             console.log('openSubscription called!');
-            // Показываем выбор: подписка или токены
+            // Показываем выбор: подписка или звёзды
             const modal = document.createElement('div');
             modal.className = 'modal active';
             modal.id = 'subscriptionModal';
             modal.innerHTML = `
                 <div class="modal-content">
-                    <h3 style="text-align: center; margin-bottom: 20px;">💎 Управление подпиской</h3>
+                    <h3 style="text-align: center; margin-bottom: 20px;">⭐ Управление подпиской</h3>
                     <button class="btn" onclick="window.selectSubscription()">
-                        💎 Оформить подписку
+                        ⭐ Оформить подписку
                     </button>
-                    <button class="btn btn-secondary" onclick="window.buyTokens()">
-                        💰 Докуп токенов
+                    <button class="btn btn-secondary" onclick="window.buyStars()">
+                        💰 Докуп звёзд
                     </button>
                     <button class="btn btn-secondary" onclick="window.closeModal()" style="margin-top: 8px;">
                         ← Отмена
@@ -601,36 +601,36 @@
             window.tg.close();
         };
 
-        window.buyTokens = function() {
-            console.log('buyTokens called!');
+        window.buyStars = function() {
+            console.log('buyStars called!');
             // Удаляем предыдущее модальное окно
             document.querySelectorAll('.modal').forEach(m => m.remove());
             
-            // Создаем окно с пакетами токенов
+            // Создаем окно с пакетами звёзд
             const modal = document.createElement('div');
             modal.className = 'modal active';
-            modal.id = 'tokensModal';
+            modal.id = 'starsModal';
             modal.innerHTML = `
                 <div class="modal-content">
-                    <h3 style="text-align: center; margin-bottom: 20px;">💰 Докупить токены</h3>
+                    <h3 style="text-align: center; margin-bottom: 20px;">💰 Докупить звёзды</h3>
                     
-                    <div class="token-package" onclick="window.buyPackage('100k', 149)">
-                        <div class="package-tokens">100K токенов</div>
+                    <div class="stars-package" onclick="window.buyStarsPackage('100k', 149)">
+                        <div class="package-stars">1,000 ⭐</div>
                         <div class="package-price">149 ₽</div>
                     </div>
                     
-                    <div class="token-package" onclick="window.buyPackage('200k', 249)">
-                        <div class="package-tokens">200K токенов</div>
+                    <div class="stars-package" onclick="window.buyStarsPackage('200k', 249)">
+                        <div class="package-stars">2,000 ⭐</div>
                         <div class="package-price">249 ₽</div>
                     </div>
                     
-                    <div class="token-package popular" onclick="window.buyPackage('800k', 700)">
+                    <div class="stars-package popular" onclick="window.buyStarsPackage('800k', 700)">
                         <div class="package-badge">🔥 ВЫГОДНО</div>
-                        <div class="package-tokens">800K токенов</div>
+                        <div class="package-stars">8,000 ⭐</div>
                         <div class="package-price">700 ₽</div>
                     </div>
                     
-                    <button class="btn btn-secondary" onclick="window.closeTokensModal()" style="margin-top: 16px;">
+                    <button class="btn btn-secondary" onclick="window.closeStarsModal()" style="margin-top: 16px;">
                         ← Назад
                     </button>
                 </div>
@@ -638,18 +638,18 @@
             document.body.appendChild(modal);
         };
 
-        window.closeTokensModal = function() {
-            console.log('closeTokensModal called!');
-            const modal = document.getElementById('tokensModal');
+        window.closeStarsModal = function() {
+            console.log('closeStarsModal called!');
+            const modal = document.getElementById('starsModal');
             if (modal) {
                 modal.remove();
             }
         };
 
-        window.buyPackage = function(tokens, price) {
-            console.log('buyPackage called:', tokens, price);
-            window.tg.sendData(JSON.stringify({action: 'buy_tokens', tokens: tokens, price: price}));
-            window.tg.showAlert('💰 Переход к оплате ' + tokens + ' за ' + price + '₽');
+        window.buyStarsPackage = function(stars, price) {
+            console.log('buyStarsPackage called:', stars, price);
+            window.tg.sendData(JSON.stringify({action: 'buy_stars', stars: stars, price: price}));
+            window.tg.showAlert('⭐ Переход к оплате ' + stars + ' за ' + price + '₽');
             setTimeout(() => window.tg.close(), 1000);
         };
 

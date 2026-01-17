@@ -1,9 +1,9 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
-from database import db
+from database import postgres_db as db
 from keyboards import inline
 from utils.robokassa import generate_payment_link
-from config import SUBSCRIPTIONS, TOKEN_PACKAGES
+from config import SUBSCRIPTIONS, STAR_PACKAGES
 
 
 router = Router()
@@ -22,13 +22,13 @@ def format_date(date_str):
 def get_plans_text():
     return """<b>Доступные тарифы:</b>
 
-💎 <b>Мини</b> — 490 ₽/мес
+⭐ <b>Мини</b> — 490 ₽/мес
 
 ✨ Психолог нового поколения
 ✨ Память и эмоции — помнит ваши разговоры
 ✨ Мотивация, поддержка, решение задач
 ✨ Голосовые сообщения и фото
-✨ 400 000 токенов (~70 диалогов)
+✨ 4 000 ⭐ (~70 диалогов)
 
 ❌ Нет доступа к Обучению
 
@@ -43,7 +43,7 @@ def get_plans_text():
 📚 Разбивает материал на шаги как лучший репетитор
 ❓ Задаёт вопросы, разбирает сложные темы
 📝 Конспекты для глубокого усвоения
-✨ 900 000 токенов (~158 диалогов)
+✨ 9 000 ⭐ (~158 диалогов)
 
 <i>Полный доступ к обучению без границ</i>"""
 
@@ -51,32 +51,32 @@ def get_plans_text():
 # === МЕНЮ ПОДПИСКИ ===
 @router.message(F.text == "💠 Подписка")
 async def subscription_menu(msg: Message):
-    tokens = await db.get_available_tokens(msg.from_user.id)
+    stars = await db.get_available_stars(msg.from_user.id)
     has_sub = await db.has_active_subscription(msg.from_user.id)
     
     if has_sub:
         sub = await db.get_subscription(msg.from_user.id)
         sub_info = SUBSCRIPTIONS.get(sub['type'], {})
         sub_name = sub_info.get('name', sub['type'])
-        total = sub['tokens_limit']
+        stars_limit = sub['stars_limit']
         
         text = f"""⭐ <b>Ваша подписка</b>
 
-💎 Тариф: <b>{sub_name}</b>
+⭐ Тариф: <b>{sub_name}</b>
 📅 Действует до: <b>{format_date(sub['expires_at'])}</b>
 
-🔢 Токенов: <b>{fmt(tokens)}</b> из {fmt(total)}
-💬 Примерно сообщений: ~{tokens // 3700}
+⭐ Звёзд: <b>{fmt(stars)}</b> из {fmt(stars_limit)}
+💬 Примерно сообщений: ~{stars // 37}
 
 Выберите действие:"""
         
         await msg.answer(text, reply_markup=inline.subscription_active_kb())
-    elif tokens > 0:
-        # Есть бонусные токены, но нет подписки
+    elif stars > 0:
+        # Есть бонусные звёзды, но нет подписки
         text = f"""⭐ <b>Подписка</b>
 
-🎁 У вас <b>{fmt(tokens)}</b> бонусных токенов
-💬 Примерно сообщений: ~{tokens // 3700}
+🎁 У вас <b>{fmt(stars)}</b> бонусных звёзд
+💬 Примерно сообщений: ~{stars // 37}
 
 {get_plans_text()}
 
@@ -84,10 +84,10 @@ async def subscription_menu(msg: Message):
         
         await msg.answer(text, reply_markup=inline.subscription_plans_kb())
     else:
-        # Нет токенов и нет подписки
+        # Нет звёзд и нет подписки
         text = f"""⭐ <b>Подписка</b>
 
-⚠️ У вас закончились токены
+⚠️ У вас закончились звёзды
 
 {get_plans_text()}
 
@@ -110,7 +110,7 @@ async def buy_subscription(cb: CallbackQuery):
     tx_id = await db.create_transaction(
         uid=cb.from_user.id,
         amount=plan['price'],
-        tokens=plan['tokens'],
+        stars=plan['stars'],
         tx_type=f"subscription:{sub_type}"
     )
     
@@ -124,9 +124,9 @@ async def buy_subscription(cb: CallbackQuery):
     
     text = f"""💳 <b>Оплата подписки</b>
 
-💎 Тариф: <b>{plan['name']}</b>
+⭐ Тариф: <b>{plan['name']}</b>
 💰 Сумма: <b>{plan['price']} ₽</b>
-🔢 Токенов: <b>{fmt(plan['tokens'])}</b>
+⭐ Звёзд: <b>{fmt(plan['stars'])}</b>
 
 Нажмите кнопку для оплаты:"""
     
@@ -134,40 +134,40 @@ async def buy_subscription(cb: CallbackQuery):
     await cb.answer()
 
 
-# === ДОКУПКА ТОКЕНОВ ===
-@router.callback_query(F.data == "sub:tokens")
-async def tokens_menu(cb: CallbackQuery):
+# === ДОКУПКА ЗВЁЗД ===
+@router.callback_query(F.data == "sub:stars")
+async def stars_menu(cb: CallbackQuery):
     has_sub = await db.has_active_subscription(cb.from_user.id)
     
     if not has_sub:
         await cb.answer("⚠️ Докупка доступна только подписчикам", show_alert=True)
-        text = """⚠️ <b>Докупка токенов</b>
+        text = """⚠️ <b>Докупка звёзд</b>
 
-Докупка токенов доступна только для пользователей с активной подпиской.
+Докупка звёзд доступна только для пользователей с активной подпиской.
 
 👉 Оформите подписку, чтобы получить доступ."""
         await cb.message.edit_text(text, reply_markup=inline.back_to_sub_kb())
         return
     
-    tokens = await db.get_available_tokens(cb.from_user.id)
+    stars = await db.get_available_stars(cb.from_user.id)
     
-    text = f"""💎 <b>Докупка токенов</b>
+    text = f"""⭐ <b>Докупка звёзд</b>
 
-🔢 Текущий баланс: <b>{fmt(tokens)}</b> токенов
+⭐ Текущий баланс: <b>{fmt(stars)}</b>
 
 <b>Пакеты:</b>
 
-📦 100K токенов — <b>90 ₽</b>
-📦 200K токенов — <b>180 ₽</b>
+📦 1,000 ⭐ — <b>149 ₽</b>
+📦 2,000 ⭐ — <b>249 ₽</b>
 
 Выберите пакет:"""
     
-    await cb.message.edit_text(text, reply_markup=inline.tokens_packages_kb())
+    await cb.message.edit_text(text, reply_markup=inline.stars_packages_kb())
     await cb.answer()
 
 
-@router.callback_query(F.data.startswith("tokens:buy:"))
-async def buy_tokens(cb: CallbackQuery):
+@router.callback_query(F.data.startswith("stars:buy:"))
+async def buy_stars(cb: CallbackQuery):
     package_id = cb.data.split(":")[2]
     
     has_sub = await db.has_active_subscription(cb.from_user.id)
@@ -175,17 +175,17 @@ async def buy_tokens(cb: CallbackQuery):
         await cb.answer("⚠️ Докупка доступна только подписчикам", show_alert=True)
         return
     
-    if package_id not in TOKEN_PACKAGES:
+    if package_id not in STAR_PACKAGES:
         await cb.answer("❌ Неизвестный пакет", show_alert=True)
         return
     
-    package = TOKEN_PACKAGES[package_id]
+    package = STAR_PACKAGES[package_id]
     
     tx_id = await db.create_transaction(
         uid=cb.from_user.id,
         amount=package['price'],
-        tokens=package['tokens'],
-        tx_type=f"tokens:{package_id}"
+        stars=package['stars'],
+        tx_type=f"stars:{package_id}"
     )
     
     payment_url = generate_payment_link(
@@ -193,10 +193,10 @@ async def buy_tokens(cb: CallbackQuery):
         amount=package['price'],
         description=f"Докупка {package['name']} - Душа AI",
         user_id=cb.from_user.id,
-        payment_type=f"tokens:{package_id}"
+        payment_type=f"stars:{package_id}"
     )
     
-    text = f"""💳 <b>Оплата токенов</b>
+    text = f"""💳 <b>Оплата звёзд</b>
 
 📦 Пакет: <b>{package['name']}</b>
 💰 Сумма: <b>{package['price']} ₽</b>
@@ -220,7 +220,7 @@ async def check_payment(cb: CallbackQuery):
     if tx['status'] == 'completed':
         await cb.answer("✅ Оплата уже подтверждена!", show_alert=True)
         await cb.message.edit_text(
-            "✅ <b>Оплата подтверждена!</b>\n\nТокены зачислены на ваш баланс.",
+            "✅ <b>Оплата подтверждена!</b>\n\nЗвёзды зачислены на ваш баланс.",
             reply_markup=inline.back_to_sub_kb()
         )
     else:
@@ -231,21 +231,21 @@ async def check_payment(cb: CallbackQuery):
 @router.callback_query(F.data == "sub:back")
 async def back_to_subscription(cb: CallbackQuery):
     await cb.answer()
-    tokens = await db.get_available_tokens(cb.from_user.id)
+    stars = await db.get_available_stars(cb.from_user.id)
     has_sub = await db.has_active_subscription(cb.from_user.id)
     
     if has_sub:
         sub = await db.get_subscription(cb.from_user.id)
         sub_info = SUBSCRIPTIONS.get(sub['type'], {})
         sub_name = sub_info.get('name', sub['type'])
-        total = sub['tokens_limit']
+        stars_limit = sub['stars_limit']
         
         text = f"""⭐ <b>Ваша подписка</b>
 
-💎 Тариф: <b>{sub_name}</b>
+⭐ Тариф: <b>{sub_name}</b>
 📅 Действует до: <b>{format_date(sub['expires_at'])}</b>
 
-🔢 Токенов: <b>{fmt(tokens)}</b> из {fmt(total)}
+⭐ Звёзд: <b>{fmt(stars)}</b> из {fmt(stars_limit)}
 
 Выберите действие:"""
         
@@ -253,7 +253,7 @@ async def back_to_subscription(cb: CallbackQuery):
     else:
         text = f"""⭐ <b>Подписка</b>
 
-{"🎁 Бонусных токенов: " + fmt(tokens) if tokens > 0 else "⚠️ Токены закончились"}
+{"🎁 Бонусных звёзд: " + fmt(stars) if stars > 0 else "⚠️ Звёзды закончились"}
 
 {get_plans_text()}
 
@@ -288,7 +288,7 @@ async def process_successful_payment(tx_id: int, robokassa_id: int = None):
     
     user_id = tx['user_id']
     tx_type = tx['type']
-    tokens = tx['tokens']
+    stars = tx['stars']
     
     # Подтверждаем транзакцию
     await db.complete_transaction(tx_id, robokassa_id)
@@ -301,15 +301,15 @@ async def process_successful_payment(tx_id: int, robokassa_id: int = None):
             sub_type = tx_type.split(':')[1]
             
             # Создаём/обновляем подписку
-            await db.create_subscription(user_id, sub_type, tokens, days=30)
+            await db.create_subscription(user_id, sub_type, stars, days=30)
             
             # Уведомляем пользователя
             plan_name = SUBSCRIPTIONS.get(sub_type, {}).get('name', sub_type)
             await bot.send_message(
                 user_id,
                 f"✅ <b>Подписка активирована!</b>\n\n"
-                f"💎 Тариф: <b>{plan_name}</b>\n"
-                f"🔢 Токенов: <b>{fmt(tokens)}</b>\n"
+                f"⭐ Тариф: <b>{plan_name}</b>\n"
+                f"⭐ Звёзд: <b>{fmt(stars)}</b>\n"
                 f"📅 Действует: <b>30 дней</b>\n\n"
                 f"Спасибо за покупку! 🎉"
             )
@@ -319,14 +319,14 @@ async def process_successful_payment(tx_id: int, robokassa_id: int = None):
             if referrer_id:
                 # Начисляем награду рефереру
                 if sub_type == 'mini':
-                    reward_tokens = 100000  # 100K за Mini
+                    reward_stars = 1000  # 1,000 ⭐ за Mini
                 elif sub_type == 'standard':
-                    reward_tokens = 200000  # 200K за Standard
+                    reward_stars = 2000  # 2,000 ⭐ за Standard
                 else:
-                    reward_tokens = 0
+                    reward_stars = 0
                 
-                if reward_tokens > 0:
-                    await db.add_referral_reward(referrer_id, user_id, reward_tokens, sub_type)
+                if reward_stars > 0:
+                    await db.add_referral_reward(referrer_id, user_id, reward_stars, sub_type)
                     
                     # Уведомляем реферера
                     try:
@@ -334,24 +334,24 @@ async def process_successful_payment(tx_id: int, robokassa_id: int = None):
                             referrer_id,
                             f"🎉🎉🎉 <b>Реферальная награда!</b>\n\n"
                             f"Ваш реферал оформил подписку <b>{plan_name}</b>!\n\n"
-                            f"💰 Вам начислено: <b>{fmt(reward_tokens)}</b> токенов\n\n"
+                            f"⭐ Вам начислено: <b>{fmt(reward_stars)}</b>\n\n"
                             f"Продолжайте делиться ссылкой и зарабатывайте больше! 🚀"
                         )
                     except:
                         pass  # Реферер мог заблокировать бота
                     
-        elif tx_type.startswith('tokens:'):
-            # Докупка токенов
-            await db.add_subscription_tokens(user_id, tokens)
+        elif tx_type.startswith('stars:'):
+            # Докупка звёзд
+            await db.add_subscription_stars(user_id, stars)
             
             package_id = tx_type.split(':')[1]
-            package_name = TOKEN_PACKAGES.get(package_id, {}).get('name', 'Токены')
+            package_name = STAR_PACKAGES.get(package_id, {}).get('name', 'Звёзды')
             
             await bot.send_message(
                 user_id,
-                f"✅ <b>Токены зачислены!</b>\n\n"
+                f"✅ <b>Звёзды зачислены!</b>\n\n"
                 f"📦 Пакет: <b>{package_name}</b>\n"
-                f"🔢 Начислено: <b>{fmt(tokens)}</b> токенов\n\n"
+                f"⭐ Начислено: <b>{fmt(stars)}</b>\n\n"
                 f"Спасибо за покупку! 🎉"
             )
     except Exception as e:

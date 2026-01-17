@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import random
 
-from database import db  # Использует PostgreSQL через database/__init__.py
+from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.markdown import md_to_html
@@ -128,13 +128,13 @@ async def meditation_duration_selected(callback: CallbackQuery, state: FSMContex
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
         
         # Сохраняем медитацию
         await db.save_meditation_log(callback.from_user.id, duration, med_type)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(callback.from_user.id, tokens_used, bot_name='mental')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(callback.from_user.id, stars_used, bot_name='mental')
         await db.increment_requests(callback.from_user.id)
         
         await callback.message.edit_text(
@@ -293,10 +293,10 @@ async def get_mood_tip(mood: int, tags: list) -> str:
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=200)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=200)
         
-        # Списываем токены с маржой 2.5x (минимальный запрос)
-        await db.use_tokens_smart(user_id, tokens_used, bot_name='mental')
+        # Списываем звёзды с маржой 2.5x (минимальный запрос)
+        await db.use_stars_smart(user_id, stars_used, bot_name='mental')
         await db.increment_requests(user_id)
         
         return response.strip()
@@ -363,10 +363,10 @@ async def anxiety_help(msg: Message, state: FSMContext):
         }
         
         messages = [{"role": "user", "content": prompts[technique]}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=800)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=800)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='mental')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='mental')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(
@@ -414,10 +414,10 @@ async def daily_affirmation(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=300)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=300)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='mental')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='mental')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(

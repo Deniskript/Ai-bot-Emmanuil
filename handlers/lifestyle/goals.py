@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import random
 import re
 
-from database import db  # Использует PostgreSQL через database/__init__.py
+from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
 from keyboards import reply, inline
 
 router = Router()

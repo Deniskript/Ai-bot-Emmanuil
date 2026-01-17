@@ -3,7 +3,7 @@ Titus Memory - система долгосрочной памяти для ку�
 """
 import json
 from utils.openrouter import ask
-from database import db
+from database import postgres_db as db
 import config
 
 

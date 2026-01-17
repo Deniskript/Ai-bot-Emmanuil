@@ -8,12 +8,12 @@ def generate_payment_link(
     amount: float,
     description: str,
     user_id: int,
-    payment_type: str  # "subscription" или "tokens"
+    payment_type: str  # "subscription" или "stars"
 ) -> str:
     """
     Генерация ссылки на оплату Робокасса
     
-    payment_type: "subscription:mini", "subscription:standard", "tokens:100k", "tokens:200k"
+    payment_type: "subscription:mini", "subscription:standard", "stars:1000", "stars:2000"
     """
     
     # Формируем подпись

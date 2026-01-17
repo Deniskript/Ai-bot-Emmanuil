@@ -25,7 +25,7 @@ class AntiFloodMiddleware(BaseMiddleware):
             return await handler(event, data)
         
         # Загружаем настройки из БД
-        from database import db
+        from database import postgres_db as db
         min_interval = int(await db.get_setting('spam_interval') or '2')
         max_messages_per_minute = int(await db.get_setting('spam_max_rpm') or '8')
         

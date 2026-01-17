@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import date, timedelta
 import re
 
-from database import db  # Использует PostgreSQL через database/__init__.py
+from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
 from database.postgres_db import EXPENSE_CATEGORIES
 from keyboards import reply, inline
 from utils.openrouter import ask
@@ -456,10 +456,10 @@ async def finance_tips(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='finance')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='finance')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(md_to_html(response), parse_mode="HTML")

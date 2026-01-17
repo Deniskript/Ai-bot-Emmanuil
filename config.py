@@ -4,6 +4,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ============================================
+# СИСТЕМА БАЛАНСА: ЗВЁЗДЫ ⭐
+# 1 звезда ≈ 100 старых токенов
+# Telegram Stars совместимый формат
+# ============================================
+
 # Валидация критических переменных
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -54,30 +60,30 @@ if ".." in DATABASE_PATH or DATABASE_PATH.startswith("/etc") or DATABASE_PATH.st
     print("❌ ОШИБКА: Небезопасный путь к базе данных!")
     sys.exit(1)
 
-# Бонус новым пользователям (токены)
-NEW_USER_BONUS = int(os.getenv("NEW_USER_BONUS", "25000"))
+# Бонус новым пользователям (⭐ звёзды)
+NEW_USER_BONUS = int(os.getenv("NEW_USER_BONUS", "250"))
 
-# Минимум токенов для запроса
-MIN_TOKENS = 3000
+# Минимум звёзд для запроса
+MIN_STARS = 30
 
 # Подписки
 SUBSCRIPTIONS = {
     "mini": {
         "name": "Mini",
         "price": 490,
-        "tokens": 400000,
+        "stars": 4000,
         "model": MODEL
     },
     "standard": {
         "name": "Standard", 
         "price": 990,
-        "tokens": 900000,
+        "stars": 9000,
         "model": MODEL
     }
 }
 
-# Пакеты токенов
-TOKEN_PACKAGES = {
-    "100k": {"name": "100K токенов", "tokens": 100000, "price": 149},
-    "200k": {"name": "200K токенов", "tokens": 200000, "price": 249}
+# Пакеты звёзд ⭐
+STAR_PACKAGES = {
+    "1000": {"name": "1,000 ⭐", "stars": 1000, "price": 149},
+    "2000": {"name": "2,000 ⭐", "stars": 2000, "price": 249}
 }

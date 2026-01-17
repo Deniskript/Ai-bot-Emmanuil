@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime
-from database.db import get_conversation, get_conversation_messages, get_user, get_subscription, get_available_tokens
+from database.postgres_db import get_conversation, get_conversation_messages, get_subscription, get_available_stars
 
 # Web App Domain для Telegram Mini Apps
 WEBAPP_DOMAIN = os.getenv("WEBAPP_DOMAIN", "http://localhost:5000")
@@ -1676,10 +1676,10 @@ def get_image_settings_api(user_id: int):
         ensure_pool_initialized()
         loop = get_or_create_loop()
         from database.postgres_db import get_image_settings
-        from database.db import get_available_tokens
+        from database.postgres_db import get_available_stars
         
         settings = loop.run_until_complete(get_image_settings(user_id))
-        balance = loop.run_until_complete(get_available_tokens(user_id))
+        balance = loop.run_until_complete(get_available_stars(user_id))
         
         return jsonify({
             "balance": balance,
@@ -1788,49 +1788,70 @@ def save_image_settings_api():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _build_user_response(user_id: int):
+    """Собрать данные пользователя для WebApp"""
+    ensure_pool_initialized()
+    loop = get_or_create_loop()
+
+    # Получаем пользователя или создаём, если отсутствует
+    user = loop.run_until_complete(get_user(user_id))
+    if not user:
+        loop.run_until_complete(
+            create_user(uid=user_id, uname=f"user_{user_id}", fname="Пользователь")
+        )
+        user = loop.run_until_complete(get_user(user_id))
+
+    # Получаем подписку
+    subscription = loop.run_until_complete(get_subscription(user_id))
+
+    # Получаем доступные звёзды (из подписки или бонусные)
+    stars = loop.run_until_complete(get_available_stars(user_id))
+
+    # Формируем ответ
+    response = {
+        'user_id': user['user_id'],
+        'username': user.get('username'),
+        'first_name': user.get('first_name'),
+        'stars': stars,        # основной ключ
+        'balance': stars,      # совместимость со старыми клиентами
+        'total_used': user.get('total_used', 0),
+        'total_requests': user.get('total_requests', 0),
+        'subscription': None
+    }
+
+    # Добавляем информацию о подписке если есть
+    if subscription:
+        response['subscription'] = {
+            'type': subscription.get('type'),
+            'is_active': bool(subscription.get('is_active')),
+            'expires_at': subscription.get('expires_at'),
+            'stars_limit': subscription.get('stars_limit', 0),
+            'stars_used': subscription.get('stars_used', 0)
+        }
+
+    return response
+
+
 @app.route('/api/user/<int:user_id>')
 def api_user(user_id):
     """API для получения данных пользователя"""
     try:
-        ensure_pool_initialized()
-        loop = get_or_create_loop()
-        
-        # Получаем данные пользователя
-        user = loop.run_until_complete(get_user(user_id))
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Получаем подписку
-        subscription = loop.run_until_complete(get_subscription(user_id))
-        
-        # Получаем доступные токены (из подписки или бонусные)
-        tokens = loop.run_until_complete(get_available_tokens(user_id))
-        
-        # Формируем ответ
-        response = {
-            'user_id': user['user_id'],
-            'username': user.get('username'),
-            'first_name': user.get('first_name'),
-            'tokens': tokens,  # ✅ Правильный баланс с учетом подписки
-            'total_used': user.get('total_used', 0),
-            'total_requests': user.get('total_requests', 0),
-            'subscription': None
-        }
-        
-        # Добавляем информацию о подписке если есть
-        if subscription:
-            response['subscription'] = {
-                'type': subscription.get('type'),
-                'is_active': bool(subscription.get('is_active')),
-                'expires_at': subscription.get('expires_at'),
-                'tokens_limit': subscription.get('tokens_limit', 0),
-                'tokens_used': subscription.get('tokens_used', 0)
-            }
-        
-        return jsonify(response)
-        
+        return jsonify(_build_user_response(user_id))
     except Exception as e:
         print(f"Error in api_user: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user', methods=['GET'])
+def api_user_query():
+    """API для получения данных пользователя (query-параметр)"""
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id required'}), 400
+        return jsonify(_build_user_response(int(user_id)))
+    except Exception as e:
+        print(f"Error in api_user_query: {e}")
         return jsonify({'error': str(e)}), 500
 
 

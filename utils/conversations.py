@@ -1,9 +1,9 @@
 """
 Утилиты для работы с диалогами
 """
-from database.db import (
-    create_conversation, 
-    save_conversation_message,
+from database.postgres_db import (
+    create_conversation,
+    add_message,
     get_conversation
 )
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
@@ -32,7 +32,7 @@ async def save_message(user_id: int, role: str, content: str, bot: str, model: s
             conv_id = await start_conversation(user_id, bot)
     
     # Сохраняем сообщение
-    await save_conversation_message(conv_id, role, content, model)
+    await add_message(conv_id, role, content, model)
     return conv_id
 
 

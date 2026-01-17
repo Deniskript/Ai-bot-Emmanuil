@@ -27,17 +27,17 @@ async def _openrouter_vision(image_base64: str, prompt: str) -> str:
     print(f"[OPENROUTER VISION] Image size: {len(image_clean)} chars")
     print(f"[OPENROUTER VISION] Prompt: {prompt[:80]}...")
     
-    text, tokens = await openrouter_ask(
+    text, stars_used = await openrouter_ask(
         msgs=[{"role": "user", "content": prompt}],
         model="openai/gpt-4o-mini",
         image_base64=image_clean,
         max_tokens=1200
     )
     
-    print(f"[OPENROUTER VISION] Result tokens: {tokens}")
+    print(f"[OPENROUTER VISION] Result stars: {stars_used}")
     print(f"[OPENROUTER VISION] Result text: {text[:100] if text else 'None'}...")
     
-    if tokens == 0 and isinstance(text, str) and text.startswith("Ошибка"):
+    if stars_used == 0 and isinstance(text, str) and text.startswith("Ошибка"):
         raise Exception(text)
     
     return text

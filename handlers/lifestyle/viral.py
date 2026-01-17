@@ -2,9 +2,9 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import db  # Использует PostgreSQL через database/__init__.py
+from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
 from keyboards import reply, inline
-from utils.tokens import calculate_tokens
+from utils.stars import calculate_stars
 from utils.antiflood import ai_flood
 from utils.video_downloader import download_video_from_url, extract_key_frames, cleanup_temp_files
 from utils.markdown import md_to_html
@@ -13,7 +13,7 @@ from utils.balance_guard import ensure_balance
 from utils.status_manager import show_status
 from utils.streaming import stream_response
 from prompts.viral_expert import VIRAL_EXPERT_PROMPT, VIRAL_TEXT_ADVICE_PROMPT
-from config import MIN_TOKENS, OPENROUTER_API_KEY
+from config import MIN_STARS, OPENROUTER_API_KEY
 from loader import bot
 import asyncio
 import base64
@@ -35,8 +35,8 @@ class ViralAnalysisSt(StatesGroup):
 # Цены (маржа уже включена)
 PRICES = {
     "text_advice": 50,  # Минимальная цена за текстовый совет (рассчитывается автоматически с маржой 2.5x)
-    "video_analysis": 300,  # За анализ видео (Vision API ~ 120 токенов × 2.5 = 300)
-    "link_analysis": 300  # За анализ по ссылке (Vision API ~ 120 токенов × 2.5 = 300)
+    "video_analysis": 300,  # За анализ видео (Vision API ~ 120 звёзд × 2.5 = 300)
+    "link_analysis": 300  # За анализ по ссылке (Vision API ~ 120 звёзд × 2.5 = 300)
 }
 
 
@@ -51,13 +51,13 @@ async def viral_menu(msg: Message, state: FSMContext):
         return
     
     await state.set_state(ViralAnalysisSt.menu)
-    tokens = await db.get_available_tokens(msg.from_user.id)
+    stars = await db.get_available_stars(msg.from_user.id)
     
     await msg.answer(
         "🎬 <b>Вирусный разбор</b>\n\n"
         "Я помогу твоим роликам набрать миллионы просмотров!\n\n"
-        "💰 Баланс: <b>{:,}</b> токенов\n\n"
-        "Выбери что нужно:".format(tokens),
+        "⭐ Баланс: <b>{:,}</b> звёзд\n\n"
+        "Выбери что нужно:".format(stars),
         reply_markup=reply.viral_kb(msg.from_user.id),
         parse_mode="HTML"
     )
@@ -66,7 +66,7 @@ async def viral_menu(msg: Message, state: FSMContext):
 @router.message(ViralAnalysisSt.menu, F.text == "💬 Текстовый совет")
 async def text_advice_start(msg: Message, state: FSMContext):
     """Начать текстовый совет"""
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     await state.set_state(ViralAnalysisSt.text_advice)
@@ -106,7 +106,7 @@ async def upload_video_start(msg: Message, state: FSMContext):
     await msg.answer(
         "📤 <b>Загрузить видео</b>\n\n"
         "Отправьте видео для анализа\n\n"
-        f"💰 Стоимость: {PRICES['video_analysis']:,} токенов\n\n"
+        f"⭐ Стоимость: {PRICES['video_analysis']:,} звёзд\n\n"
         "<i>⚠️ Максимальный размер: 20 MB\n"
         "📏 Длительность: до 3 минут\n\n"
         "Если видео больше 20 MB — используйте кнопку 🔗 Отправить ссылку</i>",
@@ -132,7 +132,7 @@ async def link_start(msg: Message, state: FSMContext):
     await msg.answer(
         "🔗 <b>Отправить ссылку</b>\n\n"
         "Отправьте ссылку на видео\n\n"
-        f"💰 Стоимость: {PRICES['link_analysis']:,} токенов\n\n"
+        f"⭐ Стоимость: {PRICES['link_analysis']:,} звёзд\n\n"
         "<i>Поддержка:\n"
         "• TikTok\n"
         "• Instagram Reels\n"
@@ -187,8 +187,8 @@ async def process_text_advice(msg: Message, state: FSMContext):
         await msg.answer(error_msg)
         return
     
-    # Проверка токенов
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    # Проверка звёзд
+    if not await ensure_balance(msg, required=MIN_STARS):
         await state.clear()
         return
     
@@ -234,39 +234,39 @@ async def process_text_advice(msg: Message, state: FSMContext):
         # Очищаем ответ
         resp = clean_response(resp)
         
-        # Точный подсчёт токенов
-        tok = calculate_tokens(messages, resp)
+        # Точный подсчёт звёзд
+        stars_used = calculate_stars(messages, resp)
         
-        # Списываем токены
-        await db.use_tokens_smart(user_id, tok, 'titus')
+        # Списываем звёзды
+        await db.use_stars_smart(user_id, stars_used, 'titus')
         await db.increment_requests(user_id)
         
         # Сохраняем в диалог
         conv_id = await save_message(user_id, 'user', text, 'viral', model)
         await save_message(user_id, 'assistant', resp, 'viral', model)
         
-        new_balance = await db.get_available_tokens(user_id)
+        new_balance = await db.get_available_stars(user_id)
         
         # Получаем кнопку диалога
         dialog_kb = get_chat_button(conv_id, len(resp))
         
-        # Добавляем кнопку и инфо о токенах к существующему сообщению
+        # Добавляем кнопку и инфо о звездых к существующему сообщению
         if sent_msg:
             try:
-                # Добавляем footer с токенами к существующему тексту
+                # Добавляем footer с звездыми к существующему тексту
                 current_text = sent_msg.text or ""
-                final_text = f"{current_text}\n\n<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>"
+                final_text = f"{current_text}\n\n<i>⭐ Списано: {stars_used:,} | Остаток: {new_balance:,}</i>"
                 await sent_msg.edit_text(final_text, reply_markup=dialog_kb, parse_mode="HTML")
             except Exception:
                 # Если не удалось отредактировать - отправляем отдельное info-сообщение
                 await msg.answer(
-                    f"<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>",
+                    f"<i>⭐ Списано: {stars_used:,} | Остаток: {new_balance:,}</i>",
                     reply_markup=dialog_kb,
                     parse_mode="HTML"
                 )
         else:
             await msg.answer(
-                f"<i>💰 Списано: {tok:,} | Остаток: {new_balance:,}</i>",
+                f"<i>⭐ Списано: {stars_used:,} | Остаток: {new_balance:,}</i>",
                 reply_markup=dialog_kb,
                 parse_mode="HTML"
             )
@@ -309,7 +309,7 @@ async def process_video(msg: Message, state: FSMContext):
     """Обработка загруженного видео"""
     user_id = msg.from_user.id
     
-    # Проверка токенов
+    # Проверка звёзд
     if not await ensure_balance(msg, required=PRICES['video_analysis']):
         await state.clear()
         return
@@ -434,8 +434,8 @@ async def process_video(msg: Message, state: FSMContext):
             await state.clear()
             return
         
-        # Списываем токены
-        await db.use_tokens_smart(user_id, PRICES['video_analysis'], 'titus')
+        # Списываем звёзды
+        await db.use_stars_smart(user_id, PRICES['video_analysis'], 'titus')
         await db.increment_requests(user_id)
         
         # Сохраняем в диалог
@@ -443,7 +443,7 @@ async def process_video(msg: Message, state: FSMContext):
         conv_id = await save_message(user_id, 'user', '📤 Загрузил видео для анализа', 'viral', model)
         await save_message(user_id, 'assistant', analysis, 'viral', model)
         
-        new_balance = await db.get_available_tokens(user_id)
+        new_balance = await db.get_available_stars(user_id)
         
         if status:
             await status.stop()
@@ -456,7 +456,7 @@ async def process_video(msg: Message, state: FSMContext):
         # Отправляем результат с кнопкой диалога
         await msg.answer(
             f"{analysis}\n\n"
-            f"<i>💰 Списано: {PRICES['video_analysis']:,} | Остаток: {new_balance:,}</i>",
+            f"<i>⭐ Списано: {PRICES['video_analysis']:,} | Остаток: {new_balance:,}</i>",
             reply_markup=dialog_kb,
             parse_mode="HTML"
         )
@@ -513,7 +513,7 @@ async def process_link(msg: Message, state: FSMContext):
         await msg.answer("❌ Отправьте корректную ссылку на видео")
         return
     
-    # Проверка токенов
+    # Проверка звёзд
     if not await ensure_balance(msg, required=PRICES['link_analysis']):
         await state.clear()
         return
@@ -607,8 +607,8 @@ async def process_link(msg: Message, state: FSMContext):
             await state.clear()
             return
         
-        # Списываем токены
-        await db.use_tokens_smart(user_id, PRICES['link_analysis'], 'titus')
+        # Списываем звёзды
+        await db.use_stars_smart(user_id, PRICES['link_analysis'], 'titus')
         await db.increment_requests(user_id)
         
         # Сохраняем в диалог
@@ -616,7 +616,7 @@ async def process_link(msg: Message, state: FSMContext):
         conv_id = await save_message(user_id, 'user', f'🔗 Отправил ссылку: {url}', 'viral', model)
         await save_message(user_id, 'assistant', analysis, 'viral', model)
         
-        new_balance = await db.get_available_tokens(user_id)
+        new_balance = await db.get_available_stars(user_id)
         
         if status:
             await status.stop()
@@ -629,7 +629,7 @@ async def process_link(msg: Message, state: FSMContext):
         # Отправляем результат с кнопкой диалога
         await msg.answer(
             f"{analysis}\n\n"
-            f"<i>💰 Списано: {PRICES['link_analysis']:,} | Остаток: {new_balance:,}</i>",
+            f"<i>⭐ Списано: {PRICES['link_analysis']:,} | Остаток: {new_balance:,}</i>",
             reply_markup=dialog_kb,
             parse_mode="HTML"
         )
@@ -768,7 +768,7 @@ def format_viral_response(text: str) -> str:
     text = text.replace("### 📝 ТЕКСТ", "📝 <b>4. ТЕКСТ И СУБТИТРЫ</b>")
     text = text.replace("### 🏷 ХЕШТЕГИ", "🏷 <b>5. ХЕШТЕГИ</b>")
     text = text.replace("### 🔥 СЕКРЕТНЫЕ ФИШКИ", "🔥 <b>6. СЕКРЕТНЫЕ ФИШКИ</b>")
-    text = text.replace("### 💎 ВЕРДИКТ", "💎 <b>ИТОГОВЫЙ ВЕРДИКТ</b>")
+    text = text.replace("### ⭐ ВЕРДИКТ", "⭐ <b>ИТОГОВЫЙ ВЕРДИКТ</b>")
     
     # Убираем лишние ### и ##
     text = text.replace("###", "").replace("##", "")

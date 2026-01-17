@@ -7,7 +7,7 @@ import asyncio
 import websockets
 import json
 from datetime import datetime
-from database import db, redis_db
+from database import postgres_db as db, redis_db
 from database.postgres_db import init_pool, init_db, get_pair_session_with_names
 from utils.openrouter import ask
 import config
@@ -200,7 +200,7 @@ async def get_ai_response(messages: list, session_data: dict) -> str:
     full_messages = [{"role": "system", "content": system}] + messages
     
     try:
-        response, tokens = await ask(full_messages, config.MODEL)
+        response, stars_used = await ask(full_messages, config.MODEL)
         return response
     except Exception as e:
         print(f"AI Error: {e}")

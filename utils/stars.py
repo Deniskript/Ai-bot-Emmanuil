@@ -1,22 +1,22 @@
 """
-Модуль точного подсчёта токенов для всех ботов.
+Модуль точного подсчёта звёзд ⭐ для всех ботов.
 Учитывает:
-- Русский текст (меньше символов на токен)
-- Разницу цен input/output (output в 5 раз дороже)
+- Русский текст (меньше символов на единицу API)
+- Разницу цен input/output (output дороже)
 - Маржу 50-60%
 """
 
 # Множитель маржи (2.5 = ~150% маржи)
-TOKEN_MARGIN = 2.5
+STAR_MARGIN = 2.5
 
 
-def count_tokens_estimate(text: str) -> int:
+def count_api_units_estimate(text: str) -> int:
     """
-    Оценка количества токенов в тексте.
+    Оценка количества единиц API в тексте.
     
-    Русский текст: ~2.5 символа на токен
-    Английский: ~4 символа на токен
-    Смешанный: ~3 символа на токен
+    Русский текст: ~2.5 символа на единицу
+    Английский: ~4 символа на единицу
+    Смешанный: ~3 символа на единицу
     """
     if not text:
         return 0
@@ -41,14 +41,12 @@ def count_tokens_estimate(text: str) -> int:
     return int(len(text) / divisor)
 
 
-def calculate_tokens(messages: list, response: str) -> int:
+def calculate_stars(messages: list, response: str) -> int:
     """
-    Главная функция подсчёта токенов для списания.
+    Подсчёт использованных звёзд ⭐.
+    Конверсия: 100 единиц API = 1 звезда.
     
-    Учитывает что output дороже input в 5 раз:
-    - Input: $3 / 1M токенов  
-    - Output: $15 / 1M токенов
-    
+    Учитывает что output дороже input:
     Формула: (input + output×3) × маржа
     """
     # Собираем весь input текст
@@ -63,29 +61,29 @@ def calculate_tokens(messages: list, response: str) -> int:
                 if isinstance(item, dict) and item.get("type") == "text":
                     input_text += item.get("text", "") + " "
     
-    # Считаем токены
-    input_tokens = count_tokens_estimate(input_text)
-    output_tokens = count_tokens_estimate(response)
+    # Считаем единицы API
+    input_units = count_api_units_estimate(input_text)
+    output_units = count_api_units_estimate(response)
     
     # Взвешенная сумма (output × 3 т.к. дороже)
-    weighted = input_tokens + (output_tokens * 3)
+    weighted = input_units + (output_units * 3)
     
     # Применяем маржу
-    final = int(weighted * TOKEN_MARGIN)
+    api_units = int(weighted * STAR_MARGIN)
     
-    # Минимум 50 токенов за запрос
-    return max(final, 50)
+    # Конвертируем единицы API -> звёзды
+    return max(1, api_units // 100)
 
 
-def calculate_tokens_simple(input_len: int, output_len: int) -> int:
+def calculate_stars_simple(input_len: int, output_len: int) -> int:
     """
     Упрощённый подсчёт по длине текста.
     Для случаев когда messages недоступны.
     """
-    input_tokens = input_len // 3  # Для русского
-    output_tokens = output_len // 3
+    input_units = input_len // 3  # Для русского
+    output_units = output_len // 3
     
-    weighted = input_tokens + (output_tokens * 3)
-    final = int(weighted * TOKEN_MARGIN)
+    weighted = input_units + (output_units * 3)
+    api_units = int(weighted * STAR_MARGIN)
     
-    return max(final, 50)
+    return max(1, api_units // 100)

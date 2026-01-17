@@ -76,17 +76,20 @@ def subscription_plans_kb():
 
 def subscription_active_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📦 Докупить токены", callback_data="sub:tokens")],
+        [InlineKeyboardButton(text="📦 Докупить звёзды", callback_data="sub:stars")],
         [InlineKeyboardButton(text="📋 Сменить тариф", callback_data="sub:plans")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 
-def tokens_packages_kb():
+def stars_packages_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📦 100K — 149₽", callback_data="tokens:buy:100k")],
-        [InlineKeyboardButton(text="📦 200K — 249₽", callback_data="tokens:buy:200k")],
+        [InlineKeyboardButton(text="📦 1,000 ⭐ — 149₽", callback_data="stars:buy:1000")],
+        [InlineKeyboardButton(text="📦 2,000 ⭐ — 249₽", callback_data="stars:buy:2000")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="sub:back")]
     ])
+
+
+# Backward-compat alias
 
 def payment_kb(url: str, tx_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -165,7 +168,7 @@ def user_manage_kb(uid: int, is_blocked: bool = False):
     return InlineKeyboardMarkup(inline_keyboard=[
         [block_btn],
         [InlineKeyboardButton(text="💎 Выдать подписку", callback_data=f"adm:givesub:{uid}")],
-        [InlineKeyboardButton(text="💰 Выдать токены", callback_data=f"adm:givetokens:{uid}")],
+        [InlineKeyboardButton(text="⭐ Выдать звёзды", callback_data=f"adm:givestars:{uid}")],
         [InlineKeyboardButton(text="🧠 Память", callback_data=f"mem:user:{uid}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back")]
     ])
@@ -496,7 +499,7 @@ def mood_tags_kb(selected: list = None):
 
 def category_kb():
     """Выбор категории расходов"""
-    from database.db import EXPENSE_CATEGORIES
+    from database.postgres_db import EXPENSE_CATEGORIES
     buttons = []
     categories = list(EXPENSE_CATEGORIES.items())
     

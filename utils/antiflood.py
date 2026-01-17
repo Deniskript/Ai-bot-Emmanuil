@@ -1,6 +1,6 @@
 import time
 from collections import defaultdict
-from database import db
+from database import postgres_db as db
 
 
 class AIAntiFlood:

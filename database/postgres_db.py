@@ -11,6 +11,7 @@ import string
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, List
 from contextlib import asynccontextmanager
+from config import NEW_USER_BONUS
 
 
 # Константы для совместимости
@@ -71,7 +72,7 @@ async def _init_db_schema():
         user_id BIGINT PRIMARY KEY,
         username TEXT,
         first_name TEXT,
-        tokens INTEGER DEFAULT 5000,
+        stars INTEGER DEFAULT 250,
         total_used INTEGER DEFAULT 0,
         total_requests INTEGER DEFAULT 0,
         is_blocked INTEGER DEFAULT 0,
@@ -131,30 +132,45 @@ async def _init_db_schema():
     CREATE TABLE IF NOT EXISTS subscriptions (
         user_id BIGINT PRIMARY KEY,
         type TEXT,
-        tokens_limit INTEGER DEFAULT 0,
-        tokens_used INTEGER DEFAULT 0,
+        stars_limit INTEGER DEFAULT 0,
+        stars_used INTEGER DEFAULT 0,
         started_at TIMESTAMP,
         expires_at TIMESTAMP,
         is_active INTEGER DEFAULT 0
     );
     
-    -- Использование токенов
-    CREATE TABLE IF NOT EXISTS token_usage (
+    -- Использование звёзд
+    CREATE TABLE IF NOT EXISTS star_usage (
         id SERIAL PRIMARY KEY,
         user_id BIGINT,
-        tokens_used INTEGER,
+        stars_used INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         bot_name TEXT DEFAULT 'unknown'
     );
-    CREATE INDEX IF NOT EXISTS idx_token_usage_user_date ON token_usage(user_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_token_usage_bot ON token_usage(user_id, bot_name);
+    CREATE INDEX IF NOT EXISTS idx_star_usage_user_date ON star_usage(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_star_usage_bot ON star_usage(user_id, bot_name);
+    
+    -- Платёжные транзакции (подписки/звёзды)
+    CREATE TABLE IF NOT EXISTS payment_transactions (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        stars INTEGER NOT NULL DEFAULT 0,
+        status TEXT DEFAULT 'pending',
+        robokassa_id BIGINT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_transactions_user ON payment_transactions(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status);
     
     -- Реферальная система
     CREATE TABLE IF NOT EXISTS referrals (
         id SERIAL PRIMARY KEY,
         referrer_id BIGINT NOT NULL,
         referred_id BIGINT NOT NULL,
-        tokens_earned INTEGER DEFAULT 0,
+        stars_earned INTEGER DEFAULT 0,
         subscription_type TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(referred_id)
@@ -622,15 +638,15 @@ async def get_user(uid: int) -> Optional[Dict]:
 
 
 async def create_user(uid: int, uname: str = None, fname: str = None, referred_by: int = None) -> Dict:
-    """Создать нового пользователя"""
+    """Создать нового пользователя с бонусными звёздами"""
     async with get_connection() as conn:
         await conn.execute(
             """
-            INSERT INTO users (user_id, username, first_name, tokens, referred_by)
-            VALUES ($1, $2, $3, 5000, $4)
+            INSERT INTO users (user_id, username, first_name, stars, referred_by)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (user_id) DO NOTHING
             """,
-            uid, uname, fname, referred_by
+            uid, uname, fname, NEW_USER_BONUS, referred_by
         )
         
         # Если есть реферер, создаём запись в referrals
@@ -647,6 +663,21 @@ async def create_user(uid: int, uname: str = None, fname: str = None, referred_b
         return await get_user(uid)
 
 
+async def get_or_create_user(
+    uid: int,
+    uname: str = None,
+    fname: str = None,
+    referred_by: int = None
+) -> Dict:
+    """Получить пользователя или создать нового"""
+    user = await get_user(uid)
+    if user:
+        return user
+
+    await create_user(uid, uname, fname, referred_by)
+    return await get_user(uid)
+
+
 async def accept_agreement(uid: int):
     """Принять соглашение"""
     async with get_connection() as conn:
@@ -656,13 +687,13 @@ async def accept_agreement(uid: int):
         )
 
 
-async def update_tokens(uid: int, used: int):
-    """Обновить токены после использования"""
+async def update_stars(uid: int, used: int):
+    """Обновить звёзды после использования"""
     async with get_connection() as conn:
         await conn.execute(
             """
             UPDATE users
-            SET tokens = tokens - $2,
+            SET stars = stars - $2,
                 total_used = total_used + $2,
                 total_requests = total_requests + 1
             WHERE user_id = $1
@@ -671,20 +702,20 @@ async def update_tokens(uid: int, used: int):
         )
 
 
-async def add_tokens(uid: int, amt: int):
-    """Добавить токены"""
+async def add_stars(uid: int, amt: int):
+    """Добавить звёзды"""
     async with get_connection() as conn:
         await conn.execute(
-            "UPDATE users SET tokens = tokens + $2 WHERE user_id = $1",
+            "UPDATE users SET stars = stars + $2 WHERE user_id = $1",
             uid, amt
         )
 
 
-async def subtract_tokens(uid: int, amount: int):
-    """Вычесть токены"""
+async def subtract_stars(uid: int, amount: int):
+    """Вычесть звёзды"""
     async with get_connection() as conn:
         await conn.execute(
-            "UPDATE users SET tokens = tokens - $2 WHERE user_id = $1",
+            "UPDATE users SET stars = stars - $2 WHERE user_id = $1",
             uid, amount
         )
 
@@ -983,6 +1014,16 @@ async def add_message(conversation_id: int, role: str, content: str, model: str 
         )
 
 
+async def get_conversation(conversation_id: int) -> Optional[Dict]:
+    """Получить диалог по id"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM conversations WHERE id = $1",
+            conversation_id
+        )
+        return dict(row) if row else None
+
+
 async def get_conversation_messages(conversation_id: int, limit: int = 20) -> List[Dict]:
     """Получить сообщения диалога"""
     async with get_connection() as conn:
@@ -1046,7 +1087,7 @@ async def get_subscription(uid: int) -> Optional[Dict]:
         return dict(row) if row else None
 
 
-async def create_subscription(uid: int, sub_type: str, tokens_limit: int, days: int):
+async def create_subscription(uid: int, sub_type: str, stars_limit: int, days: int):
     """Создать подписку"""
     async with get_connection() as conn:
         started = datetime.now()
@@ -1054,21 +1095,30 @@ async def create_subscription(uid: int, sub_type: str, tokens_limit: int, days: 
         
         await conn.execute(
             """
-            INSERT INTO subscriptions (user_id, type, tokens_limit, tokens_used, started_at, expires_at, is_active)
+            INSERT INTO subscriptions (user_id, type, stars_limit, stars_used, started_at, expires_at, is_active)
             VALUES ($1, $2, $3, 0, $4, $5, 1)
             ON CONFLICT (user_id)
-            DO UPDATE SET type = $2, tokens_limit = $3, tokens_used = 0,
+            DO UPDATE SET type = $2, stars_limit = $3, stars_used = 0,
                           started_at = $4, expires_at = $5, is_active = 1
             """,
-            uid, sub_type, tokens_limit, started, expires
+            uid, sub_type, stars_limit, started, expires
         )
 
 
-async def update_subscription_tokens(uid: int, used: int):
-    """Обновить использованные токены подписки"""
+async def add_subscription_stars(uid: int, stars: int):
+    """Добавить звёзды к лимиту подписки"""
     async with get_connection() as conn:
         await conn.execute(
-            "UPDATE subscriptions SET tokens_used = tokens_used + $2 WHERE user_id = $1",
+            "UPDATE subscriptions SET stars_limit = stars_limit + $2 WHERE user_id = $1",
+            uid, stars
+        )
+
+
+async def update_subscription_stars(uid: int, used: int):
+    """Обновить использованные звёзды подписки"""
+    async with get_connection() as conn:
+        await conn.execute(
+            "UPDATE subscriptions SET stars_used = stars_used + $2 WHERE user_id = $1",
             uid, used
         )
 
@@ -1092,32 +1142,32 @@ async def get_active_subscriptions() -> List[Dict]:
 
 
 # ============================================================================
-# TOKEN USAGE - Использование токенов
+# STAR USAGE - Использование звёзд
 # ============================================================================
 
-async def log_token_usage(uid: int, tokens: int, bot_name: str = 'unknown'):
-    """Записать использование токенов"""
+async def log_star_usage(uid: int, stars: int, bot_name: str = 'unknown'):
+    """Записать использование звёзд"""
     async with get_connection() as conn:
         await conn.execute(
-            "INSERT INTO token_usage (user_id, tokens_used, bot_name) VALUES ($1, $2, $3)",
-            uid, tokens, bot_name
+            "INSERT INTO star_usage (user_id, stars_used, bot_name) VALUES ($1, $2, $3)",
+            uid, stars, bot_name
         )
 
 
-async def get_token_usage_stats(uid: int, days: int = 30) -> Dict:
-    """Получить статистику использования токенов"""
+async def get_star_usage_stats(uid: int, days: int = 30) -> Dict:
+    """Получить статистику использования звёзд"""
     async with get_connection() as conn:
         since = datetime.now() - timedelta(days=days)
         
         total = await conn.fetchval(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM token_usage WHERE user_id = $1 AND created_at >= $2",
+            "SELECT COALESCE(SUM(stars_used), 0) FROM star_usage WHERE user_id = $1 AND created_at >= $2",
             uid, since
         )
         
         by_bot = await conn.fetch(
             """
-            SELECT bot_name, SUM(tokens_used) as total
-            FROM token_usage
+            SELECT bot_name, SUM(stars_used) as total
+            FROM star_usage
             WHERE user_id = $1 AND created_at >= $2
             GROUP BY bot_name
             ORDER BY total DESC
@@ -1129,6 +1179,40 @@ async def get_token_usage_stats(uid: int, days: int = 30) -> Dict:
             "total": total,
             "by_bot": {row['bot_name']: row['total'] for row in by_bot}
         }
+
+
+async def get_total_stars_used() -> int:
+    """Получить суммарно использованные звёзды по подпискам"""
+    async with get_connection() as conn:
+        total = await conn.fetchval(
+            "SELECT COALESCE(SUM(stars_used), 0) FROM subscriptions"
+        )
+        return total or 0
+
+
+async def get_stars_by_model(sub_type: str) -> int:
+    """Получить использованные звёзды по типу подписки"""
+    async with get_connection() as conn:
+        total = await conn.fetchval(
+            "SELECT COALESCE(SUM(stars_used), 0) FROM subscriptions WHERE type = $1",
+            sub_type
+        )
+        return total or 0
+
+
+async def get_all_bots_stars(uid: int) -> Dict[str, int]:
+    """Получить статистику использования звёзд по всем ботам"""
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT bot_name, COALESCE(SUM(stars_used), 0) as total
+            FROM star_usage
+            WHERE user_id = $1
+            GROUP BY bot_name
+            """,
+            uid
+        )
+        return {row['bot_name']: row['total'] for row in rows}
 
 
 # ============================================================================
@@ -1153,28 +1237,28 @@ async def get_referral_stats(uid: int) -> Dict:
             uid
         )
         
-        total_tokens = await conn.fetchval(
-            "SELECT COALESCE(SUM(tokens_earned), 0) FROM referrals WHERE referrer_id = $1",
+        total_stars = await conn.fetchval(
+            "SELECT COALESCE(SUM(stars_earned), 0) FROM referrals WHERE referrer_id = $1",
             uid
         )
         
-        return {"count": count, "total_tokens": total_tokens}
+        return {"count": count, "total_stars": total_stars}
 
 
-async def add_referral_tokens(referrer_id: int, referred_id: int, tokens: int, sub_type: str = None):
-    """Добавить токены за реферала"""
+async def add_referral_stars(referrer_id: int, referred_id: int, stars: int, sub_type: str = None):
+    """Добавить звёзды за реферала"""
     async with get_connection() as conn:
         await conn.execute(
             """
             UPDATE referrals
-            SET tokens_earned = tokens_earned + $3, subscription_type = $4
+            SET stars_earned = stars_earned + $3, subscription_type = $4
             WHERE referrer_id = $1 AND referred_id = $2
             """,
-            referrer_id, referred_id, tokens, sub_type
+            referrer_id, referred_id, stars, sub_type
         )
         
-        # Добавляем токены рефереру
-        await add_tokens(referrer_id, tokens)
+        # Добавляем звёзды рефереру
+        await add_stars(referrer_id, stars)
 
 
 # ============================================================================
@@ -2063,6 +2147,49 @@ async def get_transactions(uid: int, limit: int = 50) -> List[Dict]:
         return [dict(row) for row in rows]
 
 
+# ============================================================================
+# ПЛАТЕЖИ - Подписки/звёзды
+# ============================================================================
+
+async def create_transaction(uid: int, amount: float, stars: int, tx_type: str) -> int:
+    """Создать платёжную транзакцию"""
+    async with get_connection() as conn:
+        tx_id = await conn.fetchval(
+            """
+            INSERT INTO payment_transactions (user_id, amount, stars, type, status)
+            VALUES ($1, $2, $3, $4, 'pending')
+            RETURNING id
+            """,
+            uid, amount, stars, tx_type
+        )
+        return int(tx_id)
+
+
+async def complete_transaction(tx_id: int, robokassa_id: int = None):
+    """Подтвердить платёжную транзакцию"""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            UPDATE payment_transactions
+            SET status = 'completed',
+                robokassa_id = $2,
+                completed_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            """,
+            tx_id, robokassa_id
+        )
+
+
+async def get_transaction(tx_id: int) -> Optional[Dict]:
+    """Получить платёжную транзакцию"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM payment_transactions WHERE id = $1",
+            tx_id
+        )
+        return dict(row) if row else None
+
+
 async def get_monthly_stats(uid: int, year: int, month: int) -> Dict:
     """Получить статистику за месяц"""
     async with get_connection() as conn:
@@ -2455,11 +2582,11 @@ async def clear_msgs(uid: int, bot: str):
             await clear_conversation(conv_id)
 
 
-async def get_available_tokens(uid: int) -> int:
+async def get_available_stars(uid: int) -> int:
     """
-    Получить доступные токены:
-    - Если есть активная подписка -> токены из подписки
-    - Если нет подписки -> бонусные токены из users.tokens
+    Получить доступные звёзды:
+    - Если есть активная подписка -> звёзды из подписки
+    - Если нет подписки -> бонусные звёзды из users.stars
     """
     sub = await get_subscription(uid)
     
@@ -2468,23 +2595,23 @@ async def get_available_tokens(uid: int) -> int:
         # Проверяем не истекла ли подписка
         from datetime import datetime
         if sub['expires_at'] and sub['expires_at'] > datetime.now():
-            return sub['tokens_limit'] - sub['tokens_used']
+            return sub['stars_limit'] - sub['stars_used']
     
-    # Нет подписки - берём бонусные токены
+    # Нет подписки - берём бонусные звёзды
     user = await get_user(uid)
-    return user['tokens'] if user else 0
+    return user['stars'] if user else 0
 
 
-async def use_tokens_smart(uid: int, amount: int, bot_name: str = None) -> bool:
+async def use_stars_smart(uid: int, amount: int, bot_name: str = None) -> bool:
     """
-    Списать токены:
+    Списать звёзды:
     - Если есть активная подписка -> из подписки
-    - Если нет подписки -> из users.tokens (бонусные)
+    - Если нет подписки -> из users.stars (бонусные)
     - Разрешаем уход в минус, но БЛОКИРУЕМ дальнейшее использование при отрицательном балансе
     - Записываем статистику по ботам
     """
     # Проверяем доступный баланс ПЕРЕД списанием
-    available = await get_available_tokens(uid)
+    available = await get_available_stars(uid)
     
     # Если баланс уже отрицательный - БЛОКИРУЕМ
     if available < 0:
@@ -2492,19 +2619,19 @@ async def use_tokens_smart(uid: int, amount: int, bot_name: str = None) -> bool:
     
     sub = await get_subscription(uid)
     
-    # Записываем использование токенов по ботам
+    # Записываем использование звёзд по ботам
     if bot_name:
-        await log_token_usage(uid, amount, bot_name)
+        await log_star_usage(uid, amount, bot_name)
     
     # Есть активная подписка
     if sub and sub['is_active']:
         from datetime import datetime
         if sub['expires_at'] and sub['expires_at'] > datetime.now():
-            await update_subscription_tokens(uid, amount)
+            await update_subscription_stars(uid, amount)
             return True
     
     # Нет подписки - списываем бонусные
-    await update_tokens(uid, amount)
+    await update_stars(uid, amount)
     return True
 
 
@@ -2579,7 +2706,7 @@ async def get_user_model(uid: int) -> str:
     sub = await get_subscription(uid)
     if sub and sub['type']:
         return await get_model_for_subscription(sub['type'])
-    return "anthropic/claude-sonnet-4"  # дефолтная модель для бонусных токенов
+    return "anthropic/claude-sonnet-4"  # дефолтная модель для бонусных звёзд
 
 
 async def increment_requests(uid: int):
@@ -3447,3 +3574,46 @@ async def list_magic_history(
                 d["created_at"] = d["created_at"].strftime("%Y-%m-%d %H:%M")
             items.append(d)
         return items
+
+
+# ============================================================================
+# REFERRAL SYSTEM - Недостающие функции
+# ============================================================================
+
+async def get_referrer_id(uid: int) -> Optional[int]:
+    """
+    Получить ID реферера пользователя.
+
+    Args:
+        uid: ID пользователя
+
+    Returns:
+        ID реферера или None если нет реферера
+    """
+    async with get_connection() as conn:
+        return await conn.fetchval(
+            "SELECT referred_by FROM users WHERE user_id = $1",
+            uid
+        )
+
+
+async def add_referral_reward(referrer_id: int, referred_id: int, stars: int, sub_type: str = None):
+    """
+    Добавить звёзды за реферала.
+    Алиас для add_referral_stars() для совместимости с handlers.
+
+    Args:
+        referrer_id: ID реферера (кто получает бонус)
+        referred_id: ID приглашённого (кто купил подписку)
+        stars: Количество звёзд для начисления
+        sub_type: Тип подписки (mini/standard)
+    """
+    return await add_referral_stars(referrer_id, referred_id, stars, sub_type)
+
+
+class PostgresDB:
+    """
+    Класс-заглушка для обратной совместимости.
+    Не используется в бизнес-логике, но позволяет импортировать PostgresDB.
+    """
+    pass

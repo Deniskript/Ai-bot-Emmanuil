@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from loader import bot
-from database import db
+from database import postgres_db as db
 from keyboards import inline
 from config import ADMIN_IDS
 
@@ -27,7 +27,7 @@ class MemEdit(StatesGroup):
 class GiveSub(StatesGroup):
     user_id = State()
 
-class GiveTokens(StatesGroup):
+class GiveStars(StatesGroup):
     user_id = State()
     amount = State()
 
@@ -76,18 +76,18 @@ async def stats(cb: CallbackQuery):
     standard_count = await db.count_subscribers_by_type('standard')
     total_subs = mini_count + standard_count
     
-    # Токены
-    total_tokens_used = await db.get_total_tokens_used()
+    # Звёзды
+    total_stars_used = await db.get_total_stars_used()
     
     await cb.message.edit_text(
         f"📊 <b>Статистика</b>\n\n"
         f"👥 Всего пользователей: {fmt(total_users)}\n"
         f"🚫 Заблокировано: {blocked}\n\n"
-        f"💎 <b>Подписки:</b>\n"
+        f"⭐ <b>Подписки:</b>\n"
         f"├ 🔵 Mini (Sonnet): {mini_count}\n"
         f"├ 🟣 Standard (Opus): {standard_count}\n"
         f"└ Всего: {total_subs}\n\n"
-        f"📈 Токенов использовано: {fmt(total_tokens_used)}",
+        f"📈 Звёзд использовано: {fmt(total_stars_used)}",
         reply_markup=inline.back_kb("adm:back"))
 
 # === НАГРУЗКА ===
@@ -224,8 +224,8 @@ async def find_user(msg: Message, state: FSMContext):
             sub_info = "❌ Нет"
             if sub and sub.get('is_active'):
                 sub_type = "🔵 Mini" if sub['type'] == 'mini' else "🟣 Standard"
-                tokens_left = sub['tokens_limit'] - sub['tokens_used']
-                sub_info = f"{sub_type}\n💎 Токенов: {fmt(tokens_left)}/{fmt(sub['tokens_limit'])}"
+                stars_left = sub['stars_limit'] - sub['stars_used']
+                sub_info = f"{sub_type}\n⭐ Звёзд: {fmt(stars_left)}/{fmt(sub['stars_limit'])}"
             
             await msg.answer(
                 f"👤 <b>Пользователь</b>\n\n"
@@ -233,7 +233,7 @@ async def find_user(msg: Message, state: FSMContext):
                 f"👤 @{u['username'] or '—'}\n"
                 f"📊 Запросов: {u['total_requests']}\n"
                 f"🚫 Бан: {'Да' if u['is_blocked'] else 'Нет'}\n\n"
-                f"💎 <b>Подписка:</b> {sub_info}",
+                f"⭐ <b>Подписка:</b> {sub_info}",
                 reply_markup=inline.user_manage_kb(uid, u['is_blocked']))
         await state.clear()
     except:
@@ -257,23 +257,23 @@ async def unblock_user(cb: CallbackQuery):
     await cb.answer("✅ Разблокирован")
     await cb.message.edit_text("👑 <b>АДМИН-ПАНЕЛЬ</b>", reply_markup=inline.admin_kb())
 
-# === ВЫДАЧА ТОКЕНОВ ===
+# === ВЫДАЧА ЗВЁЗД ===
 
-@router.callback_query(F.data.startswith("adm:givetokens:"))
-async def give_tokens_start(cb: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("adm:givestars:"))
+async def give_stars_start(cb: CallbackQuery, state: FSMContext):
     if not is_adm(cb.from_user.id):
         return
     uid = int(cb.data.split(":")[2])
-    await state.update_data(give_tokens_uid=uid)
+    await state.update_data(give_stars_uid=uid)
     await cb.message.edit_text(
-        f"💰 <b>Выдать токены</b>\n\n"
+        f"💰 <b>Выдать звёзды</b>\n\n"
         f"👤 ID: <code>{uid}</code>\n\n"
-        f"Введите количество токенов для выдачи:",
+        f"Введите количество звёзд для выдачи:",
         reply_markup=inline.back_kb("adm:back"))
-    await state.set_state(GiveTokens.amount)
+    await state.set_state(GiveStars.amount)
 
-@router.message(GiveTokens.amount)
-async def give_tokens_amount(msg: Message, state: FSMContext):
+@router.message(GiveStars.amount)
+async def give_stars_amount(msg: Message, state: FSMContext):
     if not is_adm(msg.from_user.id):
         return
     try:
@@ -283,37 +283,37 @@ async def give_tokens_amount(msg: Message, state: FSMContext):
             return
         
         data = await state.get_data()
-        uid = data.get('give_tokens_uid')
+        uid = data.get('give_stars_uid')
         
         if not uid:
             await msg.answer("❌ Ошибка: не найден ID пользователя")
             await state.clear()
             return
         
-        # Выдаём токены
-        await db.add_tokens(uid, amount)
+        # Выдаём звёзды
+        await db.add_stars(uid, amount)
         
         # Получаем текущий баланс
         user = await db.get_user(uid)
-        new_balance = user['tokens'] if user else 0
+        new_balance = user['stars'] if user else 0
         
         # Уведомляем пользователя
         try:
             await bot.send_message(
                 uid,
-                f"🎉 <b>Вам выдано токенов!</b>\n\n"
-                f"💰 Количество: <b>{fmt(amount)}</b> токенов\n"
-                f"💳 Новый баланс: <b>{fmt(new_balance)}</b> токенов\n\n"
+                f"🎉 <b>Вам выдано звёзд!</b>\n\n"
+                f"💰 Количество: <b>{fmt(amount)}</b> звёзд\n"
+                f"💳 Новый баланс: <b>{fmt(new_balance)}</b> звёзд\n\n"
                 f"Спасибо за использование бота! 🙏"
             )
         except:
             pass
         
         await msg.answer(
-            f"✅ <b>Токены выданы!</b>\n\n"
+            f"✅ <b>Звёзды выданы!</b>\n\n"
             f"👤 ID: <code>{uid}</code>\n"
-            f"💰 Выдано: <b>{fmt(amount)}</b> токенов\n"
-            f"💳 Новый баланс: <b>{fmt(new_balance)}</b> токенов",
+            f"💰 Выдано: <b>{fmt(amount)}</b> звёзд\n"
+            f"💳 Новый баланс: <b>{fmt(new_balance)}</b> звёзд",
             reply_markup=inline.back_kb("adm:back"))
         
         await state.clear()
@@ -332,7 +332,7 @@ async def sub_menu(cb: CallbackQuery):
     mini = await db.count_subscribers_by_type('mini')
     standard = await db.count_subscribers_by_type('standard')
     await cb.message.edit_text(
-        f"💎 <b>Подписки</b>\n\n"
+        f"⭐ <b>Подписки</b>\n\n"
         f"🔵 Mini (Sonnet): {mini}\n"
         f"🟣 Standard (Opus): {standard}",
         reply_markup=inline.sub_admin_kb())
@@ -341,7 +341,7 @@ async def sub_menu(cb: CallbackQuery):
 async def sub_give_start(cb: CallbackQuery, state: FSMContext):
     if not is_adm(cb.from_user.id):
         return
-    await cb.message.edit_text("💎 <b>Выдать подписку</b>\n\nВведите ID пользователя:")
+    await cb.message.edit_text("⭐ <b>Выдать подписку</b>\n\nВведите ID пользователя:")
     await state.set_state(GiveSub.user_id)
 
 @router.message(GiveSub.user_id)
@@ -368,7 +368,7 @@ async def sub_give_from_user(cb: CallbackQuery):
         return
     uid = int(cb.data.split(":")[2])
     await cb.message.edit_text(
-        f"💎 <b>Выдать подписку</b>\n\n👤 ID: {uid}\n\nВыберите тариф и срок:",
+        f"⭐ <b>Выдать подписку</b>\n\n👤 ID: {uid}\n\nВыберите тариф и срок:",
         reply_markup=inline.sub_give_type_kb(uid))
 
 @router.callback_query(F.data.startswith("gsub:"))
@@ -391,7 +391,7 @@ async def give_sub_select(cb: CallbackQuery):
             return
         
         type_name = "🔵 Mini (Sonnet)" if sub_type == "mini" else "🟣 Standard (Opus)"
-        tokens_left = sub['tokens_limit'] - sub['tokens_used']
+        stars_left = sub['stars_limit'] - sub['stars_used']
         
         await cb.answer(f"✅ Подписка выдана!")
         
@@ -399,14 +399,14 @@ async def give_sub_select(cb: CallbackQuery):
         referrer_id = await db.get_referrer_id(uid)
         if referrer_id:
             bonus = 100000 if sub_type == 'mini' else 200000
-            await db.add_tokens(referrer_id, bonus)
+            await db.add_stars(referrer_id, bonus)
             await db.add_referral_reward(referrer_id, uid, bonus, sub_type)
             try:
                 await bot.send_message(
                     referrer_id,
                     f"🎉 <b>Реферальная награда!</b>\n\n"
                     f"Ваш друг оформил {type_name}!\n"
-                    f"💰 Вам начислено: <b>{fmt(bonus)}</b> токенов!"
+                    f"💰 Вам начислено: <b>{fmt(bonus)}</b> звёзд!"
                 )
             except:
                 pass
@@ -414,8 +414,8 @@ async def give_sub_select(cb: CallbackQuery):
         try:
             await bot.send_message(uid, 
                 f"🎉 <b>Вам выдана подписка!</b>\n\n"
-                f"💎 Тариф: {type_name}\n"
-                f"🔢 Токенов: <b>{fmt(tokens_left)}</b>\n"
+                f"⭐ Тариф: {type_name}\n"
+                f"🔢 Звёзд: <b>{fmt(stars_left)}</b>\n"
                 f"📅 Срок: {days} дней")
         except:
             pass
@@ -423,8 +423,8 @@ async def give_sub_select(cb: CallbackQuery):
         await cb.message.edit_text(
             f"✅ <b>Подписка выдана!</b>\n\n"
             f"👤 ID: <code>{uid}</code>\n"
-            f"💎 Тариф: {type_name}\n"
-            f"🔢 Токенов: <b>{fmt(tokens_left)}</b>\n"
+            f"⭐ Тариф: {type_name}\n"
+            f"🔢 Звёзд: <b>{fmt(stars_left)}</b>\n"
             f"📅 Срок: {days} дней",
             reply_markup=inline.back_kb("adm:sub"))
     except Exception as e:
@@ -452,10 +452,10 @@ async def sub_list(cb: CallbackQuery):
         await cb.answer("Нет подписчиков")
         return
     
-    txt = f"💎 <b>{title}</b> ({len(users)})\n\n"
+    txt = f"⭐ <b>{title}</b> ({len(users)})\n\n"
     for u in users[:20]:
-        tokens_left = u['tokens_limit'] - u['tokens_used']
-        txt += f"• {u['user_id']} — {fmt(tokens_left)} токенов\n"
+        stars_left = u['stars_limit'] - u['stars_used']
+        txt += f"• {u['user_id']} — {fmt(stars_left)} звёзд\n"
     
     await cb.message.edit_text(txt, reply_markup=inline.back_kb("adm:sub"))
 
@@ -859,15 +859,15 @@ async def monitor(cb: CallbackQuery):
         return
     
     # Статистика по моделям
-    sonnet_usage = await db.get_tokens_by_model('mini')
-    opus_usage = await db.get_tokens_by_model('standard')
+    sonnet_usage = await db.get_stars_by_model('mini')
+    opus_usage = await db.get_stars_by_model('standard')
     
     await cb.message.edit_text(
         f"📊 <b>Мониторинг моделей</b>\n\n"
         f"🔵 <b>Sonnet (Mini)</b>\n"
-        f"└ Токенов использовано: {fmt(sonnet_usage)}\n\n"
+        f"└ Звёзд использовано: {fmt(sonnet_usage)}\n\n"
         f"🟣 <b>Opus (Standard)</b>\n"
-        f"└ Токенов использовано: {fmt(opus_usage)}\n\n"
+        f"└ Звёзд использовано: {fmt(opus_usage)}\n\n"
         f"📈 Всего: {fmt(sonnet_usage + opus_usage)}",
         reply_markup=inline.monitor_kb())
 

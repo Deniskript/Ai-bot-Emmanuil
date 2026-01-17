@@ -5,11 +5,11 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import db
+from database import postgres_db as db
 from database import redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
 from utils.openrouter import ask
-from utils.tokens import calculate_tokens
+from utils.stars import calculate_stars
 from utils.memory import update_memory
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
@@ -58,7 +58,7 @@ active_requests = {}
 last_messages = {}
 
 # Использование настроек из локального config
-MIN_TOKENS = luca_config.MIN_TOKENS
+MIN_STARS = luca_config.MIN_STARS
 MAX_CACHE_SIZE = luca_config.MAX_CACHE_SIZE
 VOICE_MAP = luca_config.VOICE_MAP
 BOT_NAME = luca_config.BOT_NAME
@@ -364,8 +364,8 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
         await msg.answer(error_msg)
         return
     
-    # Проверка токенов с красивым сообщением
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    # Проверка звёзд с красивым сообщением
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     # Сбрасываем флаг отмены
@@ -424,7 +424,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
         status = await show_status(bot, msg.chat.id, "photo")
         request_state['status'] = status
         try:
-            resp, tok = await ask(messages, model, image_b64)
+            resp, stars_used = await ask(messages, model, image_b64)
         except Exception as e:
             await msg.answer(f"❌ Ошибка: {e}")
             active_requests.pop(user_id, None)
@@ -442,7 +442,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                 model=model,
                 status_type="text"
             )
-            tok = calculate_tokens(messages, resp)
+            stars_used = calculate_stars(messages, resp)
         except Exception as e:
             print(f"Stream error: {e}")
             import traceback
@@ -471,8 +471,8 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     # Очищаем ответ от служебных строк
     resp = clean_response(resp)
     
-    # Списываем токены с отслеживанием по боту
-    await db.use_tokens_smart(user_id, tok, 'luca')
+    # Списываем звёзды с отслеживанием по боту
+    await db.use_stars_smart(user_id, stars_used, 'luca')
     await db.increment_requests(user_id)
     
     # Сохраняем в историю
@@ -607,7 +607,7 @@ async def luka_chat_photo(msg: Message, state: FSMContext):
 async def process_voice_message(msg: Message, state: FSMContext, text: str):
     """
     Обработка сообщения в голосовом режиме
-    1. Проверки (антифлуд, токены)
+    1. Проверки (антифлуд, звёзды)
     2. Получение ответа от AI
     3. Озвучка через TTS
     4. Отправка голосового сообщения
@@ -620,8 +620,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         await msg.answer(error_msg)
         return
     
-    # Проверка токенов с красивым сообщением
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    # Проверка звёзд с красивым сообщением
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     # Статус запроса с кнопкой отмены
@@ -680,7 +680,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
             return
         
         # Запрос к AI
-        resp, tokens_used = await ask(messages, model)
+        resp, stars_used = await ask(messages, model)
         
         # Проверка на отмену
         if request_state['cancelled']:
@@ -697,8 +697,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         # Удаляем эмодзи (упрощённо)
         resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\']+', '', resp_clean, flags=re.UNICODE)
         
-        # Списываем токены
-        await db.use_tokens_smart(user_id, tokens_used, 'luca')
+        # Списываем звёзды
+        await db.use_stars_smart(user_id, stars_used, 'luca')
         await db.increment_requests(user_id)
         
         # Сохраняем в историю

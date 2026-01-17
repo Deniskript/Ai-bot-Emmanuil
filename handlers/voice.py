@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import db
+from database import postgres_db as db
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.memory import update_memory, build_memory_context
@@ -11,7 +11,7 @@ from utils.antiflood import ai_flood
 from utils.balance_guard import ensure_balance
 from prompts.voice_prompt import VOICE_EMOTIONAL_PROMPT
 from utils.status_manager import show_status
-from config import MIN_TOKENS
+from config import MIN_STARS
 from loader import bot
 import asyncio
 import os
@@ -127,7 +127,7 @@ async def voice_change_gender(msg: Message, state: FSMContext):
 async def process_voice_message(msg: Message, state: FSMContext, text: str):
     """
     Главная функция обработки сообщения в голосовом режиме
-    1. Проверки (антифлуд, токены)
+    1. Проверки (антифлуд, звёзды)
     2. Получение ответа от AI
     3. Озвучка через TTS
     4. Отправка голосового сообщения
@@ -140,8 +140,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         await msg.answer(error_msg)
         return
     
-    # Проверка токенов
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    # Проверка звёзд
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     status = await show_status(bot, msg.chat.id, "voice")
@@ -174,7 +174,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         messages.append({"role": "user", "content": text})
         
         # Запрос к AI
-        resp, tokens_used = await ask(messages, model)
+        resp, stars_used = await ask(messages, model)
         
         if not resp:
             await msg.answer("❌ Не удалось получить ответ")
@@ -186,8 +186,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         import re
         resp_clean = re.sub(r'[^\w\s,.!?;:—\-()«»"\']+', '', resp_clean, flags=re.UNICODE)
         
-        # Списываем токены
-        await db.use_tokens_smart(user_id, tokens_used, 'voice')
+        # Списываем звёзды
+        await db.use_stars_smart(user_id, stars_used, 'voice')
         await db.increment_requests(user_id)
         
         # Сохраняем в историю

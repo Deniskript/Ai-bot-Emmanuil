@@ -1,9 +1,9 @@
 """
 Долгая память для Luca (Soul AI)
-Работает с PostgreSQL через database.db
+Работает с PostgreSQL через database.postgres_db
 """
 from typing import List, Dict
-from database import db
+from database import postgres_db as db
 from .prompts import (
     LUCA_BASE,
     CHARS,

@@ -21,7 +21,7 @@ import asyncio
 import traceback
 from PIL import Image, ImageDraw, ImageFont
 import io
-from database import db
+from database import postgres_db as db
 from utils.balance_guard import ensure_balance
 from utils.status_manager import show_status
 from loader import bot
@@ -341,7 +341,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
             await state.set_state(ImageStates.waiting_creative_meme_idea)
             await message.answer(
                 "<b>😂 Мем (шаблон)</b>\n\n"
-                f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+                f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд\n\n"
                 "📝 Напишите текст для мема:\n"
                 "Верх: ...\n"
                 "Низ: ...\n\n"
@@ -353,7 +353,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
         await state.set_state(ImageStates.waiting_creative_meme_idea)
         await message.answer(
             "<b>😂 Мем</b>\n\n"
-            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+            f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд\n\n"
             "📝 Напишите идею мема (1–2 предложения).\n"
             "<i>Текст на картинке будет без ошибок (рисуется ботом).</i>",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
@@ -378,7 +378,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
         await message.answer(
             "<b>🎨 Стиль</b>\n\n"
             f"<b>Выбрано:</b> {style_h}{extra}\n"
-            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+            f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд\n\n"
             "📸 Отправьте фото, к которому применить стиль.",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
             parse_mode="HTML",
@@ -399,7 +399,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
     await message.answer(
         "<b>🎪 Эффект</b>\n\n"
         f"<b>Выбрано:</b> {effect_h}\n"
-        f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+        f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд\n\n"
         "📸 Отправьте фото — добавлю эффект аккуратно.",
         reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
         parse_mode="HTML",
@@ -438,12 +438,12 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
             img_bytes = _overlay_meme_text(img_bytes, top, bottom)
 
         if price > 0:
-            await db.use_tokens_smart(user_id, price, bot_name="images")
-        new_balance = await db.get_available_tokens(user_id)
+            await db.use_stars_smart(user_id, price, bot_name="images")
+        new_balance = await db.get_available_stars(user_id)
 
         await message.answer_photo(
             BufferedInputFile(img_bytes, filename="meme.png"),
-            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Готово!</b>\n\n⭐ Списано: {_fmt_stars(price)} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("creative"),
             parse_mode="HTML",
         )
@@ -539,12 +539,12 @@ async def creative_process_photo(message: Message, state: FSMContext):
         out_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=jpeg_bytes)
 
         if price > 0:
-            await db.use_tokens_smart(user_id, price, bot_name="images")
-        new_balance = await db.get_available_tokens(user_id)
+            await db.use_stars_smart(user_id, price, bot_name="images")
+        new_balance = await db.get_available_stars(user_id)
 
         await message.answer_photo(
             BufferedInputFile(out_bytes, filename="creative.png"),
-            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Готово!</b>\n\n⭐ Списано: {_fmt_stars(price)} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("creative"),
             parse_mode="HTML",
         )
@@ -733,7 +733,7 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
             "<b>📱 Обложка</b>\n\n"
             f"<b>Платформа:</b> {_pretty_cover_platform(platform)}\n"
             f"<b>Размер:</b> {size}\n"
-            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов"
+            f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд"
             f"{text_note}\n\n"
             "📝 Напишите тему/идею обложки (1–2 предложения).",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
@@ -748,7 +748,7 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
             "<b>🎨 Логотип</b>\n\n"
             f"<b>Стиль:</b> {_pretty_logo_style(style)}\n"
             f"<b>Цвет:</b> {_pretty_logo_color(color)}\n"
-            f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n\n"
+            f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд\n\n"
             "📝 Напишите идею/название бренда и сферу (например: «Coffee Wave, кофейня у моря»).",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
             parse_mode="HTML",
@@ -765,7 +765,7 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
         "<b>📄 Презентация</b>\n\n"
         f"<b>Формат:</b> {fmt}\n"
         f"<b>Размер:</b> {size}\n"
-        f"<b>Стоимость:</b> {_fmt_tokens(price)} токенов\n"
+        f"<b>Стоимость:</b> {_fmt_stars(price)} звёзд\n"
         f"{text_note}\n\n"
         "📝 Напишите тему/текст для слайда (лучше: заголовок + до 6 пунктов).",
         reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
@@ -873,15 +873,15 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             img_bytes = _overlay_text_on_image(img_bytes, prompt_ru, layout="presentation")
 
         if price > 0:
-            await db.use_tokens_smart(user_id, price, bot_name="images")
-        new_balance = await db.get_available_tokens(user_id)
+            await db.use_stars_smart(user_id, price, bot_name="images")
+        new_balance = await db.get_available_stars(user_id)
 
         await message.answer_photo(
             BufferedInputFile(img_bytes, filename="blogger.png"),
             caption=(
                 "✅ <b>Готово!</b>\n\n"
-                f"💰 Списано: {_fmt_tokens(price)} токенов\n"
-                f"💳 Остаток: {_fmt_tokens(new_balance)} токенов"
+                f"⭐ Списано: {_fmt_stars(price)} звёзд\n"
+                f"⭐ Остаток: {_fmt_stars(new_balance)} звёзд"
             ),
             reply_markup=_done_inline_kb("blogger"),
             parse_mode="HTML",
@@ -1352,7 +1352,7 @@ def _pretty_aspect(aspect: str) -> str:
     }.get(aspect, aspect or "—")
 
 
-def _fmt_tokens(n: int) -> str:
+def _fmt_stars(n: int) -> str:
     return f"{int(n):,}".replace(",", " ")
 
 
@@ -1448,10 +1448,10 @@ async def video_start(message: Message, state: FSMContext, user_id: int | None =
         await message.answer(
             "🎬 <b>Видео</b>\n\n"
             f"🧩 Режим: <b>{mode_h}</b>\n"
-            f"💎 Уровень: <b>{tier_h}</b>\n"
+            f"⭐ Уровень: <b>{tier_h}</b>\n"
             f"🔊 Аудио: <b>{audio}</b>\n"
             f"📐 Формат: <b>{aspect_h}</b> • <b>{seconds}</b> сек\n"
-            f"💳 Стоимость: <b>{_fmt_tokens(price)}</b> токенов\n",
+            f"💳 Стоимость: <b>{_fmt_stars(price)}</b> звёзд\n",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🛑 Отменить")]], resize_keyboard=True),
             parse_mode="HTML"
         )
@@ -1463,10 +1463,10 @@ async def video_start(message: Message, state: FSMContext, user_id: int | None =
         "🎬 <b>Видео</b>\n\n"
         f"Текущие настройки:\n\n"
         f"🧩 Режим: <b>{mode_h}</b>\n"
-        f"💎 Уровень: <b>{tier_h}</b>\n"
+        f"⭐ Уровень: <b>{tier_h}</b>\n"
         f"🔊 Аудио: <b>{audio}</b>\n"
         f"📐 Формат: <b>{aspect_h}</b> • <b>{seconds}</b> сек\n"
-        f"💳 Стоимость: <b>{_fmt_tokens(price)}</b> токенов\n\n"
+        f"💳 Стоимость: <b>{_fmt_stars(price)}</b> звёзд\n\n"
         "Нажмите <b>▶️ Начать видео</b> или измените настройки.",
         reply_markup=_video_menu_kb(user_id),
         parse_mode="HTML"
@@ -1518,13 +1518,13 @@ async def process_video_text(message: Message, state: FSMContext):
             user_id=user_id
         )
 
-        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await db.get_available_tokens(user_id)
+        await db.use_stars_smart(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await db.get_available_stars(user_id)
 
         video_file = BufferedInputFile(vbytes, filename="video.mp4")
         await message.answer_video(
             video_file,
-            caption=f"✅ <b>Видео готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Видео готово!</b>\n\n⭐ Списано: {_fmt_stars(price)} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("video"),
             parse_mode="HTML"
         )
@@ -1586,13 +1586,13 @@ async def process_video_photo(message: Message, state: FSMContext):
             user_id=user_id
         )
 
-        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await db.get_available_tokens(user_id)
+        await db.use_stars_smart(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await db.get_available_stars(user_id)
 
         video_file = BufferedInputFile(vbytes, filename="video.mp4")
         await message.answer_video(
             video_file,
-            caption=f"✅ <b>Видео готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Видео готово!</b>\n\n⭐ Списано: {_fmt_stars(price)} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("video"),
             parse_mode="HTML"
         )
@@ -1741,7 +1741,7 @@ async def process_start(message: Message, state: FSMContext, user_id: int | None
     await message.answer(
         "🧰 <b>Обработка фото</b>\n\n"
         f"Действие: <b>{action_h}</b>\n"
-        f"Стоимость: <b>{_fmt_tokens(proc_price)}</b> токенов\n\n"
+        f"Стоимость: <b>{_fmt_stars(proc_price)}</b> звёзд\n\n"
         "📸 Отправьте фото для обработки."
         f"{extra_hint}",
         reply_markup=cancel_kb,
@@ -1802,12 +1802,12 @@ async def process_process_photo(message: Message, state: FSMContext):
 
         out_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=jpeg_bytes)
 
-        await db.use_tokens_smart(user_id, price, bot_name="images") if price > 0 else None
-        new_balance = await db.get_available_tokens(user_id)
+        await db.use_stars_smart(user_id, price, bot_name="images") if price > 0 else None
+        new_balance = await db.get_available_stars(user_id)
 
         await message.answer_photo(
             BufferedInputFile(out_bytes, filename="processed.png"),
-            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(price)} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Готово!</b>\n\n⭐ Списано: {_fmt_stars(price)} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("process"),
             parse_mode="HTML",
         )
@@ -1952,13 +1952,13 @@ async def process_create(message: Message, state: FSMContext):
         
         photo = BufferedInputFile(image_data, filename="created.png")
         
-        # Используем единую систему токенов (поддержка подписок)
-        await db.use_tokens_smart(message.from_user.id, model['price'], bot_name='images')
-        new_balance = await db.get_available_tokens(message.from_user.id)
+        # Используем единую систему звёзд (поддержка подписок)
+        await db.use_stars_smart(message.from_user.id, model['price'], bot_name='images')
+        new_balance = await db.get_available_stars(message.from_user.id)
         
         await message.answer_photo(
             photo,
-            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(model['price'])} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Готово!</b>\n\n⭐ Списано: {_fmt_stars(model['price'])} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("create"),
             parse_mode="HTML"
         )
@@ -2022,13 +2022,13 @@ async def process_upscale(message: Message, state: FSMContext):
         
         photo_result = BufferedInputFile(image_data, filename="upscaled.png")
         
-        # Списываем токены
-        await db.use_tokens_smart(message.from_user.id, model['price'], bot_name='images')
-        new_balance = await db.get_available_tokens(message.from_user.id)
+        # Списываем звёзды
+        await db.use_stars_smart(message.from_user.id, model['price'], bot_name='images')
+        new_balance = await db.get_available_stars(message.from_user.id)
         
         await message.answer_photo(
             photo_result,
-            caption=f"✅ <b>Готово!</b>\n\n💰 Списано: {_fmt_tokens(model['price'])} токенов\n💳 Остаток: {_fmt_tokens(new_balance)} токенов",
+            caption=f"✅ <b>Готово!</b>\n\n⭐ Списано: {_fmt_stars(model['price'])} звёзд\n⭐ Остаток: {_fmt_stars(new_balance)} звёзд",
             reply_markup=_done_inline_kb("upscale"),
             parse_mode="HTML"
         )
@@ -2145,16 +2145,16 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
 
         result_photo = BufferedInputFile(img_bytes, filename="edited.png")
 
-        await db.use_tokens_smart(user_id, model['price'], bot_name='images')
-        new_balance = await db.get_available_tokens(user_id)
+        await db.use_stars_smart(user_id, model['price'], bot_name='images')
+        new_balance = await db.get_available_stars(user_id)
 
         await message.answer_photo(
             result_photo,
             caption=(
                 f"✅ <b>Готово!</b>\n\n"
                 f"📝 Команда: <i>{edit_command}</i>\n"
-                f"💰 Списано: {_fmt_tokens(model['price'])} токенов\n"
-                f"💳 Остаток: {_fmt_tokens(new_balance)} токенов"
+                f"⭐ Списано: {_fmt_stars(model['price'])} звёзд\n"
+                f"⭐ Остаток: {_fmt_stars(new_balance)} звёзд"
             ),
             reply_markup=_done_inline_kb("edit"),
             parse_mode="HTML"

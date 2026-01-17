@@ -2,7 +2,7 @@ import httpx
 import json
 import config
 from config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_SITE_URL, OPENROUTER_APP_NAME
-from utils.tokens import calculate_tokens, TOKEN_MARGIN
+from utils.stars import calculate_stars, STAR_MARGIN
 
 _client = None
 
@@ -87,14 +87,12 @@ async def ask(msgs: list, model: str = None, image_base64: str = None, max_token
         text = data["choices"][0]["message"]["content"]
         
         # Используем новый точный подсчёт
-        tokens_to_charge = calculate_tokens(clean_msgs, text)
+        stars_to_charge = calculate_stars(clean_msgs, text)
         
         # Логируем для отладки
-        usage = data.get("usage", {})
-        real_tokens = usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
-        print(f"[TOKENS] real={real_tokens}, charging={tokens_to_charge}, margin={TOKEN_MARGIN}")
+        print(f"[STARS] charging={stars_to_charge}, margin={STAR_MARGIN}")
         
-        return text, tokens_to_charge
+        return text, stars_to_charge
         
     except httpx.TimeoutException:
         print("OpenRouter Timeout")
@@ -107,7 +105,7 @@ async def ask(msgs: list, model: str = None, image_base64: str = None, max_token
 
 
 async def ask_stream(msgs: list, model: str = None, max_tokens: int = 2000):
-    """Стрим запрос к OpenRouter (токены считаются в хендлере)"""
+    """Стрим запрос к OpenRouter (звёзды считаются в хендлере)"""
     try:
         use_model = model or config.MODEL
         

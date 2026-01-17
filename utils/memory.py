@@ -1,7 +1,7 @@
 import config
 import json
 from utils.openrouter import ask
-from database import db
+from database import postgres_db as db
 
 
 async def update_memory(user_id: int, bot_type: str, user_text: str, bot_response: str):

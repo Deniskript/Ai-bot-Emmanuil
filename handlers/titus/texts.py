@@ -93,9 +93,9 @@ VIDEO_ANALYSIS_INVALID_LINK = """❌ Неверная ссылка!
 
 BOT_DISABLED = "🔴 Обучение временно недоступно"
 
-NO_TOKENS = """❌ Токены закончились!
+NO_TOKENS = """❌ Звёзды закончились!
 
-💎 Докупите в разделе 💠 Подписка"""
+⭐ Докупите в разделе 💠 Подписка"""
 
 REQUEST_CANCELLED = "❌ Запрос отменён"
 
@@ -117,7 +117,7 @@ NO_TEXT_FOR_SUMMARY = "❌ Нет текста для конспекта"
 
 SUMMARY_CREATING = "📝 Создаю конспект..."
 
-SUMMARY_NOT_ENOUGH_TOKENS = "❌ Недостаточно токенов!"
+SUMMARY_NOT_ENOUGH_TOKENS = "❌ Недостаточно звёзд!"
 
 # ========== FOOTER ==========
 

@@ -1,6 +1,6 @@
 """
-Централизованная система проверки баланса токенов.
-Единое место для проверки и красивых сообщений о нехватке токенов.
+Централизованная система проверки баланса звёзд ⭐.
+Единое место для проверки и красивых сообщений о нехватке звёзд.
 """
 
 from functools import wraps
@@ -8,55 +8,55 @@ from typing import Optional, Union
 from aiogram import types, Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from database import db
+from database import postgres_db as db
 
 
 # ============================================================================
-# КРАСИВОЕ СООБЩЕНИЕ О НЕХВАТКЕ ТОКЕНОВ
+# КРАСИВОЕ СООБЩЕНИЕ О НЕХВАТКЕ ЗВЁЗД
 # ============================================================================
 
 NO_TOKENS_MESSAGE = """
-😔 <b>Токены закончились</b>
+😔 <b>Звёзды закончились</b>
 
-У тебя недостаточно токенов для этого действия.
+У тебя недостаточно звёзд для этого действия.
 
 ┌─────────────────────────┐
-│  💎 Твой баланс: <b>{balance:,}</b>   │
+│  ⭐ Твой баланс: <b>{available:,}</b>  │
 │  📊 Нужно: <b>{required:,}</b>        │
 └─────────────────────────┘
 
 <b>Что делать?</b>
-• Оформи подписку — получишь токены каждый месяц
+• Оформи подписку — получишь звёзды каждый месяц
 • Пригласи друзей — получишь бонус за каждого
 
 ✨ <i>С подпиской ты сможешь пользоваться всеми возможностями Soul без ограничений!</i>
 """
 
 NO_TOKENS_MESSAGE_SIMPLE = """
-😔 <b>Токены закончились</b>
+😔 <b>Звёзды закончились</b>
 
-💎 Твой баланс: <b>{balance:,}</b>
+⭐ Твой баланс: <b>{available:,}</b>
 
 Оформи подписку чтобы продолжить пользоваться Soul ✨
 """
 
 
-def get_no_tokens_keyboard(has_subscription: bool = False) -> InlineKeyboardMarkup:
-    """Клавиатура для сообщения о нехватке токенов"""
+def get_no_stars_keyboard(has_subscription: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура для сообщения о нехватке звёзд"""
     buttons = []
     
     if not has_subscription:
         buttons.append([
             InlineKeyboardButton(
-                text="⭐ Оформить подписку",
+                text="⭐ Подписка",
                 callback_data="subscription_plans"
             )
         ])
     else:
         buttons.append([
             InlineKeyboardButton(
-                text="💎 Докупить токены",
-                callback_data="buy_tokens"
+                text="📦 Докупить звёзды",
+                callback_data="buy_stars"
             )
         ])
     
@@ -83,42 +83,42 @@ def get_no_tokens_keyboard(has_subscription: bool = False) -> InlineKeyboardMark
 
 async def check_balance(user_id: int, required: int = 0) -> tuple[bool, int]:
     """
-    Проверить достаточно ли токенов.
+    Проверить достаточно ли звёзд.
     
     Args:
         user_id: ID пользователя
-        required: Минимально необходимое количество токенов (0 = просто > 0)
+        required: Минимально необходимое количество звёзд (0 = просто > 0)
         
     Returns:
-        (can_proceed, current_balance)
+        (can_proceed, current_stars)
         - can_proceed: True если можно продолжить
-        - current_balance: Текущий баланс
+        - current_stars: Текущий баланс звёзд
     """
-    balance = await db.get_available_tokens(user_id)
+    stars_balance = await db.get_available_stars(user_id)
     
     # Если баланс отрицательный или 0 — нельзя
-    if balance <= 0:
-        return False, balance
+    if stars_balance <= 0:
+        return False, stars_balance
     
     # Если указан required и баланс меньше — нельзя
-    if required > 0 and balance < required:
-        return False, balance
+    if required > 0 and stars_balance < required:
+        return False, stars_balance
     
-    return True, balance
+    return True, stars_balance
 
 
-async def send_no_tokens_message(
+async def send_no_stars_message(
     target: Union[types.Message, types.CallbackQuery],
-    balance: int,
+    stars_balance: int,
     required: int = 0,
     bot: Bot = None
 ) -> types.Message:
     """
-    Отправить красивое сообщение о нехватке токенов.
+    Отправить красивое сообщение о нехватке звёзд.
     
     Args:
         target: Message или CallbackQuery
-        balance: Текущий баланс
+        stars_balance: Текущий баланс звёзд
         required: Требуемое количество (если известно)
         bot: Bot instance (опционально)
         
@@ -140,19 +140,19 @@ async def send_no_tokens_message(
     # Формируем сообщение
     if required > 0:
         text = NO_TOKENS_MESSAGE.format(
-            balance=max(0, balance),
+            available=max(0, stars_balance),
             required=required
         )
     else:
         text = NO_TOKENS_MESSAGE_SIMPLE.format(
-            balance=max(0, balance)
+            available=max(0, stars_balance)
         )
     
-    keyboard = get_no_tokens_keyboard(has_subscription)
+    keyboard = get_no_stars_keyboard(has_subscription)
     
     # Отправляем
     if isinstance(target, types.CallbackQuery):
-        await target.answer("❌ Недостаточно токенов", show_alert=True)
+        await target.answer("❌ Недостаточно звёзд", show_alert=True)
         return await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     else:
         return await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
@@ -162,16 +162,16 @@ async def send_no_tokens_message(
 # ДЕКОРАТОР ДЛЯ HANDLERS
 # ============================================================================
 
-def balance_required(min_tokens: int = 0):
+def balance_required(min_stars: int = 0):
     """
-    Декоратор для проверки баланса перед выполнением handler.
+    Декоратор для проверки баланса звёзд перед выполнением handler.
     
     Использование:
         @balance_required()  # Просто баланс > 0
         async def handler(message):
             ...
             
-        @balance_required(min_tokens=200000)  # Минимум 200K токенов
+        @balance_required(min_stars=2000)  # Минимум 2,000 звёзд
         async def expensive_handler(message):
             ...
     """
@@ -185,10 +185,10 @@ def balance_required(min_tokens: int = 0):
                 user_id = target.from_user.id
             
             # Проверяем баланс
-            can_proceed, balance = await check_balance(user_id, min_tokens)
+            can_proceed, stars_balance = await check_balance(user_id, min_stars)
             
             if not can_proceed:
-                await send_no_tokens_message(target, balance, min_tokens)
+                await send_no_stars_message(target, stars_balance, min_stars)
                 return None
             
             # Баланс OK — выполняем handler
@@ -207,28 +207,28 @@ async def ensure_balance(
     required: int = 0
 ) -> bool:
     """
-    Проверить баланс и отправить сообщение если не хватает.
+    Проверить баланс звёзд и отправить сообщение если не хватает.
     Для использования внутри handler без декоратора.
     
     Использование:
         async def handler(message):
-            if not await ensure_balance(message, required=50000):
+            if not await ensure_balance(message, required=500):
                 return  # Сообщение уже отправлено
             
             # Продолжаем работу...
             
     Returns:
-        True если баланс OK, False если отправлено сообщение о нехватке
+        True если баланс OK, False если отправлено сообщение о нехватке звёзд
     """
     if isinstance(target, types.CallbackQuery):
         user_id = target.from_user.id
     else:
         user_id = target.from_user.id
     
-    can_proceed, balance = await check_balance(user_id, required)
+    can_proceed, stars_balance = await check_balance(user_id, required)
     
     if not can_proceed:
-        await send_no_tokens_message(target, balance, required)
+        await send_no_stars_message(target, stars_balance, required)
         return False
     
     return True
@@ -236,28 +236,28 @@ async def ensure_balance(
 
 async def get_balance_status(user_id: int) -> dict:
     """
-    Получить полный статус баланса пользователя.
+    Получить полный статус баланса звёзд пользователя.
     
     Returns:
         {
-            'balance': int,
+            'stars': int,
             'can_use': bool,
             'has_subscription': bool,
             'subscription_type': str or None,
             'subscription_remaining': int or None
         }
     """
-    balance = await db.get_available_tokens(user_id)
+    stars_balance = await db.get_available_stars(user_id)
     subscription = await db.get_subscription(user_id)
     
     has_sub = subscription and subscription.get('is_active')
     
     return {
-        'balance': balance,
-        'can_use': balance > 0,
+        'stars': stars_balance,
+        'can_use': stars_balance > 0,
         'has_subscription': has_sub,
         'subscription_type': subscription.get('type') if has_sub else None,
         'subscription_remaining': (
-            subscription.get('tokens_limit', 0) - subscription.get('tokens_used', 0)
+            subscription.get('stars_limit', 0) - subscription.get('stars_used', 0)
         ) if has_sub else None
     }

@@ -5,7 +5,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import db
+from database import postgres_db as db
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.calories import (
@@ -162,8 +162,8 @@ async def analyze_food_photo(msg: Message, state: FSMContext):
         parsed = parse_calories_response(response)
         await state.update_data(food_data=parsed)
         
-        # Списываем токены (Vision запрос ~ 300 токенов с маржой)
-        await db.use_tokens_smart(msg.from_user.id, 300, bot_name='health')
+        # Списываем звёзды (Vision запрос ~ 300 звёзд с маржой)
+        await db.use_stars_smart(msg.from_user.id, 300, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
         # Очищаем временные файлы
@@ -226,7 +226,7 @@ async def analyze_manual_input(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=800)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=800)
         
         # Парсим ответ
         parsed = parse_calories_response(response)
@@ -235,8 +235,8 @@ async def analyze_manual_input(msg: Message, state: FSMContext):
 
         await state.update_data(food_data=parsed)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(
@@ -557,11 +557,11 @@ async def what_to_eat(msg: Message, state: FSMContext):
         
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1000)
         
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(md_to_html(response), parse_mode="HTML")
@@ -618,10 +618,10 @@ async def day_plan(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1500)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1500)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(md_to_html(response), parse_mode="HTML")
@@ -833,10 +833,10 @@ async def nutrition_tips(msg: Message, state: FSMContext):
 """
         
         messages = [{"role": "user", "content": prompt}]
-        response, tokens_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1500)
+        response, stars_used = await ask(messages, "anthropic/claude-sonnet-4.5", max_tokens=1500)
         
-        # Списываем токены с маржой 2.5x
-        await db.use_tokens_smart(msg.from_user.id, tokens_used, bot_name='health')
+        # Списываем звёзды с маржой 2.5x
+        await db.use_stars_smart(msg.from_user.id, stars_used, bot_name='health')
         await db.increment_requests(msg.from_user.id)
         
         await msg.answer(md_to_html(response), parse_mode="HTML")

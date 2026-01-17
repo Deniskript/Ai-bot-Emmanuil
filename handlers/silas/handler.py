@@ -7,10 +7,10 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database.postgres_db import set_silas_settings, get_silas_settings
-from database import db, redis_db
+from database import postgres_db as db, redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
 from utils.openrouter import ask
-from utils.tokens import calculate_tokens
+from utils.stars import calculate_stars
 from utils.memory import update_memory
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from aiogram.types import FSInputFile
@@ -21,7 +21,7 @@ from utils.conversations import save_message, clean_response, should_show_previe
 from utils.status_manager import show_status
 from utils.streaming import stream_response
 from utils.balance_guard import ensure_balance
-from config import MIN_TOKENS
+from config import MIN_STARS
 from loader import bot
 from datetime import datetime
 import asyncio
@@ -318,7 +318,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await msg.answer(error_msg)
         return
     
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -393,7 +393,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         if image_b64:
             status = await show_status(bot, msg.chat.id, "photo")
             request_state['status'] = status
-            resp, tok = await ask(msgs, model, image_b64)
+            resp, stars_used = await ask(msgs, model, image_b64)
             sent_msg = None
         else:
             resp, sent_msg = await stream_response(
@@ -403,7 +403,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
                 model=model,
                 status_type="text"
             )
-            tok = calculate_tokens(msgs, resp)
+            stars_used = calculate_stars(msgs, resp)
         
         if request_state['cancelled']:
             return
@@ -411,7 +411,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         # Очищаем ответ от служебных строк
         resp = clean_response(resp)
         
-        await db.use_tokens_smart(msg.from_user.id, tok, 'silas')
+        await db.use_stars_smart(msg.from_user.id, stars_used, 'silas')
         await db.increment_requests(msg.from_user.id)
         
         await db.add_msg(msg.from_user.id, 'silas', 'user', text)
@@ -422,7 +422,7 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await save_message(msg.from_user.id, 'user', text, 'silas', model)
         conv_id = await save_message(msg.from_user.id, 'assistant', resp, 'silas', model)
         
-        # Обновляем память каждые 15 сообщений (экономия токенов)
+        # Обновляем память каждые 15 сообщений (экономия звёзд)
         if cnt % 15 == 0 or cnt == 1:
             asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
         

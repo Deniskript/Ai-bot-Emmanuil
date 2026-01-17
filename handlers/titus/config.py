@@ -10,8 +10,8 @@ BOT_FULL_NAME = "📓 Titus (Обучение)"
 BOT_DESCRIPTION = "Умный репетитор будущего"
 
 # ========== ЛИМИТЫ ТОКЕНОВ ==========
-MIN_TOKENS = 3000  # Минимум токенов для запроса
-MAX_RESPONSE_TOKENS = 4000  # Максимум токенов в ответе
+MIN_STARS = 30  # Минимум звёзд для запроса
+MAX_RESPONSE_TOKENS = 4000  # Максимум звёзд в ответе
 HISTORY_MESSAGES_COUNT = 50  # Сколько сообщений истории передавать в контекст
 
 # ========== КУРСЫ ==========
@@ -56,7 +56,7 @@ LOG_CONVERSATIONS = True  # Логировать разговоры в БД
 # Здесь только документация для понимания зависимостей:
 # - OPENROUTER_API_KEY (from config)
 # - BOT_TOKEN (from config)
-# - DATABASE связь через database.db
+# - DATABASE связь через database.postgres_db
 
 # ========== СТАТУСЫ СОСТОЯНИЙ ==========
 STATE_MENU = "menu"

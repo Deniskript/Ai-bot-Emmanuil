@@ -11,11 +11,11 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import db
+from database import postgres_db as db
 from database import redis_db
 from keyboards import reply, inline
 from utils.openrouter import ask
-from utils.tokens import calculate_tokens
+from utils.stars import calculate_stars
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
 from utils.conversations import save_message, clean_response, should_show_preview, get_titus_keyboard
@@ -34,7 +34,7 @@ from .prompts import TITUS_BASE, TITUS_CLARIFY
 router = Router()
 
 # Использование настроек из локального config
-MIN_TOKENS = titus_config.MIN_TOKENS
+MIN_STARS = titus_config.MIN_STARS
 MAX_CACHE_SIZE = titus_config.MAX_CACHE_SIZE
 VIDEO_ANALYSIS_MODEL = titus_config.VIDEO_ANALYSIS_MODEL
 MAX_TRANSCRIPT_LENGTH = titus_config.MAX_TRANSCRIPT_LENGTH
@@ -120,7 +120,7 @@ async def steps_back(msg: Message, state: FSMContext):
 
 @router.message(TitusSt.select_steps, F.text.in_({"🚀 10 шагов", "📘 40 шагов", "📖 80 шагов"}))
 async def create_course(msg: Message, state: FSMContext):
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -150,7 +150,7 @@ async def create_course(msg: Message, state: FSMContext):
             model=model,
             status_type="text"
         )
-        tok = calculate_tokens(msgs, resp)
+        stars_used = calculate_stars(msgs, resp)
     except Exception as e:
         print(f"Stream error in create_course: {e}")
         raise
@@ -161,7 +161,7 @@ async def create_course(msg: Message, state: FSMContext):
     resp_with_footer = f"{resp_clean}{footer}"
     resp_html = md_to_html(resp_clean)
     
-    await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
+    await db.use_stars_smart(msg.from_user.id, stars_used, 'titus')
     await db.increment_requests(msg.from_user.id)
     
     # Сохраняем в систему диалогов
@@ -343,11 +343,11 @@ async def video_analysis_process(msg: Message, state: FSMContext):
     start_time = time.time()
     print(f"[VIDEO] Начало анализа для пользователя {user_id}")
     
-    # Проверка токенов
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    # Проверка звёзд
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
-    print(f"[VIDEO] Токены проверены: {time.time() - start_time:.2f}с")
+    print(f"[VIDEO] Звёзды проверены: {time.time() - start_time:.2f}с")
     
     # Извлечение video_id из ссылки
     video_id = None
@@ -415,7 +415,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
 
 Формат: структурированно, с эмодзи, понятно."""
         
-        resp, tok = await ask([{"role": "user", "content": analysis_prompt}], VIDEO_ANALYSIS_MODEL)
+        resp, stars_used = await ask([{"role": "user", "content": analysis_prompt}], VIDEO_ANALYSIS_MODEL)
         print(f"[VIDEO] AI анализ завершён: {time.time() - start_time:.2f}с")
         
         if status:
@@ -424,9 +424,9 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         resp_clean = clean_response(resp)
         resp_html = md_to_html(resp_clean)
         
-        # Списываем токены
-        print(f"[VIDEO] Списание токенов: {time.time() - start_time:.2f}с")
-        await db.use_tokens_smart(user_id, tok, 'titus')
+        # Списываем звёзды
+        print(f"[VIDEO] Списание звёзд: {time.time() - start_time:.2f}с")
+        await db.use_stars_smart(user_id, stars_used, 'titus')
         await db.increment_requests(user_id)
         
         # Сохраняем в систему диалогов
@@ -534,7 +534,7 @@ async def titus_make_summary(cb: CallbackQuery):
         await cb.answer(texts.NO_TEXT_FOR_SUMMARY, show_alert=True)
         return
     
-    if not await ensure_balance(cb, required=MIN_TOKENS):
+    if not await ensure_balance(cb, required=MIN_STARS):
         return
     
     await cb.answer(texts.SUMMARY_CREATING)
@@ -549,9 +549,9 @@ async def titus_make_summary(cb: CallbackQuery):
 Требования: структурированно, по пунктам, только важное."""
 
     try:
-        resp, tok = await ask([{"role": "user", "content": summary_prompt}], model)
+        resp, stars_used = await ask([{"role": "user", "content": summary_prompt}], model)
         resp = clean_response(resp)
-        await db.use_tokens_smart(user_id, tok, 'titus')
+        await db.use_stars_smart(user_id, stars_used, 'titus')
         await db.increment_requests(user_id)
         await cb.message.answer(
             f"📝 <b>Конспект | {data.get('course', 'Курс')} | Шаг {data.get('step', 1)}</b>\n\n{resp}",
@@ -598,7 +598,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         await msg.answer(error_msg, reply_markup=reply.study_chat_kb())
         return
     
-    if not await ensure_balance(msg, required=MIN_TOKENS):
+    if not await ensure_balance(msg, required=MIN_STARS):
         return
     
     model = await db.get_user_model(msg.from_user.id)
@@ -616,7 +616,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
     current_step = data.get('current_step', 1)
     total_steps = data.get('total_steps', 10)
     resp = None
-    tok = 0
+    stars_used = 0
     try:
         if request_state['cancelled']:
             return
@@ -657,7 +657,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
             return
         
         if image_b64:
-            resp, tok = await ask(msgs_to_send, model, image_b64)
+            resp, stars_used = await ask(msgs_to_send, model, image_b64)
             sent_msg = None
         else:
             resp, sent_msg = await stream_response(
@@ -667,7 +667,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                 model=model,
                 status_type="text"
             )
-            tok = calculate_tokens(msgs_to_send, resp)
+            stars_used = calculate_stars(msgs_to_send, resp)
         
         if request_state['cancelled']:
             return
@@ -708,7 +708,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         resp_clean = resp.replace("---NEXT---", "").strip()
         resp_clean = clean_response(resp_clean)
         
-        await db.use_tokens_smart(msg.from_user.id, tok, 'titus')
+        await db.use_stars_smart(msg.from_user.id, stars_used, 'titus')
         await db.increment_requests(msg.from_user.id)
         
         # Сохраняем в систему диалогов
@@ -829,7 +829,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     cname = data.get('cname', 'Курс')
     total_steps = data.get('total_steps', 10)
     
-    if not await ensure_balance(cb, required=MIN_TOKENS):
+    if not await ensure_balance(cb, required=MIN_STARS):
         return
     
     model = await db.get_user_model(cb.from_user.id)
@@ -848,7 +848,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
             model=model,
             status_type="text"
         )
-        tok = calculate_tokens(msgs, resp)
+        stars_used = calculate_stars(msgs, resp)
     except Exception as e:
         print(f"Stream error in course_continue: {e}")
         raise
@@ -867,7 +867,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     resp_with_footer = f"{resp_clean}{footer}"
     resp_html = md_to_html(resp_with_footer)
 
-    await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
+    await db.use_stars_smart(cb.from_user.id, stars_used, 'titus')
     await db.increment_requests(cb.from_user.id)
 
     # Сохраняем в систему диалогов
@@ -905,7 +905,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     current_step = data.get('current_step', 1)
     total_steps = data.get('total_steps', 10)
     
-    if not await ensure_balance(cb, required=MIN_TOKENS):
+    if not await ensure_balance(cb, required=MIN_STARS):
         return
     
     model = await db.get_user_model(cb.from_user.id)
@@ -938,11 +938,11 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
             model=model,
             status_type="text"
         )
-        tok = calculate_tokens(msgs, resp)
+        stars_used = calculate_stars(msgs, resp)
         
         resp_clean = clean_response(resp)
         
-        await db.use_tokens_smart(cb.from_user.id, tok, 'titus')
+        await db.use_stars_smart(cb.from_user.id, stars_used, 'titus')
         await db.increment_requests(cb.from_user.id)
         
         # Сохраняем в систему диалогов
