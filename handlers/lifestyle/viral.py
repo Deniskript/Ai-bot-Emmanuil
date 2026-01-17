@@ -9,7 +9,7 @@ from utils.antiflood import ai_flood
 from utils.video_downloader import download_video_from_url, extract_key_frames, cleanup_temp_files
 from utils.markdown import md_to_html
 from utils.conversations import save_message, clean_response, get_chat_button
-from utils.errors import check_tokens_and_notify
+from utils.balance_guard import ensure_balance
 from utils.status_manager import show_status
 from utils.streaming import stream_response
 from prompts.viral_expert import VIRAL_EXPERT_PROMPT, VIRAL_TEXT_ADVICE_PROMPT
@@ -66,10 +66,7 @@ async def viral_menu(msg: Message, state: FSMContext):
 @router.message(ViralAnalysisSt.menu, F.text == "💬 Текстовый совет")
 async def text_advice_start(msg: Message, state: FSMContext):
     """Начать текстовый совет"""
-    tokens = await db.get_available_tokens(msg.from_user.id)
-    
-    if tokens < MIN_TOKENS:
-        await msg.answer("❌ Недостаточно токенов! Пополните баланс.")
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     await state.set_state(ViralAnalysisSt.text_advice)
@@ -95,14 +92,7 @@ async def text_advice_start(msg: Message, state: FSMContext):
 @router.message(ViralAnalysisSt.menu, F.text == "📤 Загрузить видео")
 async def upload_video_start(msg: Message, state: FSMContext):
     """Начать загрузку видео"""
-    tokens = await db.get_available_tokens(msg.from_user.id)
-    
-    if tokens < PRICES['video_analysis']:
-        await msg.answer(
-            f"❌ Недостаточно токенов!\n\n"
-            f"Нужно: {PRICES['video_analysis']:,} 💎\n"
-            f"У вас: {tokens:,} 💎"
-        )
+    if not await ensure_balance(msg, required=PRICES['video_analysis']):
         return
     
     await state.set_state(ViralAnalysisSt.wait_video)
@@ -128,14 +118,7 @@ async def upload_video_start(msg: Message, state: FSMContext):
 @router.message(ViralAnalysisSt.menu, F.text == "🔗 Отправить ссылку")
 async def link_start(msg: Message, state: FSMContext):
     """Начать анализ по ссылке"""
-    tokens = await db.get_available_tokens(msg.from_user.id)
-    
-    if tokens < PRICES['link_analysis']:
-        await msg.answer(
-            f"❌ Недостаточно токенов!\n\n"
-            f"Нужно: {PRICES['link_analysis']:,} 💎\n"
-            f"У вас: {tokens:,} 💎"
-        )
+    if not await ensure_balance(msg, required=PRICES['link_analysis']):
         return
     
     await state.set_state(ViralAnalysisSt.wait_link)
@@ -205,9 +188,7 @@ async def process_text_advice(msg: Message, state: FSMContext):
         return
     
     # Проверка токенов
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < MIN_TOKENS:
-        await msg.answer("❌ Токены закончились!\n\n💎 Пополните в разделе 💎 Подписка")
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         await state.clear()
         return
     
@@ -329,9 +310,7 @@ async def process_video(msg: Message, state: FSMContext):
     user_id = msg.from_user.id
     
     # Проверка токенов
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < PRICES['video_analysis']:
-        await msg.answer("❌ Недостаточно токенов!")
+    if not await ensure_balance(msg, required=PRICES['video_analysis']):
         await state.clear()
         return
     
@@ -535,9 +514,7 @@ async def process_link(msg: Message, state: FSMContext):
         return
     
     # Проверка токенов
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < PRICES['link_analysis']:
-        await msg.answer("❌ Недостаточно токенов!")
+    if not await ensure_balance(msg, required=PRICES['link_analysis']):
         await state.clear()
         return
     

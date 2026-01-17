@@ -8,6 +8,7 @@ from utils.openrouter import ask
 from utils.memory import update_memory, build_memory_context
 from utils.voice import download_voice, transcribe_voice, text_to_speech
 from utils.antiflood import ai_flood
+from utils.balance_guard import ensure_balance
 from prompts.voice_prompt import VOICE_EMOTIONAL_PROMPT
 from utils.status_manager import show_status
 from config import MIN_TOKENS
@@ -140,13 +141,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         return
     
     # Проверка токенов
-    remaining = await db.get_available_tokens(user_id)
-    if remaining < MIN_TOKENS:
-        await msg.answer(
-            "❌ Токены закончились!\n\n"
-            "💎 Пополните в разделе 💎 Подписка",
-            reply_markup=reply.main_kb(user_id)
-        )
+    if not await ensure_balance(msg, required=MIN_TOKENS):
         return
     
     status = await show_status(bot, msg.chat.id, "voice")
