@@ -304,9 +304,9 @@
         <div id="content" style="display: none;">
             <!-- Баланс -->
             <div class="card">
-                <div class="card-title">💰 Баланс токенов</div>
+                <div class="card-title">💰 Баланс ⭐</div>
                 <div class="balance-amount" id="balance">0</div>
-                <div class="balance-label">Доступно токенов</div>
+                <div class="balance-label">Доступно ⭐</div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progress" style="width: 0%"></div>
                 </div>
@@ -344,10 +344,10 @@
             <!-- Реферальная программа -->
             <div class="card">
                 <div class="card-title">👥 Реферальная программа</div>
-                <p style="color: #555; margin-bottom: 16px;">Приглашай друзей — получай токены!</p>
+                <p style="color: #555; margin-bottom: 16px;">Приглашай друзей — получай ⭐!</p>
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="margin-bottom: 8px;">🌟 Друг оплатил Mini → <strong>+100K токенов</strong></div>
-                    <div>💎 Друг оплатил Standard → <strong>+200K токенов</strong></div>
+                    <div style="margin-bottom: 8px;">🌟 Друг оплатил Mini → <strong>+100K ⭐</strong></div>
+                    <div>💎 Друг оплатил Standard → <strong>+200K ⭐</strong></div>
                 </div>
                 <div style="display: flex; gap: 8px; margin-top: 16px;">
                     <input id="refLink" readonly value="https://t.me/iisoul_bot?start=ref_USERID" 
@@ -444,7 +444,7 @@
             const balance = data.tokens || 0;
             document.getElementById('balance').textContent = formatNumber(balance);
             
-            // Прогресс (пример: из 1M токенов)
+            // Прогресс (пример: из 1M ⭐)
             const progress = Math.min((balance / 1000000) * 100, 100);
             document.getElementById('progress').style.width = progress + '%';
 
@@ -457,7 +457,7 @@
                 document.getElementById('subEmoji').textContent = sub.type === 'standard' ? '👑' : '🌟';
             } else {
                 document.getElementById('subType').textContent = 'Не активна';
-                document.getElementById('subExpires').textContent = 'Используете бонусные токены';
+                document.getElementById('subExpires').textContent = 'Используете бонусные ⭐';
                 document.getElementById('subEmoji').textContent = '🎁';
             }
 
@@ -507,7 +507,7 @@
         }
 
         function openSubscription() {
-            // Показываем выбор: подписка или токены
+            // Показываем выбор: подписка или ⭐
             const modal = document.createElement('div');
             modal.className = 'modal active';
             modal.innerHTML = `
@@ -517,7 +517,7 @@
                         💎 Оформить подписку
                     </button>
                     <button class="btn btn-secondary" onclick="buyTokens()">
-                        💰 Докуп токенов
+                        💰 Докуп ⭐
                     </button>
                     <button class="btn btn-secondary" onclick="this.closest('.modal').remove()" style="margin-top: 8px;">
                         ← Отмена
@@ -531,26 +531,26 @@
             // Удаляем предыдущее модальное окно
             document.querySelectorAll('.modal').forEach(m => m.remove());
             
-            // Создаем окно с пакетами токенов
+            // Создаем окно с пакетами ⭐
             const modal = document.createElement('div');
             modal.className = 'modal active';
             modal.innerHTML = `
                 <div class="modal-content">
-                    <h3 style="text-align: center; margin-bottom: 20px;">💰 Докупить токены</h3>
+                    <h3 style="text-align: center; margin-bottom: 20px;">💰 Докупить ⭐</h3>
                     
                     <div class="token-package" onclick="buyPackage('100k', 149)">
-                        <div class="package-tokens">100K токенов</div>
+                        <div class="package-tokens">100K ⭐</div>
                         <div class="package-price">149 ₽</div>
                     </div>
                     
                     <div class="token-package" onclick="buyPackage('200k', 249)">
-                        <div class="package-tokens">200K токенов</div>
+                        <div class="package-tokens">200K ⭐</div>
                         <div class="package-price">249 ₽</div>
                     </div>
                     
                     <div class="token-package popular" onclick="buyPackage('800k', 700)">
                         <div class="package-badge">🔥 ВЫГОДНО</div>
-                        <div class="package-tokens">800K токенов</div>
+                        <div class="package-tokens">800K ⭐</div>
                         <div class="package-price">700 ₽</div>
                     </div>
                     

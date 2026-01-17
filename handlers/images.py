@@ -52,11 +52,11 @@ def clear_video_cancel(user_id: int):
 # Дефолтные модели (используются если у пользователя нет настроек)
 DEFAULT_MODELS = {
     # Create (text->image)
-    "create": {"name": "📷 Создание", "model": "img-flux/schnell", "price": 3600, "time": "15-40 сек"},
+    "create": {"name": "📷 Создание", "model": "img-flux/schnell", "price": 50, "time": "15-40 сек"},
     # Upscale (img->img)
-    "upscale": {"name": "🎨 Улучшение качества", "model": "img2img-recraft/v3-upscale-crisp", "price": 1600, "time": "20-60 сек"},
+    "upscale": {"name": "🎨 Улучшение качества", "model": "img2img-recraft/v3-upscale-crisp", "price": 30, "time": "20-60 сек"},
     # Edit (img->img)
-    "edit": {"name": "✏️ Редактор", "model": "img2img-flux/kontext-pro-edit", "price": 15000, "time": "20-60 сек"},
+    "edit": {"name": "✏️ Редактор", "model": "img2img-flux/kontext-pro-edit", "price": 120, "time": "20-60 сек"},
 }
 
 # Legacy mappings: старые значения в БД -> новые VseGPT model_id
@@ -301,7 +301,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
                 creative_style=s.get("style", "anime"),
                 creative_custom_text=s.get("custom_text"),
                 creative_model=s.get("model", "standard"),
-                creative_price=s.get("price", 15000),
+                creative_price=s.get("price", 120),
             )
         elif last == "meme":
             s = saved.get("meme") if isinstance(saved.get("meme"), dict) else {}
@@ -312,7 +312,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
                 creative_meme_top=s.get("text_top"),
                 creative_meme_bottom=s.get("text_bottom"),
                 creative_model=s.get("model", "econom"),
-                creative_price=s.get("price", 15000),
+                creative_price=s.get("price", 120),
             )
         else:
             s = saved.get("effect") if isinstance(saved.get("effect"), dict) else {}
@@ -320,7 +320,7 @@ async def creative_start(message: Message, state: FSMContext, user_id: int | Non
                 creative_subtype="effect",
                 creative_effect=s.get("effect", "fire"),
                 creative_model=s.get("model", "standard"),
-                creative_price=s.get("price", 15000),
+                creative_price=s.get("price", 120),
             )
         data = await state.get_data()
 

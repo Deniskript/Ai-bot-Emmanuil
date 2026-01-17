@@ -1684,11 +1684,11 @@ def get_image_settings_api(user_id: int):
         return jsonify({
             "balance": balance,
             "create_model": settings.get("create_model", "gpt-image-1-mini"),
-            "create_price": settings.get("create_price", 8000),
+            "create_price": settings.get("create_price", 50),
             "upscale_model": settings.get("upscale_model", "auto_max"),
-            "upscale_price": settings.get("upscale_price", 33000),
+            "upscale_price": settings.get("upscale_price", 350),
             "edit_model": settings.get("edit_model", "gpt-image-1.5"),
-            "edit_price": settings.get("edit_price", 15000),
+            "edit_price": settings.get("edit_price", 120),
             # Расширяемая часть под новые функции (видео/обработка/стили/инструменты)
             "extra_settings": settings.get("extra_settings", {}) or {}
         })

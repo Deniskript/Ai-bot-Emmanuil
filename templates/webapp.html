@@ -2,200 +2,84 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soul Bot - Личный кабинет</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul AI — Личный кабинет</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --gold: #F59E0B;
+            --gold-light: #FBBF24;
+            --purple: #8B5CF6;
+            --purple-light: #A78BFA;
+            --green: #10B981;
+            --red: #EF4444;
+            --bg-card: rgba(255, 255, 255, 0.08);
+            --bg-card-hover: rgba(255, 255, 255, 0.12);
+            --border-card: rgba(255, 255, 255, 0.12);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.5);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
+            margin: 0;
             padding: 20px;
-            color: #333;
+            padding-bottom: 40px;
+            color: white;
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 600px;
+            max-width: 500px;
             margin: 0 auto;
+            position: relative;
         }
 
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-            animation: fadeIn 0.5s;
+        /* ===== PARTICLES ===== */
+        .particle {
+            position: fixed;
+            border-radius: 50%;
+            background: var(--gold);
+            pointer-events: none;
+            opacity: 0;
+            animation: floatParticle 8s ease-in-out infinite;
         }
 
-        .header h1 {
-            font-size: 32px;
-            margin-bottom: 8px;
+        @keyframes floatParticle {
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+                opacity: 0.2;
+            }
+            25% {
+                transform: translate(15px, -25px) scale(1.1);
+                opacity: 0.4;
+            }
+            50% {
+                transform: translate(-10px, -40px) scale(1);
+                opacity: 0.5;
+            }
+            75% {
+                transform: translate(20px, -20px) scale(0.9);
+                opacity: 0.3;
+            }
         }
 
-        .header p {
-            font-size: 16px;
-            opacity: 0.9;
-        }
-
-        .card {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            animation: slideUp 0.5s;
-        }
-
-        .card-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: #667eea;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .balance-amount {
-            font-size: 48px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin: 16px 0;
-        }
-
-        .balance-label {
-            font-size: 14px;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .subscription-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-            border-radius: 12px;
-            margin-top: 12px;
-        }
-
-        .subscription-type {
-            font-size: 20px;
-            font-weight: 600;
-            color: #667eea;
-        }
-
-        .subscription-expires {
-            font-size: 14px;
-            color: #6c757d;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-top: 12px;
-        }
-
-        .stat-item {
-            padding: 16px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: #667eea;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 16px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-secondary {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-        }
-
-        .loading {
-            text-align: center;
-            color: white;
-            padding: 40px;
-            font-size: 18px;
-        }
-
-        .error {
-            background: #ff4444;
-            color: white;
-            padding: 16px;
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .badges {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 12px;
-        }
-
-        .badge {
-            padding: 6px 12px;
-            background: #667eea20;
-            color: #667eea;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideUp {
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeInUp {
             from {
                 opacity: 0;
-                transform: translateY(20px);
+                transform: translateY(25px);
             }
             to {
                 opacity: 1;
@@ -203,465 +87,1324 @@
             }
         }
 
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e9ecef;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 12px;
+        @keyframes cardPulse {
+            0%, 100% {
+                box-shadow: 0 10px 40px rgba(139, 92, 246, 0.15);
+            }
+            50% {
+                box-shadow: 0 15px 50px rgba(139, 92, 246, 0.25);
+            }
         }
 
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s;
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
-        .stars-package {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border: 2px solid #dee2e6;
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .animate-in {
+            opacity: 0;
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .header.animate-in { animation-delay: 0s; }
+        .wallet-card.animate-in { animation-delay: 0.1s; }
+        .referral-card.animate-in { animation-delay: 0.2s; }
+        .action-buttons.animate-in { animation-delay: 0.3s; }
+        .btn-back.animate-in { animation-delay: 0.4s; }
+
+        /* ===== SKELETON LOADING ===== */
+        .skeleton-container {
+            padding: 0;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, 
+                rgba(255,255,255,0.08) 25%, 
+                rgba(255,255,255,0.15) 50%, 
+                rgba(255,255,255,0.08) 75%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
             border-radius: 12px;
-            padding: 16px;
-            margin: 12px 0;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
         }
 
-        .stars-package:hover {
-            border-color: #667eea;
-            transform: scale(1.02);
+        .skeleton-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
         }
 
-        .stars-package.popular {
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-            border-color: #667eea;
+        .skeleton-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
 
-        .package-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 4px 12px;
+        .skeleton-greeting {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .skeleton-text {
+            height: 20px;
+        }
+
+        .skeleton-card {
+            height: 320px;
+            margin-bottom: 16px;
+            border-radius: 24px;
+        }
+
+        .skeleton-card-small {
+            height: 200px;
+            margin-bottom: 16px;
             border-radius: 20px;
-            font-size: 12px;
-            display: inline-block;
+        }
+
+        .skeleton-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .skeleton-btn {
+            flex: 1;
+            height: 80px;
+            border-radius: 16px;
+        }
+
+        .skeleton-back {
+            height: 52px;
+            border-radius: 14px;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 0 4px;
+        }
+
+        .avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--purple) 0%, var(--gold) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .greeting {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .greeting-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .greeting-emoji {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ===== WALLET CARD ===== */
+        .wallet-card {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-card);
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .wallet-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .wallet-card.animated {
+            animation: fadeInUp 0.6s ease forwards, cardPulse 4s ease-in-out infinite 1s;
+        }
+
+        .wallet-card.low-balance {
+            animation: shake 0.6s ease;
+        }
+
+        .wallet-header {
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .wallet-logo {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+        }
+
+        .balance-section {
+            text-align: center;
+            margin: 24px 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .balance-icon {
+            font-size: 32px;
             margin-bottom: 8px;
         }
 
-        .package-stars {
-            font-size: 24px;
-            font-weight: 700;
-            color: #333;
+        .balance-value {
+            font-size: 52px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 4px;
         }
 
-        .package-price {
-            font-size: 20px;
+        .balance-label {
+            font-size: 16px;
+            color: var(--text-secondary);
             font-weight: 600;
-            color: #667eea;
-            margin-top: 4px;
         }
 
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+        .wallet-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            margin: 20px 0;
+            position: relative;
+            z-index: 1;
         }
 
-        .modal.active {
+        .subscription-row {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
         }
 
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
+        .subscription-badge {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
         }
-        .modal {
+
+        .subscription-expires {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-item {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .stat-divider {
+            color: var(--text-muted);
+        }
+
+        .btn-subscription {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+            background-size: 200% 200%;
+            border: none;
+            border-radius: 14px;
+            color: #1a1a2e;
+            font-family: 'Nunito', sans-serif;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            animation: gradientShift 3s ease infinite;
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn-subscription:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-subscription:active {
+            transform: scale(0.98);
+        }
+
+        .btn-subscription.warning {
+            background: linear-gradient(135deg, var(--red) 0%, #F87171 50%, var(--red) 100%);
+            background-size: 200% 200%;
+        }
+
+        /* ===== REFERRAL CARD ===== */
+        .referral-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-card);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .referral-header {
+            margin-bottom: 16px;
+        }
+
+        .referral-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .referral-rewards {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .reward-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .reward-item strong {
+            color: var(--gold);
+        }
+
+        .referral-stats {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .ref-stat {
+            text-align: center;
+        }
+
+        .ref-stat-value {
+            display: block;
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .ref-stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .ref-stat-divider {
+            width: 1px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-referral {
+            width: 100%;
+            padding: 14px 24px;
+            background: rgba(139, 92, 246, 0.3);
+            border: 1px solid rgba(139, 92, 246, 0.5);
+            border-radius: 12px;
+            color: white;
+            font-family: 'Nunito', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-referral:hover {
+            background: rgba(139, 92, 246, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-referral:active {
+            transform: scale(0.98);
+        }
+
+        /* ===== ACTION BUTTONS ===== */
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 18px 16px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            color: white;
+            font-family: 'Nunito', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            min-height: 80px;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .action-btn:active {
+            transform: scale(0.97);
+        }
+
+        .action-icon {
+            font-size: 24px;
+        }
+
+        .action-text {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* ===== BACK BUTTON ===== */
+        .btn-back {
+            width: 100%;
+            padding: 16px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            color: var(--text-secondary);
+            font-family: 'Nunito', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: var(--text-primary);
+        }
+
+        .btn-back:active {
+            transform: scale(0.98);
+        }
+
+        /* ===== MODALS ===== */
+        .modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.8);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 20px;
-        }
-        .modal.active {
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
             display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
         }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
         .modal-content {
-            background: white;
-            border-radius: 16px;
+            background: linear-gradient(180deg, #1e2a4a 0%, #1a1a2e 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px 24px 0 0;
             padding: 24px;
             width: 100%;
-            max-width: 400px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
         }
-        .stars-package {
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 12px;
-            padding: 16px;
-            margin: 12px 0;
+
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
             cursor: pointer;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
         }
-        .stars-package:hover {
-            border-color: #667eea;
-        }
-        .stars-package.popular {
-            border-color: #667eea;
-            background: #f0f0ff;
-        }
-        .package-badge {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.15);
             color: white;
+        }
+
+        /* Transactions */
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .transaction-item:last-child {
+            border-bottom: none;
+        }
+
+        .transaction-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .transaction-date {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .transaction-desc {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .transaction-amount {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .transaction-amount.positive {
+            color: var(--green);
+        }
+
+        .transaction-amount.negative {
+            color: var(--red);
+        }
+
+        .transactions-empty {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-muted);
+        }
+
+        .transactions-empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Help */
+        .help-text {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        .support-link {
+            display: block;
+            background: linear-gradient(135deg, var(--purple) 0%, var(--purple-light) 100%);
+            padding: 16px 24px;
+            border-radius: 14px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: white;
+            text-decoration: none;
+            margin: 20px 0;
+            transition: all 0.2s ease;
+        }
+
+        .support-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+        }
+
+        .support-note {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Subscription Options */
+        .subscription-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .subscription-option {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            font-family: 'Nunito', sans-serif;
+            color: white;
+        }
+
+        .subscription-option:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+        }
+
+        .option-icon {
+            font-size: 28px;
+        }
+
+        .option-text {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .option-text strong {
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .option-text small {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Stars Packages */
+        .stars-packages {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stars-package {
+            padding: 20px;
+            background: var(--bg-card);
+            border: 2px solid var(--border-card);
+            border-radius: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .stars-package:hover {
+            border-color: var(--purple);
+            transform: scale(1.02);
+        }
+
+        .stars-package.popular {
+            background: rgba(139, 92, 246, 0.15);
+            border-color: var(--purple);
+        }
+
+        .package-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+            color: #1a1a2e;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 12px;
-            display: inline-block;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .package-amount {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .package-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gold);
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, var(--purple) 0%, var(--purple-light) 100%);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
+            z-index: 2000;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, var(--green) 0%, #34D399 100%);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, var(--red) 0%, #F87171 100%);
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+        }
+
+        /* ===== ERROR BLOCK ===== */
+        .error-block {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .error-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .error-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
             margin-bottom: 8px;
         }
-        .package-stars {
-            font-size: 24px;
-            font-weight: 700;
+
+        .error-message {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
         }
-        .package-price {
-            font-size: 20px;
-            color: #667eea;
-            font-weight: 600;
+
+        .error-btn {
+            padding: 14px 32px;
+            background: var(--purple);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-family: 'Nunito', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 380px) {
+            body {
+                padding: 16px;
+            }
+            
+            .balance-value {
+                font-size: 44px;
+            }
+            
+            .wallet-card {
+                padding: 20px;
+            }
+            
+            .action-btn {
+                padding: 14px 12px;
+            }
+            
+            .stats-row {
+                flex-direction: column;
+                gap: 4px;
+            }
+            
+            .stat-divider {
+                display: none;
+            }
+
+            .greeting-text {
+                font-size: 18px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🙏 Soul Bot</h1>
-            <p>Личный кабинет</p>
+        <!-- ===== SKELETON LOADER ===== -->
+        <div id="skeletonLoader" class="skeleton-container">
+            <div class="skeleton-header">
+                <div class="skeleton skeleton-avatar"></div>
+                <div class="skeleton-greeting">
+                    <div class="skeleton skeleton-text" style="width: 60%;"></div>
+                    <div class="skeleton skeleton-text" style="width: 30%;"></div>
+                </div>
+            </div>
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card-small"></div>
+            <div class="skeleton-buttons">
+                <div class="skeleton skeleton-btn"></div>
+                <div class="skeleton skeleton-btn"></div>
+            </div>
+            <div class="skeleton skeleton-back"></div>
         </div>
 
-        <div id="loading" class="loading">
-            ⏳ Загрузка...
+        <!-- ===== MAIN CONTENT ===== -->
+        <div id="mainContent" style="display: none;">
+            <!-- HEADER -->
+            <div class="header animate-in">
+                <div class="avatar" id="userAvatar">😊</div>
+                <div class="greeting">
+                    <span class="greeting-text" id="greetingText">Добрый день, Пользователь!</span>
+                    <span class="greeting-emoji" id="greetingEmoji">🌤</span>
+                </div>
+            </div>
+
+            <!-- WALLET CARD -->
+            <div class="wallet-card animate-in animated" id="walletCard">
+                <div class="wallet-header">
+                    <span class="wallet-logo">💫 Soul AI</span>
+                </div>
+                
+                <div class="balance-section">
+                    <div class="balance-icon">⭐</div>
+                    <div class="balance-value" id="balanceValue">0</div>
+                    <div class="balance-label">звёзд</div>
+                </div>
+                
+                <div class="wallet-divider"></div>
+                
+                <div class="subscription-row">
+                    <span class="subscription-badge" id="subscriptionBadge">🆓 Без подписки</span>
+                    <span class="subscription-expires" id="subscriptionExpires"></span>
+                </div>
+                
+                <div class="stats-row">
+                    <span class="stat-item">📝 <span id="messagesToday">0</span> сегодня</span>
+                    <span class="stat-divider">•</span>
+                    <span class="stat-item">🎨 <span id="imagesTotal">0</span> картинок</span>
+                </div>
+                
+                <button class="btn-subscription" id="btnSubscription" onclick="openSubscriptionModal()">
+                    🌟 Управлять подпиской
+                </button>
+            </div>
+
+            <!-- REFERRAL CARD -->
+            <div class="referral-card animate-in">
+                <div class="referral-header">
+                    <span class="referral-title">👥 Приглашай друзей</span>
+                </div>
+                
+                <div class="referral-rewards">
+                    <div class="reward-item">
+                        <span class="reward-icon">🎁</span>
+                        <span class="reward-text">Mini → <strong>+1,000 ⭐</strong></span>
+                    </div>
+                    <div class="reward-item">
+                        <span class="reward-icon">🎁</span>
+                        <span class="reward-text">Standard → <strong>+2,000 ⭐</strong></span>
+                    </div>
+                </div>
+                
+                <div class="referral-stats">
+                    <div class="ref-stat">
+                        <span class="ref-stat-value" id="referralsCount">0</span>
+                        <span class="ref-stat-label">приглашено</span>
+                    </div>
+                    <div class="ref-stat-divider"></div>
+                    <div class="ref-stat">
+                        <span class="ref-stat-value" id="referralsEarned">0</span>
+                        <span class="ref-stat-label">получено ⭐</span>
+                    </div>
+                </div>
+                
+                <button class="btn-referral" onclick="copyReferralLink()">
+                    📋 Скопировать ссылку
+                </button>
+                
+                <input type="hidden" id="referralLink" value="">
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="action-buttons animate-in">
+                <button class="action-btn" onclick="openHistoryModal()">
+                    <span class="action-icon">📜</span>
+                    <span class="action-text">История</span>
+                </button>
+                <button class="action-btn" onclick="openHelpModal()">
+                    <span class="action-icon">❓</span>
+                    <span class="action-text">Помощь</span>
+                </button>
+            </div>
+
+            <!-- BACK BUTTON -->
+            <button class="btn-back animate-in" onclick="closeWebApp()">
+                ← Вернуться в бот
+            </button>
         </div>
 
-        <div id="content" style="display: none;">
-            <!-- Баланс -->
-            <div class="card">
-                <div class="card-title">💰 Баланс звёзд</div>
-                <div class="balance-amount" id="balance">0</div>
-                <div class="balance-label">Доступно звёзд</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progress" style="width: 0%"></div>
-                </div>
-            </div>
+        <!-- ===== ERROR BLOCK ===== -->
+        <div id="errorBlock" class="error-block" style="display: none;">
+            <div class="error-icon">😔</div>
+            <div class="error-title">Что-то пошло не так</div>
+            <div class="error-message" id="errorMessage">Не удалось загрузить данные</div>
+            <button class="error-btn" onclick="closeWebApp()">Вернуться в бот</button>
+        </div>
+    </div>
 
-            <!-- Подписка -->
-            <div class="card">
-                <div class="card-title">⭐ Подписка</div>
-                <div class="subscription-info">
-                    <div>
-                        <div class="subscription-type" id="subType">Не активна</div>
-                        <div class="subscription-expires" id="subExpires"></div>
-                    </div>
-                    <div style="font-size: 48px;" id="subEmoji">🎁</div>
-                </div>
-                <button class="btn" onclick="openSubscription()">⭐ Управление подпиской</button>
+    <!-- ===== MODALS ===== -->
+    
+    <!-- History Modal -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">📜 История операций</span>
+                <button class="modal-close" onclick="closeModal('history')">✕</button>
             </div>
-
-            <!-- Статистика -->
-            <div class="card">
-                <div class="card-title">📊 Статистика</div>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalRequests">0</div>
-                        <div class="stat-label">Запросов</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalUsed">0</div>
-                        <div class="stat-label">Использовано</div>
-                    </div>
-                </div>
-                <div class="badges" id="badges"></div>
+            <div class="transactions-list" id="transactionsList"></div>
+            <div class="transactions-empty" id="transactionsEmpty" style="display: none;">
+                <div class="transactions-empty-icon">📭</div>
+                <div>История пуста</div>
             </div>
+        </div>
+    </div>
 
-            <!-- Реферальная программа -->
-            <div class="card">
-                <div class="card-title">👥 Реферальная программа</div>
-                <p style="color: #555; margin-bottom: 16px;">Приглашай друзей — получай звёзды!</p>
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="margin-bottom: 8px;">🌟 Друг оплатил Mini → <strong>+1,000 ⭐</strong></div>
-                    <div>⭐ Друг оплатил Standard → <strong>+2,000 ⭐</strong></div>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 16px;">
-                    <input id="refLink" readonly value="https://t.me/iisoul_bot?start=ref_USERID" 
-                           style="flex: 1; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 14px;">
-                    <button onclick="copyRefLink()" style="padding: 12px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                        📋 Копировать
-                    </button>
-                </div>
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">❓ Помощь</span>
+                <button class="modal-close" onclick="closeModal('help')">✕</button>
             </div>
+            <div class="help-content">
+                <p class="help-text">
+                    Есть вопросы или проблемы? Мы всегда рады помочь!
+                </p>
+                <p class="help-text">
+                    Напишите в нашу поддержку:
+                </p>
+                <a href="https://t.me/soulrus_support_bot" target="_blank" class="support-link">
+                    💬 @soulrus_support_bot
+                </a>
+                <p class="support-note">
+                    Отвечаем в течение 24 часов ⏰
+                </p>
+            </div>
+        </div>
+    </div>
 
-            <!-- Действия -->
-            <div class="card">
-                <div class="card-title">⚡️ Быстрые действия</div>
-                <button class="btn btn-secondary" onclick="Telegram.WebApp.close()">
-                    ← Вернуться в бот
+    <!-- Subscription Modal -->
+    <div class="modal-overlay" id="subscriptionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">⭐ Управление</span>
+                <button class="modal-close" onclick="closeModal('subscription')">✕</button>
+            </div>
+            <div class="subscription-options">
+                <button class="subscription-option" onclick="openSubscriptionInBot()">
+                    <span class="option-icon">⭐</span>
+                    <span class="option-text">
+                        <strong>Оформить подписку</strong>
+                        <small>Mini, Standard, Creative</small>
+                    </span>
+                </button>
+                <button class="subscription-option" onclick="openStarsPackages()">
+                    <span class="option-icon">💰</span>
+                    <span class="option-text">
+                        <strong>Докупить звёзды</strong>
+                        <small>Пакеты от 1,000 ⭐</small>
+                    </span>
                 </button>
             </div>
         </div>
+    </div>
 
-        <div id="error" style="display: none;" class="error"></div>
+    <!-- Stars Modal -->
+    <div class="modal-overlay" id="starsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">💰 Докупить звёзды</span>
+                <button class="modal-close" onclick="closeModal('stars')">✕</button>
+            </div>
+            <div class="stars-packages">
+                <div class="stars-package" onclick="buyStars('1000', 149)">
+                    <div class="package-amount">1,000 ⭐</div>
+                    <div class="package-price">149 ₽</div>
+                </div>
+                <div class="stars-package" onclick="buyStars('2000', 249)">
+                    <div class="package-amount">2,000 ⭐</div>
+                    <div class="package-price">249 ₽</div>
+                </div>
+                <div class="stars-package popular" onclick="buyStars('8000', 700)">
+                    <div class="package-badge">🔥 ВЫГОДНО</div>
+                    <div class="package-amount">8,000 ⭐</div>
+                    <div class="package-price">700 ₽</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Инициализация Telegram WebApp
-        let tg = window.Telegram.WebApp;
-        window.tg = tg; // Делаем tg доступным глобально
+        // ===== TELEGRAM WEBAPP INIT =====
+        const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
         
-        console.log("=== TELEGRAM DEBUG ===");
-        console.log("initData string:", tg.initData);
-        console.log("initDataUnsafe:", tg.initDataUnsafe);
-        console.log("platform:", tg.platform);
-        console.log("version:", tg.version);
-        
-        // Метод 1: из initDataUnsafe
+        // Устанавливаем цвета хедера
+        try {
+            tg.setHeaderColor('#1a1a2e');
+            tg.setBackgroundColor('#1a1a2e');
+        } catch (e) {
+            console.log('Header color not supported');
+        }
+
+        // Получаем userId несколькими методами
         let userId = tg.initDataUnsafe?.user?.id;
-        console.log("Method 1 - initDataUnsafe.user.id:", userId);
-        
-        // Метод 2: парсинг из initData строки
+
         if (!userId && tg.initData) {
             try {
                 const params = new URLSearchParams(tg.initData);
                 const userStr = params.get('user');
                 if (userStr) {
-                    const user = JSON.parse(userStr);
-                    userId = user.id;
-                    console.log("Method 2 - parsed from initData:", userId);
+                    userId = JSON.parse(userStr).id;
                 }
             } catch (e) {
-                console.error("Parse error:", e);
+                console.error('Parse error:', e);
             }
         }
-        
-        // Метод 3: из URL параметра (для тестирования)
-        if (!userId) {
-            const urlParams = new URLSearchParams(window.location.search);
-            userId = urlParams.get('user_id');
-            console.log("Method 3 - from URL:", userId);
-        }
-        
-        console.log("=== FINAL USER ID:", userId, "===");
 
+        if (!userId) {
+            userId = new URLSearchParams(window.location.search).get('user_id');
+        }
+
+        // Имя и фото пользователя
+        const userName = tg.initDataUnsafe?.user?.first_name || 'Пользователь';
+        const userPhoto = tg.initDataUnsafe?.user?.photo_url || null;
+
+        console.log('User ID:', userId, 'Name:', userName);
+
+        // ===== PARTICLES =====
+        function createParticles() {
+            for (let i = 0; i < 8; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = (20 + Math.random() * 60) + '%';
+                particle.style.width = (3 + Math.random() * 4) + 'px';
+                particle.style.height = particle.style.width;
+                particle.style.animationDelay = (Math.random() * 5) + 's';
+                particle.style.animationDuration = (7 + Math.random() * 4) + 's';
+                document.body.appendChild(particle);
+            }
+        }
+
+        // ===== GREETING =====
+        function getGreeting() {
+            const hour = new Date().getHours();
+            if (hour >= 6 && hour < 12) return { text: 'Доброе утро', emoji: '☀️' };
+            if (hour >= 12 && hour < 18) return { text: 'Добрый день', emoji: '🌤' };
+            if (hour >= 18 && hour < 23) return { text: 'Добрый вечер', emoji: '🌙' };
+            return { text: 'Доброй ночи', emoji: '🌚' };
+        }
+
+        function updateGreeting(name) {
+            const greeting = getGreeting();
+            document.getElementById('greetingText').textContent = `${greeting.text}, ${name}!`;
+            document.getElementById('greetingEmoji').textContent = greeting.emoji;
+        }
+
+        // ===== BALANCE ANIMATION =====
+        function animateBalance(element, targetValue, duration = 1500) {
+            const startTime = performance.now();
+            const startValue = 0;
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Easing: ease-out cubic
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const currentValue = Math.floor(startValue + (targetValue - startValue) * easeOut);
+                
+                element.textContent = currentValue.toLocaleString('ru-RU');
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+            
+            requestAnimationFrame(update);
+        }
+
+        // ===== LOW BALANCE CHECK =====
+        function checkLowBalance(balance) {
+            if (balance < 100) {
+                const card = document.getElementById('walletCard');
+                setInterval(() => {
+                    card.classList.add('low-balance');
+                    setTimeout(() => card.classList.remove('low-balance'), 600);
+                }, 5000);
+            }
+        }
+
+        // ===== LOAD USER DATA =====
         async function loadUserData() {
             if (!userId) {
-                showError('❌ Не удалось получить ID пользователя\n\nОткройте через кнопку в боте!');
+                showError('Откройте через кнопку в боте');
                 return;
             }
 
             try {
                 const response = await fetch(`/api/user/${userId}`);
+                if (!response.ok) throw new Error('Ошибка загрузки данных');
                 
-                if (!response.ok) {
-                    throw new Error('Ошибка загрузки данных');
-                }
-
                 const data = await response.json();
                 console.log('User data:', data);
-                
-                // Показываем данные
-                displayUserData(data);
-                
-                // Скрываем загрузку, показываем контент
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('content').style.display = 'block';
+                renderProfile(data);
                 
             } catch (error) {
                 console.error('Error:', error);
-                showError('❌ Ошибка загрузки: ' + error.message);
+                showError('Ошибка: ' + error.message);
             }
         }
 
-        function displayUserData(data) {
-            // Баланс
-            const balance = data.stars || 0;
-            document.getElementById('balance').textContent = formatNumber(balance);
+        // ===== RENDER PROFILE =====
+        function renderProfile(data) {
+            // Скрыть skeleton, показать контент
+            document.getElementById('skeletonLoader').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
             
-            // Прогресс (пример: из 10K звёзд)
-            const progress = Math.min((balance / 1000000) * 100, 100);
-            document.getElementById('progress').style.width = progress + '%';
-
+            // Header
+            updateGreeting(userName);
+            if (userPhoto) {
+                document.getElementById('userAvatar').innerHTML = `<img src="${userPhoto}" alt="">`;
+            }
+            
+            // Баланс с анимацией
+            const balanceEl = document.getElementById('balanceValue');
+            animateBalance(balanceEl, data.stars || 0);
+            checkLowBalance(data.stars || 0);
+            
             // Подписка
-            if (data.subscription && data.subscription.is_active) {
-                const sub = data.subscription;
-                document.getElementById('subType').textContent = sub.type === 'mini' ? '🌟 Mini' : '⭐ Standard';
-                document.getElementById('subExpires').textContent = sub.expires_at ? 
-                    'До ' + formatDate(sub.expires_at) : 'Активна';
-                document.getElementById('subEmoji').textContent = sub.type === 'standard' ? '👑' : '🌟';
-            } else {
-                document.getElementById('subType').textContent = 'Не активна';
-                document.getElementById('subExpires').textContent = 'Используете бонусные звёзды';
-                document.getElementById('subEmoji').textContent = '🎁';
-            }
-
-            // Статистика
-            document.getElementById('totalRequests').textContent = formatNumber(data.total_requests || 0);
-            document.getElementById('totalUsed').textContent = formatNumber(data.total_used || 0) + ' tk';
-
-            // Бейджи
-            const badges = document.getElementById('badges');
-            badges.innerHTML = '';
+            updateSubscription(data.subscription);
             
-            if (data.total_requests > 100) {
-                badges.innerHTML += '<div class="badge">🔥 Активный</div>';
+            // Статистика
+            document.getElementById('messagesToday').textContent = data.messages_today || data.total_requests || 0;
+            document.getElementById('imagesTotal').textContent = data.images_total || 0;
+            
+            // Рефералы
+            document.getElementById('referralsCount').textContent = data.referrals_count || 0;
+            document.getElementById('referralsEarned').textContent = formatNumber(data.referrals_earned || 0);
+            document.getElementById('referralLink').value = `https://t.me/iisoul_bot?start=ref_${userId}`;
+            
+            // Транзакции
+            renderTransactions(data.transactions || []);
+        }
+
+        // ===== UPDATE SUBSCRIPTION =====
+        function updateSubscription(subscription) {
+            const badge = document.getElementById('subscriptionBadge');
+            const expires = document.getElementById('subscriptionExpires');
+            const btn = document.getElementById('btnSubscription');
+            
+            if (!subscription || !subscription.is_active) {
+                badge.textContent = '🆓 Без подписки';
+                expires.textContent = '';
+                btn.textContent = '🌟 Купить подписку';
+                return;
             }
-            if (data.total_requests > 500) {
-                badges.innerHTML += '<div class="badge">⭐️ Эксперт</div>';
-            }
-            if (data.subscription && data.subscription.is_active) {
-                badges.innerHTML += '<div class="badge">⭐ Подписчик</div>';
+            
+            const icons = { mini: '🌱', standard: '⭐', creative: '👑' };
+            const names = { mini: 'Mini', standard: 'Стандарт', creative: 'Творческий' };
+            
+            const type = subscription.type || 'standard';
+            badge.textContent = `${icons[type] || '⭐'} ${names[type] || type}`;
+            
+            if (subscription.expires_at) {
+                const expDate = new Date(subscription.expires_at);
+                const daysLeft = Math.ceil((expDate - new Date()) / (1000 * 60 * 60 * 24));
+                
+                expires.textContent = `до ${expDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+                
+                if (daysLeft <= 3) {
+                    btn.textContent = '⚠️ Продлить подписку';
+                    btn.classList.add('warning');
+                } else {
+                    btn.textContent = '🌟 Управлять подпиской';
+                }
             }
         }
 
+        // ===== RENDER TRANSACTIONS =====
+        function renderTransactions(transactions) {
+            const list = document.getElementById('transactionsList');
+            const empty = document.getElementById('transactionsEmpty');
+            
+            if (!transactions || !transactions.length) {
+                list.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+            
+            list.innerHTML = transactions.slice(0, 10).map(t => `
+                <div class="transaction-item">
+                    <div class="transaction-left">
+                        <span class="transaction-date">${formatDate(t.date || t.created_at)}</span>
+                        <span class="transaction-desc">${t.description || t.type || 'Операция'}</span>
+                    </div>
+                    <span class="transaction-amount ${t.amount > 0 ? 'positive' : 'negative'}">
+                        ${t.amount > 0 ? '+' : ''}${t.amount.toLocaleString('ru-RU')} ⭐
+                    </span>
+                </div>
+            `).join('');
+            
+            list.style.display = 'block';
+            empty.style.display = 'none';
+        }
+
+        // ===== FORMAT HELPERS =====
         function formatNumber(num) {
-            if (num >= 1000000) {
-                return (num / 1000000).toFixed(1) + 'M';
-            }
-            if (num >= 1000) {
-                return (num / 1000).toFixed(1) + 'K';
-            }
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
             return num.toString();
         }
 
         function formatDate(dateStr) {
+            if (!dateStr) return '';
             const date = new Date(dateStr);
-            return date.toLocaleDateString('ru-RU', { 
-                day: 'numeric', 
-                month: 'short', 
-                year: 'numeric' 
+            return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        }
+
+        // ===== MODALS =====
+        function openModal(type) {
+            document.getElementById(`${type}Modal`).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(type) {
+            document.getElementById(`${type}Modal`).classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function openHistoryModal() { openModal('history'); }
+        function openHelpModal() { openModal('help'); }
+        function openSubscriptionModal() { openModal('subscription'); }
+        
+        function openStarsPackages() {
+            closeModal('subscription');
+            setTimeout(() => openModal('stars'), 200);
+        }
+
+        // Закрытие по клику на overlay
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    e.target.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
             });
-        }
+        });
 
-        function showError(message) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('content').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('error').textContent = message;
-        }
-
-        window.openSubscription = function() {
-            console.log('openSubscription called!');
-            // Показываем выбор: подписка или звёзды
-            const modal = document.createElement('div');
-            modal.className = 'modal active';
-            modal.id = 'subscriptionModal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <h3 style="text-align: center; margin-bottom: 20px;">⭐ Управление подпиской</h3>
-                    <button class="btn" onclick="window.selectSubscription()">
-                        ⭐ Оформить подписку
-                    </button>
-                    <button class="btn btn-secondary" onclick="window.buyStars()">
-                        💰 Докуп звёзд
-                    </button>
-                    <button class="btn btn-secondary" onclick="window.closeModal()" style="margin-top: 8px;">
-                        ← Отмена
-                    </button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        };
-
-        window.closeModal = function() {
-            console.log('closeModal called!');
-            const modal = document.getElementById('subscriptionModal');
-            if (modal) {
-                modal.remove();
-            }
-        };
-
-        window.selectSubscription = function() {
-            console.log('selectSubscription called!');
-            window.tg.sendData('open_subscription');
-            window.tg.close();
-        };
-
-        window.buyStars = function() {
-            console.log('buyStars called!');
-            // Удаляем предыдущее модальное окно
-            document.querySelectorAll('.modal').forEach(m => m.remove());
-            
-            // Создаем окно с пакетами звёзд
-            const modal = document.createElement('div');
-            modal.className = 'modal active';
-            modal.id = 'starsModal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <h3 style="text-align: center; margin-bottom: 20px;">💰 Докупить звёзды</h3>
-                    
-                    <div class="stars-package" onclick="window.buyStarsPackage('100k', 149)">
-                        <div class="package-stars">1,000 ⭐</div>
-                        <div class="package-price">149 ₽</div>
-                    </div>
-                    
-                    <div class="stars-package" onclick="window.buyStarsPackage('200k', 249)">
-                        <div class="package-stars">2,000 ⭐</div>
-                        <div class="package-price">249 ₽</div>
-                    </div>
-                    
-                    <div class="stars-package popular" onclick="window.buyStarsPackage('800k', 700)">
-                        <div class="package-badge">🔥 ВЫГОДНО</div>
-                        <div class="package-stars">8,000 ⭐</div>
-                        <div class="package-price">700 ₽</div>
-                    </div>
-                    
-                    <button class="btn btn-secondary" onclick="window.closeStarsModal()" style="margin-top: 16px;">
-                        ← Назад
-                    </button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        };
-
-        window.closeStarsModal = function() {
-            console.log('closeStarsModal called!');
-            const modal = document.getElementById('starsModal');
-            if (modal) {
-                modal.remove();
-            }
-        };
-
-        window.buyStarsPackage = function(stars, price) {
-            console.log('buyStarsPackage called:', stars, price);
-            window.tg.sendData(JSON.stringify({action: 'buy_stars', stars: stars, price: price}));
-            window.tg.showAlert('⭐ Переход к оплате ' + stars + ' за ' + price + '₽');
-            setTimeout(() => window.tg.close(), 1000);
-        };
-
-        function copyRefLink() {
-            const link = document.getElementById('refLink').value;
+        // ===== REFERRAL LINK =====
+        function copyReferralLink() {
+            const link = document.getElementById('referralLink').value;
             
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(link).then(function() {
-                    showNotification('✅ Ссылка скопирована!');
-                }).catch(function() {
-                    fallbackCopy(link);
-                });
+                navigator.clipboard.writeText(link)
+                    .then(() => showToast('✅ Ссылка скопирована!', 'success'))
+                    .catch(() => fallbackCopy(link));
             } else {
                 fallbackCopy(link);
             }
@@ -674,29 +1417,60 @@
             textarea.style.opacity = '0';
             document.body.appendChild(textarea);
             textarea.select();
+            
             try {
                 document.execCommand('copy');
-                showNotification('✅ Ссылка скопирована!');
+                showToast('✅ Ссылка скопирована!', 'success');
             } catch (err) {
-                showNotification('❌ Скопируйте вручную');
+                showToast('❌ Ошибка копирования', 'error');
             }
+            
             document.body.removeChild(textarea);
         }
 
-        function showNotification(text) {
-            const notif = document.createElement('div');
-            notif.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#7c3aed;color:white;padding:12px 24px;border-radius:10px;z-index:9999;';
-            notif.textContent = text;
-            document.body.appendChild(notif);
-            setTimeout(() => notif.remove(), 2000);
+        // ===== ACTIONS =====
+        function openSubscriptionInBot() {
+            tg.sendData(JSON.stringify({ action: 'open_subscription' }));
+            tg.close();
         }
 
-        // Загружаем данные при старте
-        loadUserData().then(() => {
-            // Обновляем реферальную ссылку с реальным user_id
-            if (userId) {
-                document.getElementById('refLink').value = `https://t.me/iisoul_bot?start=ref_${userId}`;
-            }
+        function buyStars(amount, price) {
+            tg.sendData(JSON.stringify({ action: 'buy_stars', amount: amount, price: price }));
+            showToast(`⭐ Переход к оплате ${amount} звёзд...`);
+            setTimeout(() => tg.close(), 1000);
+        }
+
+        function closeWebApp() {
+            tg.close();
+        }
+
+        // ===== TOAST =====
+        function showToast(message, type = 'default') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        // ===== ERROR =====
+        function showError(message) {
+            document.getElementById('skeletonLoader').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('errorBlock').style.display = 'block';
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        // ===== INIT =====
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+            loadUserData();
         });
     </script>
 </body>

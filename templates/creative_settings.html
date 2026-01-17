@@ -233,23 +233,23 @@
         </div>
 
         <div class="section-title">💎 Модель</div>
-        <div class="option style-model" data-model="econom" data-price="10000">
+        <div class="option style-model" data-model="econom" data-price="50">
           <div class="opt-name">💰 Эконом — FLUX schnell</div>
-          <div class="opt-price">10 000 токенов</div>
+          <div class="opt-price">50 ⭐</div>
           <div class="opt-desc">Быстро и просто</div>
         </div>
-        <div class="option style-model selected" data-model="standard" data-price="15000">
+        <div class="option style-model selected" data-model="standard" data-price="120">
           <div class="opt-name">⭐ Стандарт — FLUX 1.1</div>
-          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-price">120 ⭐</div>
           <div class="opt-desc">Лучшее качество/сходство</div>
         </div>
-        <div class="option style-model" data-model="premium" data-price="25000">
+        <div class="option style-model" data-model="premium" data-price="200">
           <div class="opt-name">👑 Премиум — FLUX Pro</div>
-          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-price">200 ⭐</div>
           <div class="opt-desc">Максимум деталей</div>
         </div>
 
-        <div class="total"><div>💵 Итого:</div><strong id="total-style">15 000 токенов</strong></div>
+        <div class="total"><div>💵 Итого:</div><strong id="total-style">120 ⭐</strong></div>
         <button class="btn btn-secondary" onclick="saveStyle()">✅ Сохранить настройки</button>
         <button class="btn btn-primary" onclick="startStyle()">▶️ Начать в боте</button>
         <div class="status" id="status-style">✅ Сохранено</div>
@@ -285,18 +285,18 @@
         </div>
 
         <div class="section-title">💎 Модель</div>
-        <div class="option meme-model selected" data-model="econom" data-price="15000">
+        <div class="option meme-model selected" data-model="econom" data-price="120">
           <div class="opt-name">💰 Эконом — FLUX 1.1</div>
-          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-price">120 ⭐</div>
           <div class="opt-desc">Для мемов — достаточно</div>
         </div>
-        <div class="option meme-model" data-model="standard" data-price="30000">
+        <div class="option meme-model" data-model="standard" data-price="350">
           <div class="opt-name">⭐ Стандарт — Banana Pro</div>
-          <div class="opt-price">30 000 токенов</div>
+          <div class="opt-price">350 ⭐</div>
           <div class="opt-desc">Более точная композиция</div>
         </div>
 
-        <div class="total"><div>💵 Итого:</div><strong id="total-meme">15 000 токенов</strong></div>
+        <div class="total"><div>💵 Итого:</div><strong id="total-meme">120 ⭐</strong></div>
         <button class="btn btn-secondary" onclick="saveMeme()">✅ Сохранить настройки</button>
         <button class="btn btn-primary" onclick="startMeme()">▶️ Начать в боте</button>
         <div class="status" id="status-meme">✅ Сохранено</div>
@@ -323,23 +323,23 @@
         </div>
 
         <div class="section-title">💎 Модель</div>
-        <div class="option effect-model" data-model="econom" data-price="10000">
+        <div class="option effect-model" data-model="econom" data-price="50">
           <div class="opt-name">💰 Эконом</div>
-          <div class="opt-price">10 000 токенов</div>
+          <div class="opt-price">50 ⭐</div>
           <div class="opt-desc">Быстро</div>
         </div>
-        <div class="option effect-model selected" data-model="standard" data-price="15000">
+        <div class="option effect-model selected" data-model="standard" data-price="120">
           <div class="opt-name">⭐ Стандарт</div>
-          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-price">120 ⭐</div>
           <div class="opt-desc">Лучший баланс</div>
         </div>
-        <div class="option effect-model" data-model="premium" data-price="25000">
+        <div class="option effect-model" data-model="premium" data-price="200">
           <div class="opt-name">👑 Премиум</div>
-          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-price">200 ⭐</div>
           <div class="opt-desc">Максимум качества</div>
         </div>
 
-        <div class="total"><div>💵 Итого:</div><strong id="total-effect">15 000 токенов</strong></div>
+        <div class="total"><div>💵 Итого:</div><strong id="total-effect">120 ⭐</strong></div>
         <button class="btn btn-secondary" onclick="saveEffect()">✅ Сохранить настройки</button>
         <button class="btn btn-primary" onclick="startEffect()">▶️ Начать в боте</button>
         <div class="status" id="status-effect">✅ Сохранено</div>
@@ -431,11 +431,11 @@
     }
     function updateTotals() {
       const s = getSelected('.style-model');
-      if (s) document.getElementById('total-style').textContent = `${formatTokens(parseInt(s.dataset.price,10))} токенов`;
+      if (s) document.getElementById('total-style').textContent = `${formatTokens(parseInt(s.dataset.price,10))} ⭐`;
       const m = getSelected('.meme-model');
-      if (m) document.getElementById('total-meme').textContent = `${formatTokens(parseInt(m.dataset.price,10))} токенов`;
+      if (m) document.getElementById('total-meme').textContent = `${formatTokens(parseInt(m.dataset.price,10))} ⭐`;
       const e = getSelected('.effect-model');
-      if (e) document.getElementById('total-effect').textContent = `${formatTokens(parseInt(e.dataset.price,10))} токенов`;
+      if (e) document.getElementById('total-effect').textContent = `${formatTokens(parseInt(e.dataset.price,10))} ⭐`;
     }
 
     document.addEventListener('click', (e) => {

@@ -197,7 +197,7 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
             except Exception as e:
                 logger.warning("START: referrer notify failed: %s", e)
     
-    if not u['agreement']:
+    if not u.get('agreement_accepted', 1):
         agreement_text = await get_text("agreement", DEFAULT_AGREEMENT)
         await msg.answer(agreement_text, reply_markup=inline.agree_kb())
         return
@@ -218,14 +218,26 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
     await msg.answer(start_text, reply_markup=reply.main_kb(msg.from_user.id))
 @router.callback_query(F.data == "agree_yes")
 async def agree_yes(cb: CallbackQuery, state: FSMContext):
-    await db.accept_agreement(cb.from_user.id)
-    await cb.message.edit_text(
-        "✅ <b>Соглашение принято!</b>\n\n"
-        "Давайте познакомимся 🤝\n\n"
-        "📝 <b>Как вас зовут?</b>",
-        reply_markup=inline.skip_kb("skip:name")
+    user = await db.get_user(cb.from_user.id)
+    if not user:
+        await cb.message.edit_text("❌ Ошибка регистрации. Попробуйте позже.")
+        return
+
+    if not user.get('agreement_accepted', 0):
+        await db.accept_agreement(cb.from_user.id)
+        await db.add_stars(cb.from_user.id, NEW_USER_BONUS)
+
+    await state.clear()
+    stars = await db.get_available_stars(cb.from_user.id)
+    await cb.message.delete()
+    await cb.message.answer(
+        "🎉 <b>Добро пожаловать в Soul AI!</b>\n\n"
+        f"💫 Вам начислено <b>{fmt(NEW_USER_BONUS)} ⭐</b> в подарок!\n\n"
+        f"⭐ Ваш баланс: <b>{fmt(stars)}</b>\n\n"
+        "Выберите с кем хотите пообщаться:",
+        reply_markup=reply.main_kb(cb.from_user.id)
     )
-    await state.set_state(Registration.name)
+    await cb.answer("Добро пожаловать! 🎉")
 @router.callback_query(F.data == "agree_no")
 async def agree_no(cb: CallbackQuery):
     await cb.message.edit_text("❌ Нажмите /start чтобы принять соглашение")
@@ -507,7 +519,7 @@ async def cmd_restart(msg: Message, state: FSMContext):
         await msg.answer(agreement_text, reply_markup=inline.agree_kb())
         return
     
-    if not u['agreement']:
+    if not u.get('agreement_accepted', 1):
         agreement_text = await get_text("agreement", DEFAULT_AGREEMENT)
         await msg.answer(agreement_text, reply_markup=inline.agree_kb())
         return

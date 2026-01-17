@@ -11,7 +11,6 @@ import string
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, List
 from contextlib import asynccontextmanager
-from config import NEW_USER_BONUS
 
 
 # Константы для совместимости
@@ -77,6 +76,7 @@ async def _init_db_schema():
         total_requests INTEGER DEFAULT 0,
         is_blocked INTEGER DEFAULT 0,
         agreement INTEGER DEFAULT 0,
+        agreement_accepted INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         referred_by BIGINT DEFAULT NULL
     );
@@ -450,12 +450,12 @@ async def _init_db_schema():
     CREATE TABLE IF NOT EXISTS user_image_settings (
         user_id BIGINT PRIMARY KEY,
         create_model TEXT DEFAULT 'gpt-image-1-mini',
-        create_price INTEGER DEFAULT 8000,
+        create_price INTEGER DEFAULT 50,
         -- Важно: upscale_model должен совпадать с ключами в handlers/images.py (MODEL_CONFIGS)
         upscale_model TEXT DEFAULT 'auto_max',
-        upscale_price INTEGER DEFAULT 33000,
+        upscale_price INTEGER DEFAULT 350,
         edit_model TEXT DEFAULT 'gpt-image-1.5',
-        edit_price INTEGER DEFAULT 15000,
+        edit_price INTEGER DEFAULT 120,
         -- Расширяемая JSON-настройка под новые функции (видео/обработка/стили/инструменты)
         extra_settings JSONB DEFAULT '{}'::jsonb,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -620,6 +620,15 @@ async def init_db():
     """Проверка подключения к БД"""
     async with get_connection() as conn:
         await conn.execute("SELECT 1")
+        try:
+            await conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS agreement_accepted INTEGER DEFAULT 1"
+            )
+            await conn.execute(
+                "UPDATE users SET agreement_accepted = 1 WHERE agreement_accepted IS NULL"
+            )
+        except Exception as e:
+            print(f"⚠️ Миграция agreement_accepted: {e}")
     print("✅ PostgreSQL connected")
 
 
@@ -637,16 +646,23 @@ async def get_user(uid: int) -> Optional[Dict]:
         return dict(row) if row else None
 
 
-async def create_user(uid: int, uname: str = None, fname: str = None, referred_by: int = None) -> Dict:
-    """Создать нового пользователя с бонусными звёздами"""
+async def create_user(
+    uid: int,
+    uname: str = None,
+    fname: str = None,
+    referred_by: int = None,
+    stars: int = 0,
+    agreement_accepted: int = 0
+) -> Dict:
+    """Создать нового пользователя (бонус начисляется после принятия соглашения)"""
     async with get_connection() as conn:
         await conn.execute(
             """
-            INSERT INTO users (user_id, username, first_name, stars, referred_by)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users (user_id, username, first_name, stars, agreement, agreement_accepted, referred_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (user_id) DO NOTHING
             """,
-            uid, uname, fname, NEW_USER_BONUS, referred_by
+            uid, uname, fname, stars, agreement_accepted, agreement_accepted, referred_by
         )
         
         # Если есть реферер, создаём запись в referrals
@@ -682,7 +698,7 @@ async def accept_agreement(uid: int):
     """Принять соглашение"""
     async with get_connection() as conn:
         await conn.execute(
-            "UPDATE users SET agreement = 1 WHERE user_id = $1",
+            "UPDATE users SET agreement = 1, agreement_accepted = 1 WHERE user_id = $1",
             uid
         )
 
@@ -3187,11 +3203,11 @@ async def get_image_settings(user_id: int) -> dict:
         # Возвращаем дефолтные значения если настроек нет
         return {
             "create_model": "gpt-image-1-mini",
-            "create_price": 8000,
+            "create_price": 50,
             "upscale_model": "auto_max",
-            "upscale_price": 33000,
+            "upscale_price": 350,
             "edit_model": "gpt-image-1.5",
-            "edit_price": 15000
+            "edit_price": 120
             ,
             "extra_settings": {}
         }
@@ -3228,11 +3244,11 @@ async def save_image_settings(user_id: int, settings: dict) -> bool:
         ''', 
             user_id,
             settings.get("create_model", "gpt-image-1-mini"),
-            settings.get("create_price", 8000),
+            settings.get("create_price", 50),
             settings.get("upscale_model", "auto_max"),
-            settings.get("upscale_price", 33000),
+            settings.get("upscale_price", 350),
             settings.get("edit_model", "gpt-image-1.5"),
-            settings.get("edit_price", 15000),
+            settings.get("edit_price", 120),
             extra_settings_json
         )
         return True

@@ -222,25 +222,25 @@
         <div class="pill" id="cover-selected">✅ Выбрано: Instagram Пост (1080×1080)</div>
 
         <div class="section-title">💎 Модель</div>
-        <div class="option cover-model" data-model="flux-1.1" data-price="15000">
+        <div class="option cover-model" data-model="flux-1.1" data-price="120">
           <div class="opt-name">💰 Эконом — FLUX 1.1</div>
-          <div class="opt-price">15 000 токенов</div>
+          <div class="opt-price">120 ⭐</div>
           <div class="opt-desc">Для быстрых обложек</div>
         </div>
-        <div class="option cover-model selected" data-model="flux-pro" data-price="25000">
+        <div class="option cover-model selected" data-model="flux-pro" data-price="200">
           <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
-          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-price">200 ⭐</div>
           <div class="opt-desc">Оптимально по качеству</div>
         </div>
-        <div class="option cover-model" data-model="flux-max" data-price="45000">
+        <div class="option cover-model" data-model="flux-max" data-price="350">
           <div class="opt-name">👑 Премиум — FLUX Max</div>
-          <div class="opt-price">45 000 токенов</div>
+          <div class="opt-price">350 ⭐</div>
           <div class="opt-desc">Максимальное качество и детализация</div>
         </div>
 
         <div class="total">
           <div>💵 Итого:</div>
-          <strong id="total-cover">25 000 токенов</strong>
+          <strong id="total-cover">200 ⭐</strong>
         </div>
 
         <div class="section-title">🅰️ Текст на изображении</div>
@@ -280,15 +280,15 @@
         </div>
 
         <div class="section-title">💎 Модель</div>
-        <div class="option logo-model selected" data-model="flux-pro" data-price="25000">
+        <div class="option logo-model selected" data-model="flux-pro" data-price="200">
           <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
-          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-price">200 ⭐</div>
           <div class="opt-desc">Чёткие формы, чистый стиль</div>
         </div>
 
         <div class="total">
           <div>💵 Итого:</div>
-          <strong id="total-logo">25 000 токенов</strong>
+          <strong id="total-logo">200 ⭐</strong>
         </div>
 
         <button class="btn btn-secondary" onclick="saveLogo()">✅ Сохранить настройки</button>
@@ -308,9 +308,9 @@
         </div>
 
         <div class="section-title">💎 Модель</div>
-        <div class="option pres-model selected" data-model="flux-pro" data-price="25000">
+        <div class="option pres-model selected" data-model="flux-pro" data-price="200">
           <div class="opt-name">⭐ Стандарт — FLUX Pro</div>
-          <div class="opt-price">25 000 токенов</div>
+          <div class="opt-price">200 ⭐</div>
           <div class="opt-desc">Хорошо для визуалов и фонов</div>
         </div>
 
@@ -327,7 +327,7 @@
 
         <div class="total">
           <div>💵 Итого:</div>
-          <strong id="total-pres">25 000 токенов</strong>
+          <strong id="total-pres">200 ⭐</strong>
         </div>
 
         <button class="btn btn-secondary" onclick="savePresentation()">✅ Сохранить настройки</button>
@@ -435,11 +435,11 @@
 
     function updateTotals() {
       const c = getSelected('.cover-model');
-      if (c) document.getElementById('total-cover').textContent = `${formatTokens(parseInt(c.dataset.price,10))} токенов`;
+      if (c) document.getElementById('total-cover').textContent = `${formatTokens(parseInt(c.dataset.price,10))} ⭐`;
       const l = getSelected('.logo-model');
-      if (l) document.getElementById('total-logo').textContent = `${formatTokens(parseInt(l.dataset.price,10))} токенов`;
+      if (l) document.getElementById('total-logo').textContent = `${formatTokens(parseInt(l.dataset.price,10))} ⭐`;
       const p = getSelected('.pres-model');
-      if (p) document.getElementById('total-pres').textContent = `${formatTokens(parseInt(p.dataset.price,10))} токенов`;
+      if (p) document.getElementById('total-pres').textContent = `${formatTokens(parseInt(p.dataset.price,10))} ⭐`;
     }
 
     async function saveExtra(extraPatch) {

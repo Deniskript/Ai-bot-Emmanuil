@@ -551,19 +551,19 @@
             
             <div class="option video-tier selected" data-tier="econom">
                 <div class="opt-name">🔥 Эконом (LTX)</div>
-                <div class="opt-price" data-tier-price>0 токенов</div>
+                <div class="opt-price" data-tier-price>167 ⭐</div>
                 <div class="opt-desc">Быстро и недорого • лучше для тестов</div>
             </div>
             
             <div class="option video-tier" data-tier="standard">
                 <div class="opt-name">⭐ Стандарт (Veo Fast)</div>
-                <div class="opt-price" data-tier-price>0 токенов</div>
+                <div class="opt-price" data-tier-price>1,371 ⭐</div>
                 <div class="opt-desc">Хорошее качество • можно включить аудио</div>
             </div>
             
             <div class="option video-tier" data-tier="premium">
                 <div class="opt-name">👑 Премиум (Sora / Kling)</div>
-                <div class="opt-price" data-tier-price>0 токенов</div>
+                <div class="opt-price" data-tier-price>1,371 ⭐</div>
                 <div class="opt-desc">Максимальное качество (дороже)</div>
             </div>
 
@@ -597,7 +597,7 @@
             <!-- ИТОГО -->
             <div class="total">
                 <div class="total-label">💵 Итого:</div>
-                <div class="total-amount" id="totalTokens">0 токенов</div>
+            <div class="total-amount" id="totalTokens">167 ⭐</div>
             </div>
 
             <!-- КНОПКИ -->
@@ -642,9 +642,9 @@
         const userId = parseUserId();
 
         // ========== ЦЕНООБРАЗОВАНИЕ ==========
-        // 1 рубль = 1000 токенов, маржа x2
-        const RUB_TO_TOKENS = 1000;
-        const MARKUP_X = 2;
+        // 1 ⭐ = 0.1225 ₽ (490₽ / 4000⭐), маржа 70%
+        const STAR_COST_RUB = 0.1225;
+        const MARKUP = 1.7;
 
         const VIDEO_PRICING_RUB = {
             econom: {
@@ -674,6 +674,10 @@
         }
 
         // ========== РАСЧЁТ ЦЕНЫ ==========
+        function rubToStars(rub) {
+            return Math.round((rub * MARKUP) / STAR_COST_RUB);
+        }
+
         function computePriceTokens({ mode, tier, audio, seconds }) {
             tier = tier || 'econom';
             mode = mode || 'text_to_video';
@@ -681,23 +685,23 @@
 
             if (tier === 'econom') {
                 const rub = (VIDEO_PRICING_RUB.econom[mode]?.base ?? 12);
-                return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+                return rubToStars(rub);
             }
 
             if (tier === 'standard') {
                 const m = VIDEO_PRICING_RUB.standard[mode] || VIDEO_PRICING_RUB.standard.photo_to_video;
                 const rub = audio ? m.with_audio : m.no_audio;
-                return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+                return rubToStars(rub);
             }
 
             // premium
             if (mode === 'text_to_video') {
                 const rub = seconds >= 8 ? VIDEO_PRICING_RUB.premium.text_to_video.s8 : VIDEO_PRICING_RUB.premium.text_to_video.s4;
-                return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+                return rubToStars(rub);
             }
 
             const rub = seconds >= 10 ? VIDEO_PRICING_RUB.premium.photo_to_video.s10 : VIDEO_PRICING_RUB.premium.photo_to_video.s5;
-            return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
+            return rubToStars(rub);
         }
 
         // ========== ОБНОВЛЕНИЕ UI ЦЕН ==========
@@ -732,7 +736,7 @@
                 const priceEl = t.el?.querySelector('[data-tier-price]');
                 if (!priceEl) return;
                 const tokens = computePriceTokens({ mode, tier: t.key, audio, seconds });
-                priceEl.textContent = `${formatTokens(tokens)} токенов`;
+                priceEl.textContent = `${formatTokens(tokens)} ⭐`;
             });
 
             updateTotal();
@@ -744,7 +748,7 @@
             const audio = document.getElementById('audio')?.checked || false;
             const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
             const tokens = computePriceTokens({ mode, tier, audio, seconds });
-            document.getElementById('totalTokens').textContent = `${formatTokens(tokens)} токенов`;
+            document.getElementById('totalTokens').textContent = `${formatTokens(tokens)} ⭐`;
             return tokens;
         }
 

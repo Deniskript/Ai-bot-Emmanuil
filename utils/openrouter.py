@@ -2,7 +2,7 @@ import httpx
 import json
 import config
 from config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_SITE_URL, OPENROUTER_APP_NAME
-from utils.stars import calculate_stars, STAR_MARGIN
+from utils.stars import calculate_stars
 
 _client = None
 
@@ -98,12 +98,14 @@ async def ask(msgs: list, model: str = None, image_base64: str = None, max_token
         )
         
         # Логируем для мониторинга
-        if usage:
-            print(f"[API] model={use_model}, "
-                  f"prompt_tokens={usage.get('prompt_tokens')}, "
-                  f"completion_tokens={usage.get('completion_tokens')}, "
-                  f"total_tokens={usage.get('total_tokens')}, "
-                  f"stars={stars_to_charge}")
+        method = "API" if usage else "FALLBACK"
+        print(
+            f"[STARS] method={method}, model={use_model}, "
+            f"prompt_tokens={usage.get('prompt_tokens') if usage else None}, "
+            f"completion_tokens={usage.get('completion_tokens') if usage else None}, "
+            f"total_tokens={usage.get('total_tokens') if usage else None}, "
+            f"stars={stars_to_charge}"
+        )
         
         return text, stars_to_charge
         
