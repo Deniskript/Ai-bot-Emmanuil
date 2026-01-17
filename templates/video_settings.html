@@ -2,86 +2,192 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soul Bot - Видео</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul — Видео</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        .container { max-width: 650px; margin: 0 auto; }
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #06B6D4 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 40px;
+            color: #333;
+            overflow-x: hidden;
+        }
 
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: floatCreative 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 20px; height: 20px; background: rgba(255,255,255,0.2); top: 5%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; background: rgba(255,182,193,0.25); top: 18%; left: 85%; animation-delay: 0.6s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; background: rgba(255,255,255,0.15); top: 32%; left: 20%; animation-delay: 1.2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; background: rgba(147,197,253,0.3); top: 48%; left: 75%; animation-delay: 1.8s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; background: rgba(255,255,255,0.2); top: 62%; left: 30%; animation-delay: 2.4s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; background: rgba(196,181,253,0.25); top: 78%; left: 80%; animation-delay: 3s; }
+        .particle:nth-child(7) { width: 16px; height: 16px; background: rgba(165,243,252,0.25); top: 90%; left: 15%; animation-delay: 3.6s; }
+
+        @keyframes floatCreative {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) rotate(0deg) scale(1);
+                opacity: 0.3;
+            }
+            25% {
+                transform: translateY(-30px) translateX(20px) rotate(90deg) scale(1.2);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-15px) translateX(-15px) rotate(180deg) scale(0.9);
+                opacity: 0.4;
+            }
+            75% {
+                transform: translateY(-40px) translateX(10px) rotate(270deg) scale(1.1);
+                opacity: 0.5;
+            }
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === HEADER === */
         .header {
             color: white;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 12px;
             flex-wrap: wrap;
+            animation: fadeInUp 0.6s ease-out;
         }
 
         .title {
-            font-size: 22px;
-            font-weight: 700;
+            font-size: 26px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 15px rgba(0,0,0,0.2);
+        }
+
+        .title-icon {
+            animation: sparkle 2s ease-in-out infinite;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: brightness(1);
+            }
+            50% { 
+                transform: scale(1.15) rotate(5deg);
+                filter: brightness(1.3) drop-shadow(0 0 15px rgba(255,255,255,0.6));
+            }
         }
 
         .balance-badge {
-            background: rgba(255,255,255,0.16);
-            border: 1px solid rgba(255,255,255,0.28);
-            border-radius: 999px;
-            padding: 8px 12px;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 30px;
+            padding: 10px 16px;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 13px;
-            white-space: nowrap;
+            font-size: 14px;
+            font-weight: 700;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
         .balance-amount {
-            font-weight: 800;
+            font-weight: 900;
         }
 
+        /* === АНИМАЦИИ === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* === КАРТОЧКА === */
         .card {
-            background: white;
-            border-radius: 16px;
-            padding: 18px;
-            margin-bottom: 14px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            animation: fadeInUp 0.6s ease-out 0.1s backwards;
         }
 
-        /* Режимы — вертикально, чтобы не "съезжало" на мобилках */
+        /* === РЕЖИМЫ === */
         .modes {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 10px;
-            margin-bottom: 14px;
+            gap: 12px;
+            margin-bottom: 18px;
         }
 
         .mode {
-            padding: 14px;
-            border-radius: 12px;
+            padding: 16px;
+            border-radius: 14px;
             border: 2px solid #e9ecef;
             background: #fff;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
             user-select: none;
         }
 
         .mode:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+            border-color: #EC4899;
+            background: rgba(236,72,153,0.05);
+            transform: translateX(5px);
+        }
+
+        .mode:active {
+            transform: scale(0.98);
         }
 
         .mode.active {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-color: #EC4899;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            box-shadow: 0 4px 20px rgba(236,72,153,0.2);
         }
 
         .mode-top {
@@ -92,52 +198,76 @@
         }
 
         .mode-title {
-            font-weight: 900;
+            font-weight: 800;
             color: #333;
-            font-size: 15px;
+            font-size: 16px;
+        }
+
+        .mode.active .mode-title {
+            color: #EC4899;
         }
 
         .badge {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 800;
-            color: #667eea;
-            background: #f0f8ff;
-            border: 1px solid #dbeafe;
-            padding: 4px 10px;
-            border-radius: 999px;
+            color: #EC4899;
+            background: rgba(236,72,153,0.1);
+            border: 1px solid rgba(236,72,153,0.2);
+            padding: 5px 12px;
+            border-radius: 20px;
             white-space: nowrap;
         }
 
+        .mode-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
+
+        /* === HINT === */
         .hint {
             font-size: 13px;
             color: #666;
-            line-height: 1.45;
-            margin-bottom: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(236,72,153,0.08);
+            border-radius: 12px;
         }
 
+        /* === SECTION TITLE === */
         .section-title {
             font-weight: 800;
-            color: #333;
-            margin: 12px 0 8px;
+            color: #EC4899;
+            margin: 16px 0 12px;
+            font-size: 16px;
         }
 
+        /* === ОПЦИИ УРОВНЕЙ === */
         .option {
-            padding: 14px;
+            padding: 16px;
             border: 2px solid #e9ecef;
-            border-radius: 12px;
+            border-radius: 14px;
             margin-bottom: 10px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
         }
 
         .option:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+            border-color: #EC4899;
+            background: rgba(236,72,153,0.05);
+            transform: translateX(5px);
+        }
+
+        .option:active {
+            transform: scale(0.98);
         }
 
         .option.selected {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-color: #EC4899;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            box-shadow: 0 4px 20px rgba(236,72,153,0.2);
         }
 
         .opt-name {
@@ -147,49 +277,84 @@
             margin-bottom: 4px;
         }
 
+        .option.selected .opt-name {
+            color: #EC4899;
+        }
+
         .opt-price {
-            color: #667eea;
+            color: #EC4899;
             font-weight: 800;
-            font-size: 13px;
+            font-size: 14px;
             margin-bottom: 4px;
         }
 
         .opt-desc {
             font-size: 13px;
             color: #666;
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
+        /* === TOGGLE === */
+        .toggle {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-top: 14px;
+            padding: 12px;
+            background: rgba(236,72,153,0.05);
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .toggle input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #EC4899;
+        }
+
+        /* === ROW === */
         .row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 12px;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .row-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+            font-weight: 600;
         }
 
         select {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             border-radius: 12px;
             border: 2px solid #e9ecef;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
             outline: none;
+            transition: all 0.3s ease;
+            background: white;
         }
 
-        .toggle {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            font-size: 14px;
-            color: #333;
-            margin-top: 10px;
+        select:focus {
+            border-color: #EC4899;
+            box-shadow: 0 0 0 4px rgba(236,72,153,0.15);
         }
 
+        /* === TOTAL === */
         .total {
-            margin-top: 14px;
-            padding: 12px;
-            border-radius: 12px;
-            background: #f0f8ff;
-            border-left: 4px solid #667eea;
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(139,92,246,0.1) 100%);
+            border-left: 4px solid #EC4899;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -197,89 +362,183 @@
             flex-wrap: wrap;
         }
 
-        .total strong {
-            color: #667eea;
-            font-size: 16px;
+        .total-label {
+            font-size: 15px;
+            font-weight: 700;
+            color: #333;
         }
 
+        .total-amount {
+            color: #EC4899;
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        /* === КНОПКИ === */
         .btn {
             width: 100%;
-            padding: 14px;
+            padding: 16px;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             font-size: 16px;
             font-weight: 800;
             cursor: pointer;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin-top: 12px;
+            transition: all 0.3s ease;
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
             color: white;
-            margin-top: 10px;
+            margin-top: 14px;
+            box-shadow: 0 4px 15px rgba(16,185,129,0.3);
         }
 
-        .status {
-            padding: 12px;
-            background: #d4edda;
-            color: #155724;
-            border-radius: 10px;
-            text-align: center;
-            margin-top: 12px;
-            display: none;
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(16,185,129,0.4);
         }
-        .status.show { display: block; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #EC4899 100%);
+            background-size: 200% 200%;
+            color: white;
+            margin-top: 10px;
+            box-shadow: 0 4px 20px rgba(236,72,153,0.35);
+            animation: gradientShift 3s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(236,72,153,0.45);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
 
         .btn-back {
             width: 100%;
-            padding: 14px;
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            border-radius: 12px;
+            padding: 16px;
+            background: rgba(255,255,255,0.95);
+            color: #EC4899;
+            border: none;
+            border-radius: 14px;
             font-size: 16px;
             font-weight: 800;
             cursor: pointer;
-            margin-top: 14px;
+            margin-top: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease-out 0.3s backwards;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        /* === STATUS === */
+        .status {
+            padding: 14px;
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            color: #065F46;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 12px;
+            font-weight: 700;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        /* === TOAST === */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 400px) {
+            .title { font-size: 22px; }
+            .header { flex-direction: column; align-items: flex-start; }
+            .balance-badge { width: 100%; justify-content: center; }
+            .row { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
-            <div class="title">🎬 Видео</div>
+            <div class="title">
+                <span class="title-icon">🎬</span> Видео
+            </div>
             <div class="balance-badge">
                 💰 Баланс: <span class="balance-amount" id="balance">0</span>
             </div>
         </div>
 
+        <!-- КАРТОЧКА -->
         <div class="card">
+            <!-- РЕЖИМЫ -->
             <div class="modes" id="modes">
                 <div class="mode active" data-mode="text_to_video">
                     <div class="mode-top">
                         <div class="mode-title">🚀 Текст → Видео</div>
                         <div class="badge">описание → ролик</div>
                     </div>
-                    <div class="opt-desc" style="margin-top:6px;">Опишите сцену текстом — получаете видео</div>
+                    <div class="mode-desc">Опишите сцену текстом — получаете видео</div>
                 </div>
                 <div class="mode" data-mode="photo_to_video">
                     <div class="mode-top">
                         <div class="mode-title">⚡ Фото → Видео</div>
                         <div class="badge">оживить фото</div>
                     </div>
-                    <div class="opt-desc" style="margin-top:6px;">Загружаете фото (можно с подписью) — получаете ролик</div>
+                    <div class="mode-desc">Загружаете фото (можно с подписью) — получаете ролик</div>
                 </div>
                 <div class="mode" data-mode="animate_photo">
                     <div class="mode-top">
                         <div class="mode-title">✨ Анимация фото</div>
                         <div class="badge">плавно</div>
                     </div>
-                    <div class="opt-desc" style="margin-top:6px;">Мягкая анимация без резких “морфингов”</div>
+                    <div class="mode-desc">Мягкая анимация без резких "морфингов"</div>
                 </div>
             </div>
 
@@ -287,31 +546,37 @@
                 Выберите режим и уровень качества. Запуск и отправка контента — в боте.
             </div>
 
+            <!-- УРОВНИ -->
             <div class="section-title">💰 Уровень</div>
+            
             <div class="option video-tier selected" data-tier="econom">
                 <div class="opt-name">🔥 Эконом (LTX)</div>
                 <div class="opt-price" data-tier-price>0 токенов</div>
                 <div class="opt-desc">Быстро и недорого • лучше для тестов</div>
             </div>
+            
             <div class="option video-tier" data-tier="standard">
                 <div class="opt-name">⭐ Стандарт (Veo Fast)</div>
                 <div class="opt-price" data-tier-price>0 токенов</div>
                 <div class="opt-desc">Хорошее качество • можно включить аудио</div>
             </div>
+            
             <div class="option video-tier" data-tier="premium">
                 <div class="opt-name">👑 Премиум (Sora / Kling)</div>
                 <div class="opt-price" data-tier-price>0 токенов</div>
                 <div class="opt-desc">Максимальное качество (дороже)</div>
             </div>
 
+            <!-- АУДИО -->
             <label class="toggle">
-                <input type="checkbox" id="audio" style="transform: scale(1.1);">
+                <input type="checkbox" id="audio">
                 🔊 Аудио (если поддерживается уровнем)
             </label>
 
+            <!-- СЕЛЕКТЫ -->
             <div class="row">
                 <div>
-                    <div class="hint" style="margin: 0 0 6px;">📐 Соотношение</div>
+                    <div class="row-label">📐 Соотношение</div>
                     <select id="aspect">
                         <option value="16:9">16:9</option>
                         <option value="9:16">9:16</option>
@@ -319,7 +584,7 @@
                     </select>
                 </div>
                 <div>
-                    <div class="hint" style="margin: 0 0 6px;">⏱ Длительность</div>
+                    <div class="row-label">⏱ Длительность</div>
                     <select id="seconds">
                         <option value="4">4 сек</option>
                         <option value="5" selected>5 сек</option>
@@ -329,24 +594,31 @@
                 </div>
             </div>
 
+            <!-- ИТОГО -->
             <div class="total">
-                <div>💵 Итого:</div>
-                <strong id="totalTokens">0 токенов</strong>
+                <div class="total-label">💵 Итого:</div>
+                <div class="total-amount" id="totalTokens">0 токенов</div>
             </div>
 
+            <!-- КНОПКИ -->
             <button class="btn btn-secondary" onclick="saveVideo()">✅ Сохранить настройки</button>
             <button class="btn btn-primary" onclick="startInBot()">🎬 Начать в боте</button>
             <div class="status" id="status">✅ Сохранено</div>
         </div>
 
+        <!-- НАЗАД -->
         <button class="btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
     </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast">Сохранено!</div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
 
+        // ========== HELPERS ==========
         function formatTokens(num) {
             return (num || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         }
@@ -369,12 +641,11 @@
 
         const userId = parseUserId();
 
-        // Монетизация:
-        // - базовые стоимости держим в "рублях" только как внутренняя шкала
-        // - 1 рубль = 1000 токенов
-        // - пользователь платит с маржой x2
+        // ========== ЦЕНООБРАЗОВАНИЕ ==========
+        // 1 рубль = 1000 токенов, маржа x2
         const RUB_TO_TOKENS = 1000;
         const MARKUP_X = 2;
+
         const VIDEO_PRICING_RUB = {
             econom: {
                 text_to_video: { base: 12 },
@@ -388,12 +659,12 @@
             },
             premium: {
                 text_to_video: { s4: 99, s8: 198 },
-                // Kling i2v (в рублях): 5s ~89.9 / 10s ~179.9
                 photo_to_video: { s5: 89.9, s10: 179.9 },
                 animate_photo: { s5: 89.9, s10: 179.9 },
             }
         };
 
+        // ========== GETTERS ==========
         function getMode() {
             return document.querySelector('.mode.active')?.dataset.mode || 'text_to_video';
         }
@@ -402,6 +673,7 @@
             return document.querySelector('.video-tier.selected')?.dataset.tier || 'econom';
         }
 
+        // ========== РАСЧЁТ ЦЕНЫ ==========
         function computePriceTokens({ mode, tier, audio, seconds }) {
             tier = tier || 'econom';
             mode = mode || 'text_to_video';
@@ -411,6 +683,7 @@
                 const rub = (VIDEO_PRICING_RUB.econom[mode]?.base ?? 12);
                 return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
             }
+
             if (tier === 'standard') {
                 const m = VIDEO_PRICING_RUB.standard[mode] || VIDEO_PRICING_RUB.standard.photo_to_video;
                 const rub = audio ? m.with_audio : m.no_audio;
@@ -422,10 +695,12 @@
                 const rub = seconds >= 8 ? VIDEO_PRICING_RUB.premium.text_to_video.s8 : VIDEO_PRICING_RUB.premium.text_to_video.s4;
                 return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
             }
+
             const rub = seconds >= 10 ? VIDEO_PRICING_RUB.premium.photo_to_video.s10 : VIDEO_PRICING_RUB.premium.photo_to_video.s5;
             return Math.round(rub * RUB_TO_TOKENS * MARKUP_X);
         }
 
+        // ========== ОБНОВЛЕНИЕ UI ЦЕН ==========
         function updateTierPricesUI() {
             const mode = getMode();
             const isText = mode === 'text_to_video';
@@ -433,7 +708,7 @@
             // Ограничение длительности для text->video: 4/8
             const secondsSelect = document.getElementById('seconds');
             if (secondsSelect) {
-                const allowed = isText ? ['4','8'] : ['4','5','8','10'];
+                const allowed = isText ? ['4', '8'] : ['4', '5', '8', '10'];
                 const current = secondsSelect.value;
                 secondsSelect.innerHTML = allowed.map(v => {
                     const label = `${v} сек`;
@@ -443,7 +718,7 @@
                 if (!allowed.includes(current)) secondsSelect.value = allowed[0];
             }
 
-            // Обновляем видимые цены на уровнях (в токенах, уже с маржой)
+            // Обновляем цены на уровнях
             const tiers = [
                 { key: 'econom', el: document.querySelector('.video-tier[data-tier="econom"]') },
                 { key: 'standard', el: document.querySelector('.video-tier[data-tier="standard"]') },
@@ -456,19 +731,7 @@
             tiers.forEach(t => {
                 const priceEl = t.el?.querySelector('[data-tier-price]');
                 if (!priceEl) return;
-
-                if (t.key === 'econom') {
-                    const tokens = computePriceTokens({ mode, tier: 'econom', audio, seconds });
-                    priceEl.textContent = `${formatTokens(tokens)} токенов`;
-                    return;
-                }
-                if (t.key === 'standard') {
-                    const tokens = computePriceTokens({ mode, tier: 'standard', audio, seconds });
-                    priceEl.textContent = `${formatTokens(tokens)} токенов`;
-                    return;
-                }
-                // premium
-                const tokens = computePriceTokens({ mode, tier: 'premium', audio, seconds });
+                const tokens = computePriceTokens({ mode, tier: t.key, audio, seconds });
                 priceEl.textContent = `${formatTokens(tokens)} токенов`;
             });
 
@@ -485,6 +748,7 @@
             return tokens;
         }
 
+        // ========== ВЫБОР ==========
         function selectTier(tier) {
             document.querySelectorAll('.video-tier').forEach(x => x.classList.remove('selected'));
             const el = document.querySelector(`.video-tier[data-tier="${tier}"]`);
@@ -499,6 +763,7 @@
             updateTierPricesUI();
         }
 
+        // ========== EVENT LISTENERS ==========
         document.getElementById('modes')?.addEventListener('click', (e) => {
             const modeEl = e.target.closest?.('.mode');
             if (!modeEl) return;
@@ -515,13 +780,17 @@
         document.getElementById('aspect')?.addEventListener('change', updateTotal);
         document.getElementById('seconds')?.addEventListener('change', updateTierPricesUI);
 
+        // ========== ЗАГРУЗКА НАСТРОЕК ==========
         async function loadSettings() {
             if (!userId) return;
             try {
                 const resp = await fetch(`/api/image-settings/${userId}`);
                 if (!resp.ok) return;
                 const data = await resp.json();
-                if (data.balance !== undefined) document.getElementById('balance').textContent = formatTokens(data.balance);
+
+                if (data.balance !== undefined) {
+                    document.getElementById('balance').textContent = formatTokens(data.balance);
+                }
 
                 const v = data.extra_settings?.video;
                 if (v) {
@@ -532,14 +801,18 @@
                     if (v.seconds) document.getElementById('seconds').value = String(v.seconds);
                 }
                 updateTierPricesUI();
-            } catch (e) {}
+            } catch (e) {
+                console.error('Load error:', e);
+            }
         }
 
+        // ========== СОХРАНЕНИЕ ==========
         async function saveVideo() {
             if (!userId) {
-                alert('Ошибка: не удалось определить пользователя');
+                showToast('❌ Ошибка: не удалось определить пользователя');
                 return;
             }
+
             const mode = getMode();
             const tier = getTier();
             const audio = document.getElementById('audio')?.checked || false;
@@ -547,33 +820,42 @@
             const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
             const price = computePriceTokens({ mode, tier, audio, seconds });
 
-            const resp = await fetch('/api/image-settings/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    action: 'video',
-                    extra_settings: {
-                        video: { mode, tier, audio, aspect_ratio, seconds, price }
-                    }
-                })
-            });
+            try {
+                const resp = await fetch('/api/image-settings/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        action: 'video',
+                        extra_settings: {
+                            video: { mode, tier, audio, aspect_ratio, seconds, price }
+                        }
+                    })
+                });
 
-            const result = await resp.json().catch(() => ({}));
-            if (resp.ok && result.success) {
-                const el = document.getElementById('status');
-                el.classList.add('show');
-                setTimeout(() => el.classList.remove('show'), 2500);
-            } else {
-                alert('Ошибка сохранения: ' + (result.error || 'Unknown'));
+                const result = await resp.json().catch(() => ({}));
+
+                if (resp.ok && result.success) {
+                    const el = document.getElementById('status');
+                    el.classList.add('show');
+                    setTimeout(() => el.classList.remove('show'), 2500);
+                    showToast('✨ Настройки сохранены!');
+                } else {
+                    showToast('❌ ' + (result.error || 'Ошибка сохранения'));
+                }
+            } catch (e) {
+                console.error('Save error:', e);
+                showToast('❌ Ошибка сохранения');
             }
         }
 
+        // ========== СТАРТ В БОТЕ ==========
         async function startInBot() {
             if (!userId) {
-                alert('Ошибка: не удалось определить пользователя');
+                showToast('❌ Ошибка: не удалось определить пользователя');
                 return;
             }
+
             const mode = getMode();
             const tier = getTier();
             const audio = document.getElementById('audio')?.checked || false;
@@ -581,9 +863,10 @@
             const seconds = parseInt(document.getElementById('seconds')?.value || '5', 10);
             const price = computePriceTokens({ mode, tier, audio, seconds });
 
-            try { await saveVideo(); } catch (e) {}
+            try {
+                await saveVideo();
+            } catch (e) {}
 
-            // Совместимость: текущий бот слушает type=images_start + action=video.
             const payload = {
                 type: 'images_start',
                 action: 'video',
@@ -594,15 +877,27 @@
                 aspect_ratio,
                 price
             };
+
             try {
                 tg.sendData(JSON.stringify(payload));
                 tg.close();
             } catch (e) {
-                alert('Не удалось передать данные в бот');
+                console.error('sendData error:', e);
+                showToast('❌ Не удалось передать данные в бот');
             }
         }
 
-        // init
+        // ========== TOAST ==========
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        // ========== INIT ==========
         loadSettings();
         updateTierPricesUI();
     </script>
