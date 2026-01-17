@@ -86,11 +86,24 @@ async def ask(msgs: list, model: str = None, image_base64: str = None, max_token
         data = response.json()
         text = data["choices"][0]["message"]["content"]
         
-        # Используем новый точный подсчёт
-        stars_to_charge = calculate_stars(clean_msgs, text)
+        # Читаем usage из ответа API (ПРИОРИТЕТ!)
+        usage = data.get("usage", None)
         
-        # Логируем для отладки
-        print(f"[STARS] charging={stars_to_charge}, margin={STAR_MARGIN}")
+        # Рассчитываем звёзды с приоритетом на реальные данные
+        stars_to_charge = calculate_stars(
+            messages=clean_msgs,
+            response_text=text,
+            usage=usage,
+            model=use_model
+        )
+        
+        # Логируем для мониторинга
+        if usage:
+            print(f"[API] model={use_model}, "
+                  f"prompt_tokens={usage.get('prompt_tokens')}, "
+                  f"completion_tokens={usage.get('completion_tokens')}, "
+                  f"total_tokens={usage.get('total_tokens')}, "
+                  f"stars={stars_to_charge}")
         
         return text, stars_to_charge
         
