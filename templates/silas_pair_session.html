@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Парная сессия — Soul</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -13,20 +14,72 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 100%);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            animation: floatCalm 10s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 15px; height: 15px; top: 10%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 12px; height: 12px; top: 30%; left: 85%; animation-delay: 2s; }
+        .particle:nth-child(3) { width: 18px; height: 18px; top: 50%; left: 15%; animation-delay: 4s; }
+        .particle:nth-child(4) { width: 10px; height: 10px; top: 70%; left: 80%; animation-delay: 6s; }
+        .particle:nth-child(5) { width: 14px; height: 14px; top: 90%; left: 25%; animation-delay: 8s; }
+
+        @keyframes floatCalm {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px);
+                opacity: 0.08;
+            }
+            50% {
+                transform: translateY(-20px) translateX(10px);
+                opacity: 0.15;
+            }
+        }
+
+        /* === HEADER === */
         .header {
             background: rgba(255, 255, 255, 0.95);
-            padding: 12px 16px;
+            padding: 14px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 10;
+            animation: slideDown 0.4s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .header-left {
@@ -36,14 +89,17 @@
         }
 
         .header-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #333;
+            font-size: 17px;
+            font-weight: 800;
+            color: #7B68A6;
         }
 
         .header-status {
             font-size: 12px;
             color: #888;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
         }
 
         .status-dot {
@@ -55,7 +111,8 @@
         }
 
         .status-dot.online {
-            background: #4CAF50;
+            background: #10B981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
         }
 
         .status-dot.offline {
@@ -63,24 +120,57 @@
         }
 
         .status-dot.connecting {
-            background: #FFC107;
+            background: #F59E0B;
             animation: pulse 1s infinite;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
         }
 
         .header-btn {
             background: none;
             border: none;
             font-size: 14px;
-            color: #667eea;
+            font-weight: 700;
+            color: #7B68A6;
             cursor: pointer;
-            padding: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
         }
 
+        .header-btn:hover {
+            background: rgba(123, 104, 166, 0.1);
+        }
+
+        .participants-info {
+            display: flex;
+            gap: 8px;
+        }
+
+        .participant-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 12px;
+            background: #f0f0f0;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .participant-badge.online {
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            color: #065F46;
+        }
+
+        .participant-badge.me {
+            background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
+            color: #4338CA;
+        }
+
+        /* === CHAT CONTAINER === */
         .chat-container {
             flex: 1;
             overflow-y: auto;
@@ -88,76 +178,104 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            position: relative;
+            z-index: 1;
         }
 
+        /* === MESSAGES === */
         .message {
             max-width: 85%;
-            padding: 12px 16px;
-            border-radius: 16px;
+            padding: 14px 18px;
+            border-radius: 18px;
             font-size: 15px;
-            line-height: 1.5;
-            animation: fadeIn 0.3s ease;
+            line-height: 1.6;
+            animation: messageIn 0.3s ease-out;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes messageIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .message-soul {
             align-self: flex-start;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             color: #333;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
 
         .message-mine {
             align-self: flex-end;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 100%);
             color: white;
-            border-bottom-right-radius: 4px;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 4px 15px rgba(123, 104, 166, 0.3);
         }
 
         .message-partner {
             align-self: flex-start;
-            background: #E8F5E9;
-            color: #333;
-            border-bottom-left-radius: 4px;
+            background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+            color: #1B5E20;
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.15);
         }
 
         .message-header {
             font-size: 12px;
-            margin-bottom: 4px;
-            opacity: 0.7;
+            font-weight: 700;
+            margin-bottom: 6px;
+            opacity: 0.8;
         }
 
         .message-soul .message-header {
-            color: #667eea;
+            color: #7B68A6;
         }
 
         .message-partner .message-header {
-            color: #4CAF50;
+            color: #2E7D32;
         }
 
+        /* === SYSTEM MESSAGE === */
+        .system-message {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.9);
+            color: #666;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            animation: messageIn 0.3s ease-out;
+        }
+
+        /* === TYPING INDICATOR === */
         .typing-indicator {
             align-self: flex-start;
-            background: white;
-            padding: 12px 16px;
-            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 14px 18px;
+            border-radius: 18px;
             display: none;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
 
         .typing-indicator.visible {
             display: flex;
+            animation: messageIn 0.3s ease-out;
         }
 
         .typing-dot {
             width: 8px;
             height: 8px;
-            background: #667eea;
+            background: #7B68A6;
             border-radius: 50%;
             animation: typingBounce 1.4s infinite ease-in-out;
         }
@@ -168,39 +286,63 @@
 
         @keyframes typingBounce {
             0%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-6px); }
+            40% { transform: translateY(-8px); }
         }
 
+        .typing-text {
+            margin-left: 8px;
+            font-size: 13px;
+            color: #888;
+            font-weight: 600;
+        }
+
+        /* === INPUT CONTAINER === */
         .input-container {
-            background: white;
-            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 14px 16px;
             display: flex;
             align-items: flex-end;
             gap: 12px;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+            position: relative;
+            z-index: 10;
+            animation: slideUp 0.4s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .input-field {
             flex: 1;
-            border: 1px solid #e0e0e0;
-            border-radius: 20px;
-            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 22px;
+            padding: 12px 18px;
             font-size: 15px;
+            font-family: inherit;
             outline: none;
             resize: none;
             max-height: 120px;
-            font-family: inherit;
+            transition: all 0.3s;
         }
 
         .input-field:focus {
-            border-color: #667eea;
+            border-color: #7B68A6;
+            box-shadow: 0 0 0 4px rgba(123, 104, 166, 0.15);
         }
 
         .send-btn {
-            width: 44px;
-            height: 44px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 100%);
             border: none;
             color: white;
             font-size: 20px;
@@ -208,11 +350,17 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(123, 104, 166, 0.4);
         }
 
         .send-btn:hover {
-            transform: scale(1.05);
+            transform: scale(1.08);
+            box-shadow: 0 6px 20px rgba(123, 104, 166, 0.5);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
         }
 
         .send-btn:disabled {
@@ -221,17 +369,24 @@
             transform: none;
         }
 
+        /* === CONNECTION OVERLAY === */
         .connection-overlay {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .connection-overlay.hidden {
@@ -240,74 +395,93 @@
 
         .connection-box {
             background: white;
-            padding: 32px;
-            border-radius: 16px;
+            padding: 36px;
+            border-radius: 20px;
             text-align: center;
-            max-width: 300px;
+            max-width: 320px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: scaleIn 0.4s ease-out;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         .connection-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
+            font-size: 56px;
+            margin-bottom: 20px;
+        }
+
+        .connection-icon.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .connection-title {
-            font-size: 18px;
-            font-weight: 600;
+            font-size: 20px;
+            font-weight: 800;
             color: #333;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         .connection-text {
             font-size: 14px;
             color: #666;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
+            line-height: 1.5;
         }
 
         .connection-btn {
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #7B68A6 0%, #9D8EC4 100%);
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .participants-info {
-            display: flex;
-            gap: 8px;
-        }
-
-        .participant-badge {
-            font-size: 11px;
-            padding: 4px 8px;
             border-radius: 12px;
-            background: #f0f0f0;
-            color: #666;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(123, 104, 166, 0.4);
         }
 
-        .participant-badge.online {
-            background: #E8F5E9;
-            color: #4CAF50;
+        .connection-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(123, 104, 166, 0.5);
         }
 
-        .participant-badge.me {
-            background: #E3F2FD;
-            color: #2196F3;
-        }
-
-        .system-message {
-            align-self: center;
-            background: rgba(255, 255, 255, 0.9);
-            color: #666;
-            font-size: 13px;
-            padding: 8px 16px;
-            border-radius: 20px;
+        /* === АДАПТИВ === */
+        @media (max-width: 400px) {
+            .header { padding: 12px; }
+            .header-title { font-size: 15px; }
+            .participants-info { display: none; }
+            .message { max-width: 90%; padding: 12px 14px; }
+            .input-field { padding: 10px 14px; }
+            .send-btn { width: 44px; height: 44px; }
         }
     </style>
 </head>
 <body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <!-- HEADER -->
     <div class="header">
         <div class="header-left">
             <div>
@@ -325,17 +499,20 @@
         <button class="header-btn" onclick="endSession()">Выход</button>
     </div>
 
+    <!-- CHAT -->
     <div class="chat-container" id="chat">
-        <!-- Сообщения будут добавляться здесь -->
+        <!-- Сообщения добавляются здесь -->
     </div>
 
+    <!-- TYPING INDICATOR -->
     <div class="typing-indicator" id="typing">
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
-        <span style="margin-left: 8px; font-size: 13px; color: #666;">Soul печатает...</span>
+        <span class="typing-text">Soul печатает...</span>
     </div>
 
+    <!-- INPUT -->
     <div class="input-container">
         <textarea 
             class="input-field" 
@@ -348,9 +525,10 @@
         </button>
     </div>
 
+    <!-- CONNECTION OVERLAY -->
     <div class="connection-overlay" id="overlay">
         <div class="connection-box">
-            <div class="connection-icon" id="overlay-icon">🔄</div>
+            <div class="connection-icon spinning" id="overlay-icon">🔄</div>
             <div class="connection-title" id="overlay-title">Подключение...</div>
             <div class="connection-text" id="overlay-text">Устанавливаем соединение с сервером</div>
             <button class="connection-btn" id="overlay-btn" onclick="retryConnection()" style="display: none;">
@@ -368,71 +546,79 @@
         const userId = urlParams.get('user_id');
         const sessionCode = urlParams.get('code');
 
-        // Имена участников из шаблона
+        // Имена участников из Jinja2 шаблона
         const user1Name = "{{ user1_name | default('Участник 1') }}";
         const user2Name = "{{ user2_name | default('Участник 2') }}";
-        
-        // Функция для получения имени по номеру участника
-        function getParticipantName(participantNum) {
-            if (participantNum === 1) return user1Name;
-            if (participantNum === 2) return user2Name;
-            return `Участник ${participantNum}`;
-        }
 
+        // ========== ПЕРЕМЕННЫЕ ==========
         let ws = null;
         let myParticipantNum = 0;
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
 
         // WebSocket URL
-        const WS_URL = 'wss://soul-bot.ru/ws';  // Через nginx proxy
+        const WS_URL = 'wss://soul-bot.ru/ws';
 
+        // ========== HELPERS ==========
+        function getParticipantName(participantNum) {
+            if (participantNum === 1) return user1Name;
+            if (participantNum === 2) return user2Name;
+            return `Участник ${participantNum}`;
+        }
+
+        function formatContent(text) {
+            return text
+                .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+                .replace(/\n/g, '<br>');
+        }
+
+        // ========== WEBSOCKET ==========
         function connectWebSocket() {
-            showOverlay('🔄', 'Подключение...', 'Устанавливаем соединение');
-            
+            showOverlay('🔄', 'Подключение...', 'Устанавливаем соединение', false, true);
+
             try {
                 ws = new WebSocket(WS_URL);
-                
+
                 ws.onopen = function() {
                     console.log('WebSocket connected');
-                    // Отправляем авторизацию
                     ws.send(JSON.stringify({
                         type: 'auth',
                         user_id: userId,
                         code: sessionCode
                     }));
                 };
-                
+
                 ws.onmessage = function(event) {
                     const data = JSON.parse(event.data);
                     handleMessage(data);
                 };
-                
+
                 ws.onclose = function(event) {
                     console.log('WebSocket closed:', event.code);
                     updateStatus('offline', 'Отключено');
-                    
+
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
                         setTimeout(connectWebSocket, 2000 * reconnectAttempts);
                     } else {
-                        showOverlay('❌', 'Соединение потеряно', 'Не удалось подключиться', true);
+                        showOverlay('❌', 'Соединение потеряно', 'Не удалось подключиться к серверу', true, false);
                     }
                 };
-                
+
                 ws.onerror = function(error) {
                     console.error('WebSocket error:', error);
                 };
-                
+
             } catch (e) {
                 console.error('WebSocket connection error:', e);
-                showOverlay('❌', 'Ошибка подключения', e.message, true);
+                showOverlay('❌', 'Ошибка подключения', e.message, true, false);
             }
         }
 
+        // ========== MESSAGE HANDLER ==========
         function handleMessage(data) {
             console.log('Received:', data);
-            
+
             switch (data.type) {
                 case 'connected':
                     myParticipantNum = data.participant;
@@ -440,26 +626,26 @@
                     const myName = getParticipantName(myParticipantNum);
                     updateStatus('online', `Вы — ${myName}`);
                     document.getElementById('badge-me').textContent = myName;
-                    
+
                     if (data.participants_online === 2) {
                         hideOverlay();
                         updatePartnerStatus(true);
                     } else {
-                        showOverlay('⏳', 'Ожидание партнёра...', 'Когда партнёр подключится, сессия начнётся');
+                        showOverlay('⏳', 'Ожидание партнёра...', 'Когда партнёр подключится, сессия начнётся', false, false);
                     }
                     break;
-                    
+
                 case 'participant_joined':
                     hideOverlay();
                     updatePartnerStatus(true);
-                    addSystemMessage('Партнёр присоединился к сессии');
+                    addSystemMessage('✨ Партнёр присоединился к сессии');
                     break;
-                    
+
                 case 'participant_left':
                     updatePartnerStatus(false);
-                    addSystemMessage('Партнёр покинул сессию');
+                    addSystemMessage('👋 Партнёр покинул сессию');
                     break;
-                    
+
                 case 'message':
                     hideTyping();
                     if (data.from === 'soul') {
@@ -470,49 +656,48 @@
                         addMessage('partner', data.content, data.participant);
                     }
                     break;
-                    
+
                 case 'typing':
                     if (data.from === 'soul') {
                         showTyping();
                     }
                     break;
-                    
+
                 case 'history':
                     loadHistory(data.messages);
                     hideOverlay();
                     break;
-                    
+
                 case 'error':
-                    showOverlay('❌', 'Ошибка', data.message, true);
+                    showOverlay('❌', 'Ошибка', data.message, true, false);
                     break;
             }
         }
 
+        // ========== SEND MESSAGE ==========
         function sendMessage() {
             const input = document.getElementById('message-input');
             const content = input.value.trim();
-            
+
             if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
-            
-            // Отправляем
+
             ws.send(JSON.stringify({
                 type: 'message',
                 content: content
             }));
-            
-            // Показываем своё сообщение сразу
+
             addMessage('mine', content);
-            
-            // Очищаем поле
+
             input.value = '';
             input.style.height = 'auto';
         }
 
+        // ========== ADD MESSAGE ==========
         function addMessage(type, content, participantNum = null) {
             const chat = document.getElementById('chat');
             const msg = document.createElement('div');
             msg.className = `message message-${type}`;
-            
+
             let header = '';
             if (type === 'soul') {
                 header = '<div class="message-header">🧘 Soul</div>';
@@ -520,7 +705,7 @@
                 const displayName = getParticipantName(participantNum);
                 header = `<div class="message-header">👤 ${displayName}</div>`;
             }
-            
+
             msg.innerHTML = header + formatContent(content);
             chat.appendChild(msg);
             chat.scrollTop = chat.scrollHeight;
@@ -535,13 +720,7 @@
             chat.scrollTop = chat.scrollHeight;
         }
 
-        function formatContent(text) {
-            // Простое форматирование
-            return text
-                .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-                .replace(/\n/g, '<br>');
-        }
-
+        // ========== LOAD HISTORY ==========
         function loadHistory(messages) {
             messages.forEach(msg => {
                 if (msg.role === 'assistant') {
@@ -554,8 +733,10 @@
             });
         }
 
+        // ========== TYPING ==========
         function showTyping() {
-            document.getElementById('typing').classList.add('visible');
+            const typing = document.getElementById('typing');
+            typing.classList.add('visible');
             const chat = document.getElementById('chat');
             chat.scrollTop = chat.scrollHeight;
         }
@@ -564,10 +745,11 @@
             document.getElementById('typing').classList.remove('visible');
         }
 
+        // ========== STATUS ==========
         function updateStatus(status, text) {
             const dot = document.getElementById('status-dot');
             const statusText = document.getElementById('status-text');
-            
+
             dot.className = 'status-dot ' + status;
             statusText.textContent = text;
         }
@@ -576,16 +758,21 @@
             const badge = document.getElementById('badge-partner');
             if (online) {
                 badge.classList.add('online');
-                badge.textContent = 'Партнёр онлайн';
+                badge.textContent = '🟢 Партнёр онлайн';
             } else {
                 badge.classList.remove('online');
                 badge.textContent = 'Партнёр офлайн';
             }
         }
 
-        function showOverlay(icon, title, text, showBtn = false) {
+        // ========== OVERLAY ==========
+        function showOverlay(icon, title, text, showBtn = false, spinning = false) {
             const overlay = document.getElementById('overlay');
-            document.getElementById('overlay-icon').textContent = icon;
+            const iconEl = document.getElementById('overlay-icon');
+            
+            iconEl.textContent = icon;
+            iconEl.className = spinning ? 'connection-icon spinning' : 'connection-icon';
+            
             document.getElementById('overlay-title').textContent = title;
             document.getElementById('overlay-text').textContent = text;
             document.getElementById('overlay-btn').style.display = showBtn ? 'inline-block' : 'none';
@@ -601,6 +788,7 @@
             connectWebSocket();
         }
 
+        // ========== END SESSION ==========
         function endSession() {
             if (confirm('Вы уверены, что хотите покинуть сессию?')) {
                 if (ws) ws.close();
@@ -608,14 +796,16 @@
             }
         }
 
-        // Автоматическое изменение высоты textarea
+        // ========== INPUT HANDLING ==========
         const input = document.getElementById('message-input');
+
+        // Авто-высота textarea
         input.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
 
-        // Отправка по Enter (Shift+Enter для новой строки)
+        // Enter для отправки, Shift+Enter для новой строки
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -623,18 +813,18 @@
             }
         });
 
-        // Ping для поддержания соединения
+        // ========== PING ==========
         setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'ping' }));
             }
         }, 25000);
 
-        // Запуск
+        // ========== INIT ==========
         if (userId && sessionCode) {
             connectWebSocket();
         } else {
-            showOverlay('❌', 'Ошибка', 'Отсутствуют параметры сессии', true);
+            showOverlay('❌', 'Ошибка', 'Отсутствуют параметры сессии', true, false);
         }
     </script>
 </body>
