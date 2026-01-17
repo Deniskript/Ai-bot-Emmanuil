@@ -5,215 +5,461 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🔮 Гадания</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
             color: #f1f5ff;
             min-height: 100vh;
             padding: 20px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
         }
-        .container { max-width: 520px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { font-size: 26px; margin-bottom: 6px; }
-        .header p { font-size: 14px; color: #b2c5df; }
-        .card {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 14px;
+
+        /* === МАГИЧЕСКИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #a78bfa, 0 0 20px #a78bfa, 0 0 30px #a78bfa;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { top: 5%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { top: 10%; left: 80%; animation-delay: 0.5s; }
+        .particle:nth-child(3) { top: 20%; left: 25%; animation-delay: 1s; }
+        .particle:nth-child(4) { top: 30%; left: 70%; animation-delay: 1.5s; }
+        .particle:nth-child(5) { top: 40%; left: 15%; animation-delay: 2s; }
+        .particle:nth-child(6) { top: 50%; left: 85%; animation-delay: 2.5s; }
+        .particle:nth-child(7) { top: 60%; left: 35%; animation-delay: 3s; }
+        .particle:nth-child(8) { top: 70%; left: 65%; animation-delay: 3.5s; }
+        .particle:nth-child(9) { top: 80%; left: 20%; animation-delay: 4s; }
+        .particle:nth-child(10) { top: 90%; left: 75%; animation-delay: 4.5s; }
+
+        @keyframes twinkle {
+            0%, 100% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.5);
+                box-shadow: 0 0 15px #a78bfa, 0 0 30px #a78bfa, 0 0 45px #a78bfa;
+            }
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === HEADER === */
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .header-icon {
+            font-size: 56px;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite, glow 2s ease-in-out infinite;
+            margin-bottom: 8px;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(167, 139, 250, 0.5)); }
+            50% { filter: drop-shadow(0 0 25px rgba(167, 139, 250, 0.9)); }
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            text-shadow: 0 0 20px rgba(167, 139, 250, 0.5);
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #a5b4fc;
+            font-weight: 600;
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* === ONBOARDING === */
+        .onboarding {
+            background: rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            padding: 14px 16px;
+            border-radius: 14px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            color: #e0e7ff;
             backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            animation: fadeInUp 0.6s ease-out 0.1s backwards;
         }
-        .card-title { font-weight: 600; margin-bottom: 12px; }
-        .btn {
+
+        .onboarding strong {
+            color: #a78bfa;
+        }
+
+        /* === КАРТОЧКИ === */
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+
+        .card:nth-child(3) { animation-delay: 0.15s; }
+        .card:nth-child(4) { animation-delay: 0.2s; }
+        .card:nth-child(5) { animation-delay: 0.25s; }
+
+        .card-title {
+            font-weight: 700;
+            font-size: 17px;
+            margin-bottom: 14px;
+            color: #e0e7ff;
+        }
+
+        /* === INPUTS === */
+        select, textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 2px solid rgba(167, 139, 250, 0.3);
+            background: rgba(30, 27, 75, 0.8);
+            color: #f0f0ff;
+            font-family: inherit;
+            font-size: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, textarea:focus {
+            outline: none;
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.2), 0 0 20px rgba(167, 139, 250, 0.3);
+        }
+
+        input[type="file"] {
             width: 100%;
             padding: 12px;
             border-radius: 12px;
+            border: 2px dashed rgba(167, 139, 250, 0.4);
+            background: rgba(30, 27, 75, 0.6);
+            color: #a5b4fc;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]:hover {
+            border-color: #a78bfa;
+            background: rgba(30, 27, 75, 0.8);
+        }
+
+        .hint {
+            font-size: 13px;
+            color: #a5b4fc;
+            margin-bottom: 12px;
+            padding-left: 4px;
+        }
+
+        .note {
+            font-size: 12px;
+            color: #818cf8;
+            margin-top: 8px;
+        }
+
+        /* === КНОПКИ === */
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
             border: none;
-            font-weight: 600;
+            font-weight: 700;
+            font-size: 15px;
             cursor: pointer;
             color: #fff;
-            background: linear-gradient(135deg, #52a7ff, #6e5cff);
-            margin-bottom: 8px;
-            transition: opacity 0.3s, transform 0.2s;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
         }
-        .btn:hover { opacity: 0.9; }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
+        }
+
         .btn:active {
             transform: scale(0.98);
-            background: linear-gradient(135deg, #4caf50, #8bc34a) !important;
-            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.45);
         }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .btn-primary {
-            background: linear-gradient(135deg, #4caf50, #8bc34a);
-            font-size: 15px;
-            padding: 14px;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
         }
-        .btn-primary.loading { animation: pulse 1.5s ease-in-out infinite; }
+
+        .btn-primary:hover {
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.5);
+        }
+
         .btn.loading {
-            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
             animation: pulse 1.5s ease-in-out infinite;
         }
+
         .btn.selected {
-            background: linear-gradient(135deg, #4caf50, #8bc34a);
-            box-shadow: 0 4px 16px rgba(76, 175, 80, 0.6);
-            transform: translateY(-2px);
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            box-shadow: 0 4px 25px rgba(16, 185, 129, 0.6);
             position: relative;
         }
+
         .btn.selected::after {
             content: '✅';
             position: absolute;
-            right: 12px;
+            right: 14px;
             font-size: 16px;
         }
-        .btn-back {
-            position: sticky !important;
-            bottom: 10px;
-            z-index: 999;
-            margin-top: 20px;
-            background: rgba(0, 0, 0, 0.85) !important;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-        }
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        input, textarea, select {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            background: rgba(10, 10, 18, 0.6);
-            color: #f0f0ff;
-            margin-bottom: 10px;
-            transition: border-color 0.3s;
-        }
-        input:focus, textarea:focus, select:focus {
-            outline: none;
-            border-color: rgba(82, 167, 255, 0.5);
-        }
-        .result { white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
-        .note { font-size: 12px; color: #9fb2cf; margin-top: 6px; }
-        .hint { font-size: 12px; color: #9fb2cf; margin-bottom: 8px; padding-left: 4px; }
-        .placeholder {
-            text-align: center;
-            padding: 20px;
-            color: #a7a7c6;
-            font-size: 14px;
-        }
-        .hint-compact {
-            font-size: 12px;
-            color: #efe6ff;
-            margin-bottom: 12px;
-            text-align: center;
-        }
-        
-        /* Spinner */
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
-        
-        /* Toast */
-        .toast {
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn-back {
             position: fixed;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(100px);
+            left: 20px;
+            right: 20px;
+            max-width: 480px;
+            margin: 0 auto;
             background: rgba(0, 0, 0, 0.9);
-            color: #fff;
-            padding: 12px 20px;
-            border-radius: 12px;
-            font-size: 14px;
-            z-index: 1000;
-            opacity: 0;
-            transition: all 0.3s ease;
-            max-width: 90%;
-            text-align: center;
-        }
-        .toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-        .toast.success { background: linear-gradient(135deg, #4caf50, #66bb6a); }
-        .toast.error { background: linear-gradient(135deg, #f44336, #e57373); }
-        
-        /* Onboarding */
-        .onboarding {
-            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 10px 12px;
-            border-radius: 12px;
-            font-size: 13px;
-            margin-bottom: 12px;
-            color: #f6f2ff;
+            box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5);
+            z-index: 100;
         }
-        .onboarding strong { color: #ffffff; }
-        
-        /* Processing Animation */
+
+        /* === РЕЗУЛЬТАТ === */
+        .result {
+            white-space: pre-wrap;
+            font-size: 15px;
+            line-height: 1.7;
+            color: #e0e7ff;
+        }
+
+        .result p {
+            margin-bottom: 12px;
+        }
+
+        .result strong {
+            color: #a78bfa;
+        }
+
+        .placeholder {
+            text-align: center;
+            padding: 30px 20px;
+            color: #818cf8;
+            font-size: 15px;
+        }
+
+        .placeholder-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* === PROCESSING === */
         .processing-animation {
             text-align: center;
             padding: 40px 20px;
             animation: fadeIn 0.5s;
         }
+
         .pulse-circle {
-            width: 60px;
-            height: 60px;
+            width: 70px;
+            height: 70px;
             margin: 0 auto 20px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
             animation: pulse-glow 1.5s ease-in-out infinite;
         }
+
         @keyframes pulse-glow {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.7; box-shadow: 0 0 30px rgba(76, 175, 80, 0.8); }
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+            }
+            50% {
+                transform: scale(1.15);
+                box-shadow: 0 0 40px rgba(139, 92, 246, 0.9), 0 0 60px rgba(167, 139, 250, 0.5);
+            }
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+
         .processing-animation p {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
             margin-bottom: 8px;
+            color: #e0e7ff;
         }
+
         .processing-animation .sub {
-            font-size: 13px;
-            color: #b9b9d9;
+            font-size: 14px;
+            color: #a5b4fc;
+        }
+
+        /* === SPINNER === */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* === TOAST === */
+        .toast {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0, 0, 0, 0.95);
+            color: #fff;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.4s ease;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+        }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 400px) {
+            .header h1 { font-size: 24px; }
+            .header-icon { font-size: 48px; }
+            .card { padding: 16px; }
+            .grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+    <!-- МАГИЧЕСКИЕ ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
-            <h1>🔮 Гадания</h1>
-            <p>Хиромантия, физиогномика, кофе и ритуальные практики</p>
+            <div class="header-icon">🔮</div>
+            <h1>Гадания</h1>
+            <p>Хиромантия, физиогномика, кофе и ритуалы</p>
         </div>
 
+        <!-- ONBOARDING -->
         <div class="onboarding">
-            <strong>Подсказка:</strong> выберите тип гадания и задайте вопрос или загрузите фото.
+            <strong>✨ Подсказка:</strong> выберите тип гадания и задайте вопрос или загрузите фото.
         </div>
 
+        <!-- АНАЛИЗ ФОТО -->
         <div class="card">
             <div class="card-title">📸 Анализ фото</div>
             <select id="photo-type">
@@ -223,28 +469,36 @@
             </select>
             <input type="file" id="photo-input" accept="image/*">
             <div class="hint">📷 Убедитесь что фото чёткое и хорошо освещено</div>
-            <button class="btn btn-primary js-action" onclick="analyzePhoto(event)">Проанализировать фото</button>
-            <p class="note">Лучше всего работает при естественном освещении</p>
+            <button class="btn btn-primary js-action" onclick="analyzePhoto(event)">
+                ✨ Проанализировать фото
+            </button>
+            <p class="note">💡 Лучше всего работает при естественном освещении</p>
         </div>
 
+        <!-- ВОПРОС ОРАКУЛУ -->
         <div class="card">
             <div class="card-title">🔮 Вопрос оракулу</div>
             <textarea id="question" rows="3" placeholder="Задайте вопрос..."></textarea>
             <div class="hint">💡 Формулируйте вопрос ясно и конкретно</div>
             <div class="grid">
-                <button class="btn js-ask" onclick="ask('crystal', event)">Хрустальный шар</button>
-                <button class="btn js-ask" onclick="ask('candle', event)">Свечное гадание</button>
+                <button class="btn js-ask" onclick="ask('crystal', event)">🔮 Хрустальный шар</button>
+                <button class="btn js-ask" onclick="ask('candle', event)">🕯️ Свечное гадание</button>
             </div>
         </div>
 
+        <!-- РЕЗУЛЬТАТ -->
         <div class="card">
             <div class="card-title">✨ Результат</div>
             <div class="result" id="result">
-                <div class="placeholder">🔮 Загрузите фото или задайте вопрос</div>
+                <div class="placeholder">
+                    <div class="placeholder-icon">🔮</div>
+                    Загрузите фото или задайте вопрос
+                </div>
             </div>
         </div>
 
-        <button class="btn btn-secondary btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
+        <!-- НАЗАД -->
+        <button class="btn btn-back" onclick="Telegram.WebApp.close()">← Вернуться в бот</button>
     </div>
 
     <script>
@@ -254,25 +508,27 @@
 
         const userId = new URLSearchParams(window.location.search).get('user_id');
 
+        // ========== TOAST ==========
         function showToast(message, type = 'success') {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             toast.textContent = message;
             document.body.appendChild(toast);
+
             setTimeout(() => toast.classList.add('show'), 50);
             setTimeout(() => {
                 toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
+                setTimeout(() => toast.remove(), 400);
             }, 3000);
         }
 
+        // ========== HELPERS ==========
         function escapeHtml(value) {
             return (value || '').replace(/[&<>"']/g, (match) => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
             }[match]));
         }
 
@@ -291,7 +547,12 @@
             if (text) {
                 resultEl.innerHTML = formatText(text);
             } else {
-                resultEl.innerHTML = '<div class="placeholder">Нет данных</div>';
+                resultEl.innerHTML = `
+                    <div class="placeholder">
+                        <div class="placeholder-icon">🔮</div>
+                        Нет данных
+                    </div>
+                `;
             }
         }
 
@@ -318,7 +579,7 @@
             } else {
                 btn.disabled = false;
                 btn.classList.remove('loading');
-                btn.innerHTML = btn.dataset.originalText;
+                btn.innerHTML = btn.dataset.originalText || btn.innerHTML;
             }
         }
 
@@ -327,19 +588,21 @@
             btn.classList.add('selected');
         }
 
+        // ========== АНАЛИЗ ФОТО ==========
         async function analyzePhoto(event) {
             const btn = event.target;
             const file = document.getElementById('photo-input').files[0];
             const type = document.getElementById('photo-type').value;
-            
+
             if (!file) {
                 showToast('❌ Загрузите фото', 'error');
                 return;
             }
-            
+
             setActiveButton(btn, '.js-action');
             setButtonLoading(btn, true);
-            
+            showProcessing('Анализирую фото...');
+
             const reader = new FileReader();
             reader.onload = async () => {
                 try {
@@ -350,14 +613,16 @@
                         body: JSON.stringify({ user_id: userId, type, image: base64 })
                     });
                     const data = await res.json();
-                    
+
                     if (data.success) {
                         setResult(data.text);
                         showToast('✅ Анализ завершён', 'success');
                     } else {
-                        showToast(`❌ Ошибка: ${data.error || 'не удалось проанализировать фото'}`, 'error');
+                        setResult(null);
+                        showToast(`❌ ${data.error || 'Ошибка анализа'}`, 'error');
                     }
                 } catch (e) {
+                    setResult(null);
                     showToast('❌ Ошибка сети', 'error');
                 } finally {
                     setButtonLoading(btn, false);
@@ -366,19 +631,20 @@
             reader.readAsDataURL(file);
         }
 
+        // ========== ВОПРОС ОРАКУЛУ ==========
         async function ask(mode, event) {
             const btn = event.target;
             const question = document.getElementById('question').value.trim();
-            
+
             if (!question) {
                 showToast('❌ Введите вопрос', 'error');
                 return;
             }
-            
+
             setActiveButton(btn, '.js-ask');
             setButtonLoading(btn, true);
             showProcessing('Ваше гадание готовится...');
-            
+
             try {
                 const res = await fetch('/magic/divination/ask', {
                     method: 'POST',
@@ -386,62 +652,21 @@
                     body: JSON.stringify({ user_id: userId, mode, question })
                 });
                 const data = await res.json();
-                
+
                 if (data.success) {
                     setResult(data.text);
                     showToast('✅ Ответ получен', 'success');
                 } else {
-                    showToast(`❌ Ошибка: ${data.error || 'не удалось получить ответ'}`, 'error');
+                    setResult(null);
+                    showToast(`❌ ${data.error || 'Ошибка'}`, 'error');
                 }
             } catch (e) {
+                setResult(null);
                 showToast('❌ Ошибка сети', 'error');
             } finally {
                 setButtonLoading(btn, false);
             }
         }
-
-        async function analyzePhoto(event) {
-            const btn = event.target;
-            setActiveButton(btn, '.js-action');
-            const file = document.getElementById('photo-input').files[0];
-            const divType = document.getElementById('divination-type').value;
-            
-            if (!file) {
-                showToast('❌ Загрузите фото', 'error');
-                return;
-            }
-            
-            setButtonLoading(btn, true);
-            showProcessing('Анализирую фото...');
-            
-            const reader = new FileReader();
-            reader.onload = async () => {
-                try {
-                    const base64 = reader.result;
-                    const res = await fetch('/magic/divination/photo', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ user_id: userId, type: divType, image: base64 })
-                    });
-                    const data = await res.json();
-                    
-                    if (data.success) {
-                        setResult(data.text);
-                        showToast('✅ Анализ завершён', 'success');
-                    } else {
-                        showToast(`❌ Ошибка: ${data.error || 'не удалось проанализировать фото'}`, 'error');
-                    }
-                } catch (e) {
-                    console.error('Photo analysis error:', e);
-                    showToast('❌ Ошибка сети', 'error');
-                } finally {
-                    setButtonLoading(btn, false);
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-
-        // История запросов удалена по требованиям
     </script>
 </body>
 </html>
