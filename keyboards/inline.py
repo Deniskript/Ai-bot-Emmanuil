@@ -56,7 +56,7 @@ def help_kb():
         [InlineKeyboardButton(text="💭 Диалог", callback_data="help:luca"),
          InlineKeyboardButton(text="🛋️ Психолог", callback_data="help:silas")],
         [InlineKeyboardButton(text="📓 Обучение", callback_data="help:titus"),
-         InlineKeyboardButton(text="💳 Оплата", callback_data="help:pay")],
+         InlineKeyboardButton(text="🌟 Подписка", callback_data="help:pay")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 

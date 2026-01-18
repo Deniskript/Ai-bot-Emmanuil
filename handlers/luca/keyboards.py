@@ -24,7 +24,7 @@ def dialog_kb(user_id: int):
 def dialog_chat_kb():
     """Клавиатура в активном чате"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить")]
+        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🧹 Очистить")]
     ], resize_keyboard=True)
 
 

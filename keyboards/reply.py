@@ -8,7 +8,7 @@ def main_kb(user_id: int):
     """Главное меню с Mini App кнопками"""
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🫧 Soul AI"), KeyboardButton(text="💼 Кабинет", web_app=WebAppInfo(url=f"https://soul-bot.ru/webapp?user_id={user_id}"))],
-        [KeyboardButton(text="💳 Оплата", web_app=WebAppInfo(url=f"https://soul-bot.ru/payment?user_id={user_id}")), KeyboardButton(text="❓ Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))]
+        [KeyboardButton(text="🌟 Подписка", web_app=WebAppInfo(url=f"https://soul-bot.ru/payment?user_id={user_id}")), KeyboardButton(text="❓ Помощь", web_app=WebAppInfo(url=f"https://soul-bot.ru/help?user_id={user_id}"))]
     ], resize_keyboard=True)
 
 HOW_IT_WORKS_TEXT = "📖 Как это работает?"

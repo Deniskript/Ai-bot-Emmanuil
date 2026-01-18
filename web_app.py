@@ -154,8 +154,9 @@ CHAT_TEMPLATE = """
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Soul Bot - Диалог #{{ conv_id }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -164,116 +165,226 @@ CHAT_TEMPLATE = """
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            background: #f5f5f5;
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
-            line-height: 1.6;
+            padding-bottom: 60px;
+            color: #333;
+            overflow-x: hidden;
+        }
+        
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+        
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: floatParticle 6s ease-in-out infinite;
+        }
+        
+        .particle:nth-child(1) { width: 20px; height: 20px; top: 10%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; top: 20%; left: 80%; animation-delay: 1s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; top: 40%; left: 20%; animation-delay: 2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 50%; left: 70%; animation-delay: 3s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; top: 70%; left: 30%; animation-delay: 4s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; top: 80%; left: 85%; animation-delay: 5s; }
+        
+        @keyframes floatParticle {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) scale(1);
+                opacity: 0.15;
+            }
+            25% {
+                transform: translateY(-20px) translateX(10px) scale(1.1);
+                opacity: 0.3;
+            }
+            50% {
+                transform: translateY(-35px) translateX(-5px) scale(1);
+                opacity: 0.2;
+            }
+            75% {
+                transform: translateY(-15px) translateX(-10px) scale(1.05);
+                opacity: 0.25;
+            }
         }
         
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
         
+        /* === HEADER === */
         .header {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            margin-bottom: 24px;
+            animation: fadeInDown 0.6s ease-out;
+            position: sticky;
+            top: 20px;
+            z-index: 10;
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
             flex-wrap: wrap;
-            gap: 10px;
+        }
+        
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header-icon {
+            font-size: 32px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
         
         .header h1 {
             font-size: 24px;
-            color: #333;
+            font-weight: 800;
+            color: #667eea;
             margin: 0;
         }
         
         .header-buttons {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
         }
         
         .btn {
-            padding: 10px 20px;
-            background: #667eea;
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             cursor: pointer;
             font-size: 14px;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: background 0.2s;
+            font-weight: 700;
+            font-family: 'Nunito', sans-serif;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
         
         .btn:hover {
-            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
         
-        .btn-secondary {
-            background: #6c757d;
+        .btn:active {
+            transform: scale(0.98);
         }
         
-        .btn-secondary:hover {
-            background: #5a6268;
+        /* === MESSAGES === */
+        .messages-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
         }
         
         .message {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .message:nth-child(odd) { animation-delay: 0.1s; }
+        .message:nth-child(even) { animation-delay: 0.15s; }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         .message-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.1);
         }
         
         .role {
-            font-weight: 600;
-            font-size: 14px;
-            padding: 4px 12px;
-            border-radius: 6px;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 8px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .role-user {
-            background: #e3f2fd;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
             color: #1976d2;
         }
         
         .role-assistant {
-            background: #f3e5f5;
+            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
             color: #7b1fa2;
         }
         
         .timestamp {
-            font-size: 12px;
-            color: #6c757d;
+            font-size: 13px;
+            color: #888;
+            font-weight: 600;
         }
         
         .content {
             color: #333;
+            font-size: 17px;
+            line-height: 1.8;
             white-space: pre-wrap;
             word-wrap: break-word;
         }
         
         .content p {
-            margin-bottom: 12px;
+            margin-bottom: 16px;
         }
         
         .content p:last-child {
@@ -281,11 +392,11 @@ CHAT_TEMPLATE = """
         }
         
         .code-block {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
+            background: rgba(248, 249, 250, 0.95);
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
             padding: 16px;
-            margin: 12px 0;
+            margin: 16px 0;
             position: relative;
             overflow-x: auto;
         }
@@ -294,136 +405,299 @@ CHAT_TEMPLATE = """
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             padding-bottom: 8px;
             border-bottom: 1px solid #dee2e6;
         }
         
         .code-lang {
-            font-size: 12px;
-            color: #6c757d;
-            font-weight: 600;
+            font-size: 13px;
+            color: #667eea;
+            font-weight: 700;
         }
         
         .copy-btn {
-            padding: 4px 12px;
-            background: #667eea;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 12px;
-            transition: background 0.2s;
+            font-weight: 700;
+            transition: all 0.3s ease;
         }
         
         .copy-btn:hover {
-            background: #5568d3;
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
         
         .copy-btn.copied {
-            background: #28a745;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
         }
         
         code {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
-            line-height: 1.5;
+            font-size: 15px;
+            line-height: 1.6;
             display: block;
         }
         
         .inline-code {
-            background: #f8f9fa;
-            padding: 2px 6px;
-            border-radius: 3px;
+            background: rgba(102, 126, 234, 0.1);
+            padding: 3px 8px;
+            border-radius: 6px;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 13px;
+            font-size: 15px;
+            color: #667eea;
+            font-weight: 600;
         }
         
         strong {
             color: #212529;
+            font-weight: 800;
         }
         
+        /* === FOOTER === */
         .footer {
             text-align: center;
-            color: #6c757d;
-            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 15px;
             margin-top: 40px;
-            padding: 20px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.8s ease-out 0.5s backwards;
         }
         
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .footer p {
+            margin: 8px 0;
+            font-weight: 600;
+        }
+        
+        .footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 800;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* === TOAST === */
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        /* === SCROLL TO BOTTOM BUTTON === */
+        .scroll-bottom-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            z-index: 100;
+            display: none;
+        }
+        
+        .scroll-bottom-btn.show {
+            display: block;
+            animation: bounceIn 0.5s ease;
+        }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .scroll-bottom-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 35px rgba(102, 126, 234, 0.5);
+        }
+        
+        .scroll-bottom-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* === АДАПТИВ === */
         @media (max-width: 768px) {
             body {
-                padding: 10px;
+                padding: 12px;
+                padding-bottom: 40px;
             }
             
             .header {
-                padding: 15px;
+                padding: 18px;
+                top: 12px;
             }
             
             .header h1 {
                 font-size: 20px;
-                width: 100%;
+            }
+            
+            .header-icon {
+                font-size: 28px;
+            }
+            
+            .header-top {
+                flex-direction: column;
+                align-items: stretch;
             }
             
             .header-buttons {
-                width: 100%;
+                justify-content: center;
             }
             
             .btn {
                 flex: 1;
-                justify-content: center;
+                font-size: 13px;
+                padding: 9px 14px;
             }
             
             .message {
-                padding: 15px;
+                padding: 18px;
+            }
+            
+            .content {
+                font-size: 16px;
+            }
+            
+            .scroll-bottom-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+                bottom: 20px;
+                right: 20px;
             }
         }
     </style>
 </head>
 <body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+    
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
-            <h1>💬 Soul Bot - Диалог</h1>
-            <div class="header-buttons">
-                <button class="btn" onclick="openInBrowser()">
-                    🌐 В браузер
-                </button>
-                <button class="btn btn-secondary" onclick="copyLink()">
-                    🔗 Скопировать ссылку
-                </button>
-                <button class="btn btn-secondary" onclick="copyAllText()">
-                    📋 Скопировать
-                </button>
+            <div class="header-top">
+                <div class="header-title">
+                    <span class="header-icon">💬</span>
+                    <h1>Soul Dialog</h1>
+                </div>
+                <div class="header-buttons">
+                    <button class="btn" onclick="copyLink()">
+                        🔗 Ссылка
+                    </button>
+                    <button class="btn" onclick="copyAllText()">
+                        📋 Копировать
+                    </button>
+                </div>
             </div>
         </div>
         
-        {% for msg in messages %}
-        <div class="message">
-            <div class="message-header">
-                <span class="role role-{{ msg.role }}">
-                    {{ '👤 Вы' if msg.role == 'user' else '🤖 Ассистент' }}
-                </span>
-                <span class="timestamp">{{ msg.timestamp }}</span>
+        <!-- MESSAGES -->
+        <div class="messages-wrapper">
+            {% for msg in messages %}
+            <div class="message">
+                <div class="message-header">
+                    <span class="role role-{{ msg.role }}">
+                        {{ '👤 Вы' if msg.role == 'user' else '🤖 Soul AI' }}
+                    </span>
+                    <span class="timestamp">{{ msg.timestamp }}</span>
+                </div>
+                <div class="content">{{ msg.formatted_content|safe }}</div>
             </div>
-            <div class="content">{{ msg.formatted_content|safe }}</div>
+            {% endfor %}
         </div>
-        {% endfor %}
         
+        <!-- FOOTER -->
         <div class="footer">
             <p>Powered by Soul Bot 🙏</p>
-            <p><a href="https://soul-bot.ru" style="color: #667eea;">soul-bot.ru</a></p>
+            <p><a href="https://soul-bot.ru" target="_blank">soul-bot.ru</a></p>
         </div>
     </div>
     
+    <!-- SCROLL TO BOTTOM BUTTON -->
+    <button class="scroll-bottom-btn" id="scrollBtn" onclick="scrollToBottom()">
+        ⬇️
+    </button>
+    
+    <!-- TOAST -->
+    <div class="toast" id="toast">Скопировано!</div>
+    
     <script>
-        function openInBrowser() {
-            window.location.href = window.location.href;
+        // Автоскролл к последнему сообщению при загрузке
+        window.addEventListener('load', function() {
+            scrollToBottom(true);
+        });
+        
+        // Показ/скрытие кнопки скролла
+        window.addEventListener('scroll', function() {
+            const scrollBtn = document.getElementById('scrollBtn');
+            const scrollPosition = window.innerHeight + window.scrollY;
+            const pageHeight = document.documentElement.scrollHeight;
+            
+            if (scrollPosition < pageHeight - 200) {
+                scrollBtn.classList.add('show');
+            } else {
+                scrollBtn.classList.remove('show');
+            }
+        });
+        
+        function scrollToBottom(instant = false) {
+            const behavior = instant ? 'instant' : 'smooth';
+            window.scrollTo({
+                top: document.documentElement.scrollHeight,
+                behavior: behavior
+            });
         }
         
         function copyLink() {
             const url = window.location.href;
             navigator.clipboard.writeText(url).then(() => {
-                alert('✓ Ссылка скопирована!');
+                showToast('✓ Ссылка скопирована!');
             });
         }
         
@@ -434,7 +708,7 @@ CHAT_TEMPLATE = """
                 text += msg.textContent + '\\n\\n';
             });
             navigator.clipboard.writeText(text).then(() => {
-                alert('✓ Текст скопирован!');
+                showToast('✓ Текст скопирован!');
             });
         }
         
@@ -450,6 +724,16 @@ CHAT_TEMPLATE = """
                     btn.classList.remove('copied');
                 }, 2000);
             });
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
         }
     </script>
 </body>
@@ -497,33 +781,50 @@ def format_message_content(content: str) -> str:
 def view_chat(conv_id):
     """Просмотр диалога"""
     try:
+        print(f"[DEBUG] view_chat called with conv_id={conv_id}")
         ensure_pool_initialized()
         loop = get_or_create_loop()
         
         # Получаем диалог и сообщения
         conv = loop.run_until_complete(get_conversation(conv_id))
         if not conv:
+            print(f"[ERROR] Conversation {conv_id} not found")
             abort(404)
         
+        print(f"[DEBUG] Conversation found: user_id={conv.get('user_id')}, bot={conv.get('bot')}")
         messages = loop.run_until_complete(get_conversation_messages(conv_id))
+        print(f"[DEBUG] Found {len(messages)} messages")
         
         # Форматируем сообщения
         formatted_messages = []
-        for msg in messages:
+        for idx, msg in enumerate(messages):
+            # Форматируем timestamp
+            timestamp = msg['timestamp']
+            print(f"[DEBUG] Message {idx}: timestamp type={type(timestamp)}, value={timestamp}")
+            
+            if isinstance(timestamp, str):
+                timestamp_str = timestamp[:19].replace('T', ' ')
+            else:
+                # Если это datetime объект
+                timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            
             formatted_messages.append({
                 'role': msg['role'],
                 'content': msg['content'],
                 'formatted_content': format_message_content(msg['content']),
-                'timestamp': msg['timestamp'][:19].replace('T', ' ')  # 2024-01-10 12:30:00
+                'timestamp': timestamp_str
             })
         
+        print(f"[DEBUG] Formatted {len(formatted_messages)} messages, rendering template")
         return render_template_string(
             CHAT_TEMPLATE,
             conv_id=conv_id,
             messages=formatted_messages
         )
     except Exception as e:
-        print(f"Error viewing chat: {e}")
+        print(f"[ERROR] Error viewing chat {conv_id}: {e}")
+        import traceback
+        traceback.print_exc()
         abort(500)
 
 

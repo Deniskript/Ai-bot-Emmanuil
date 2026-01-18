@@ -714,13 +714,15 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         resp_clean = resp.replace("---NEXT---", "").strip()
         resp_clean = clean_response(resp_clean)
         
-        await db.use_stars_smart(msg.from_user.id, stars_used, 'titus')
-        await db.increment_requests(msg.from_user.id)
+        # Списываем звёзды и увеличиваем счётчик
+        await db.use_stars_smart(user_id, stars_used, 'titus')
+        await db.increment_requests(user_id)
         
         # Сохраняем в систему диалогов
-        await save_message(msg.from_user.id, 'user', text, 'titus')
-        conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
+        await save_message(user_id, 'user', text, 'titus')
+        conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
         
+        # Логика переход на следующий шаг курса
         print(f"[DEBUG] STEP CHECK: cid={cid}, should_advance={should_advance}, current_step={current_step}")
         if cid and should_advance:
             print(f"[DEBUG] Entering step advance block")
@@ -744,13 +746,7 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
                     current_step = new_step
                     await state.update_data(current_step=new_step)
         
-        # Очищаем ответ от служебных строк
-        resp_clean = clean_response(resp_clean)
-        
-        # Сохраняем в систему диалогов
-        await save_message(user_id, 'user', text, 'titus', model)
-        conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus', model)
-        
+        # Обновляем кэш последнего сообщения
         last_messages[user_id] = {"text": resp_clean, "course": cname, "step": current_step}
         cleanup_cache(last_messages)  # Предотвращаем утечку памяти
         resp = resp_clean

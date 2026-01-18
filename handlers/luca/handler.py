@@ -440,6 +440,13 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                 await status.stop()
     else:
         # Единый стриминг
+        # Удаляем смайлик ожидания ДО стриминга (stream_response показывает свой статус)
+        if waiting_msg:
+            try:
+                await waiting_msg.delete()
+            except:
+                pass
+        
         try:
             resp, sent_msg = await stream_response(
                 bot=bot,
@@ -453,23 +460,10 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
             print(f"Stream error: {e}")
             import traceback
             traceback.print_exc()
-            # Удаляем смайлик ожидания при ошибке
-            if waiting_msg:
-                try:
-                    await waiting_msg.delete()
-                except:
-                    pass
             active_requests.pop(user_id, None)
             return
     
     active_requests.pop(user_id, None)
-    
-    # Удаляем сообщение ожидания
-    if waiting_msg:
-        try:
-            await waiting_msg.delete()
-        except:
-            pass
     
     # Проверяем отмену запроса
     if is_cancelled(user_id):
@@ -568,8 +562,12 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
         else:
             await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
     
-    # Возвращаем меню раздела
-    await msg.answer("💬", reply_markup=kb.dialog_chat_kb())
+    # Возвращаем reply-клавиатуру (она не конфликтует с inline-кнопками выше)
+    # Отправляем её отдельно чтобы пользователь видел кнопки "Завершить/Очистить"
+    try:
+        await msg.answer("💬", reply_markup=kb.dialog_chat_kb())
+    except Exception:
+        pass
 
 
 @router.message(LukaSt.chat, F.text)
