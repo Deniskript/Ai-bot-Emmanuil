@@ -32,7 +32,6 @@ from .memory import (
     get_user_memory,
     build_memory_context,
     build_prompt_with_memory,
-    LUCA_BASE,
     CHARS,
     CHAR_NAMES
 )
@@ -398,9 +397,8 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     cnt = await db.inc_msg_counter(user_id, 'luca')
     
     # Системный промпт
-    system_prompt = f"""{LUCA_BASE}
+    system_prompt = f"""{char_prompt}
 
-{char_prompt}
 {memory_context}
 
 ВАЖНО: НЕ начинай ответ с приветствия если пользователь не здоровается первым. Отвечай по существу."""
@@ -670,9 +668,8 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         voice_style = LUCA_VOICE_STYLE_SOUL if char_key == 'soul' else LUCA_VOICE_STYLE_MIND
         
         # Системный промпт с эмоциональностью
-        system_prompt = f"""{LUCA_BASE}
+        system_prompt = f"""{char_prompt}
 
-{char_prompt}
 {memory_context}
 
 ВАЖНО: НЕ начинай ответ с приветствия если пользователь не здоровается. Отвечай по существу.

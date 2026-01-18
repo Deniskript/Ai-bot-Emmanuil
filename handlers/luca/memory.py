@@ -5,7 +5,6 @@
 from typing import List, Dict
 from database import postgres_db as db
 from .prompts import (
-    LUCA_BASE,
     CHARS,
     CHAR_NAMES,
     build_memory_context,
@@ -18,7 +17,6 @@ __all__ = [
     'save_user_memory',
     'build_memory_context',
     'build_prompt_with_memory',
-    'LUCA_BASE',
     'CHARS',
     'CHAR_NAMES'
 ]

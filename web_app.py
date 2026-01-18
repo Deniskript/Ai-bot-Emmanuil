@@ -28,6 +28,61 @@ from prompts.magic_prompts import (
 import html
 import re
 
+# ============================================
+# СИНХРОННЫЕ ФУНКЦИИ ДЛЯ FLASK (psycopg2)
+# Решает проблему asyncio loop в многопоточном Flask
+# ============================================
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+def get_sync_db_url():
+    """Преобразовать asyncpg URL в psycopg2 формат."""
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        raise ValueError("DATABASE_URL not set in environment")
+    
+    # Преобразование форматов URL
+    if 'asyncpg' in db_url:
+        db_url = db_url.replace('postgresql+asyncpg://', 'postgresql://')
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://')
+    
+    return db_url
+
+
+def get_conversation_sync(conv_id: int) -> dict:
+    """Синхронное получение диалога по ID."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, user_id, bot, created_at FROM conversations WHERE id = %s",
+                    (conv_id,)
+                )
+                result = cur.fetchone()
+                return dict(result) if result else None
+    except Exception as e:
+        print(f"[ERROR] get_conversation_sync({conv_id}): {e}")
+        return None
+
+
+def get_conversation_messages_sync(conv_id: int) -> list:
+    """Синхронное получение сообщений диалога."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT role, content, model, timestamp
+                    FROM messages 
+                    WHERE conversation_id = %s 
+                    ORDER BY timestamp ASC
+                """, (conv_id,))
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        print(f"[ERROR] get_conversation_messages_sync({conv_id}): {e}")
+        return []
+
 
 TAROT_CARDS = [
     {"name": "Шут", "slug": "fool"},
@@ -149,598 +204,6 @@ def run_async(coro):
 ensure_pool_initialized()
 
 # HTML темп лейт для отображения чата
-CHAT_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Soul Bot - Диалог #{{ conv_id }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            padding-bottom: 60px;
-            color: #333;
-            overflow-x: hidden;
-        }
-        
-        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
-        .particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 0;
-            overflow: hidden;
-        }
-        
-        .particle {
-            position: absolute;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            animation: floatParticle 6s ease-in-out infinite;
-        }
-        
-        .particle:nth-child(1) { width: 20px; height: 20px; top: 10%; left: 10%; animation-delay: 0s; }
-        .particle:nth-child(2) { width: 15px; height: 15px; top: 20%; left: 80%; animation-delay: 1s; }
-        .particle:nth-child(3) { width: 25px; height: 25px; top: 40%; left: 20%; animation-delay: 2s; }
-        .particle:nth-child(4) { width: 12px; height: 12px; top: 50%; left: 70%; animation-delay: 3s; }
-        .particle:nth-child(5) { width: 18px; height: 18px; top: 70%; left: 30%; animation-delay: 4s; }
-        .particle:nth-child(6) { width: 22px; height: 22px; top: 80%; left: 85%; animation-delay: 5s; }
-        
-        @keyframes floatParticle {
-            0%, 100% {
-                transform: translateY(0px) translateX(0px) scale(1);
-                opacity: 0.15;
-            }
-            25% {
-                transform: translateY(-20px) translateX(10px) scale(1.1);
-                opacity: 0.3;
-            }
-            50% {
-                transform: translateY(-35px) translateX(-5px) scale(1);
-                opacity: 0.2;
-            }
-            75% {
-                transform: translateY(-15px) translateX(-10px) scale(1.05);
-                opacity: 0.25;
-            }
-        }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-        
-        /* === HEADER === */
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 24px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-            margin-bottom: 24px;
-            animation: fadeInDown 0.6s ease-out;
-            position: sticky;
-            top: 20px;
-            z-index: 10;
-        }
-        
-        @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-        
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .header-icon {
-            font-size: 32px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-        
-        .header h1 {
-            font-size: 24px;
-            font-weight: 800;
-            color: #667eea;
-            margin: 0;
-        }
-        
-        .header-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        
-        .btn {
-            padding: 10px 18px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 700;
-            font-family: 'Nunito', sans-serif;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn:active {
-            transform: scale(0.98);
-        }
-        
-        /* === MESSAGES === */
-        .messages-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .message {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 24px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-            animation: fadeInUp 0.6s ease-out backwards;
-        }
-        
-        .message:nth-child(odd) { animation-delay: 0.1s; }
-        .message:nth-child(even) { animation-delay: 0.15s; }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid rgba(102, 126, 234, 0.1);
-        }
-        
-        .role {
-            font-weight: 700;
-            font-size: 16px;
-            padding: 8px 16px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .role-user {
-            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-            color: #1976d2;
-        }
-        
-        .role-assistant {
-            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
-            color: #7b1fa2;
-        }
-        
-        .timestamp {
-            font-size: 13px;
-            color: #888;
-            font-weight: 600;
-        }
-        
-        .content {
-            color: #333;
-            font-size: 17px;
-            line-height: 1.8;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        
-        .content p {
-            margin-bottom: 16px;
-        }
-        
-        .content p:last-child {
-            margin-bottom: 0;
-        }
-        
-        .code-block {
-            background: rgba(248, 249, 250, 0.95);
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 16px;
-            margin: 16px 0;
-            position: relative;
-            overflow-x: auto;
-        }
-        
-        .code-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #dee2e6;
-        }
-        
-        .code-lang {
-            font-size: 13px;
-            color: #667eea;
-            font-weight: 700;
-        }
-        
-        .copy-btn {
-            padding: 6px 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 700;
-            transition: all 0.3s ease;
-        }
-        
-        .copy-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-        
-        .copy-btn.copied {
-            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        }
-        
-        code {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 15px;
-            line-height: 1.6;
-            display: block;
-        }
-        
-        .inline-code {
-            background: rgba(102, 126, 234, 0.1);
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 15px;
-            color: #667eea;
-            font-weight: 600;
-        }
-        
-        strong {
-            color: #212529;
-            font-weight: 800;
-        }
-        
-        /* === FOOTER === */
-        .footer {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 15px;
-            margin-top: 40px;
-            padding: 24px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            animation: fadeIn 0.8s ease-out 0.5s backwards;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .footer p {
-            margin: 8px 0;
-            font-weight: 600;
-        }
-        
-        .footer a {
-            color: white;
-            text-decoration: none;
-            font-weight: 800;
-        }
-        
-        .footer a:hover {
-            text-decoration: underline;
-        }
-        
-        /* === TOAST === */
-        .toast {
-            position: fixed;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%) translateY(20px);
-            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
-            color: white;
-            padding: 14px 28px;
-            border-radius: 14px;
-            font-size: 15px;
-            font-weight: 700;
-            opacity: 0;
-            transition: all 0.4s ease;
-            z-index: 1000;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-        }
-        
-        .toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-        
-        /* === SCROLL TO BOTTOM BUTTON === */
-        .scroll-bottom-btn {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 56px;
-            height: 56px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
-            transition: all 0.3s ease;
-            z-index: 100;
-            display: none;
-        }
-        
-        .scroll-bottom-btn.show {
-            display: block;
-            animation: bounceIn 0.5s ease;
-        }
-        
-        @keyframes bounceIn {
-            0% { transform: scale(0); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
-        .scroll-bottom-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 35px rgba(102, 126, 234, 0.5);
-        }
-        
-        .scroll-bottom-btn:active {
-            transform: scale(0.95);
-        }
-        
-        /* === АДАПТИВ === */
-        @media (max-width: 768px) {
-            body {
-                padding: 12px;
-                padding-bottom: 40px;
-            }
-            
-            .header {
-                padding: 18px;
-                top: 12px;
-            }
-            
-            .header h1 {
-                font-size: 20px;
-            }
-            
-            .header-icon {
-                font-size: 28px;
-            }
-            
-            .header-top {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .header-buttons {
-                justify-content: center;
-            }
-            
-            .btn {
-                flex: 1;
-                font-size: 13px;
-                padding: 9px 14px;
-            }
-            
-            .message {
-                padding: 18px;
-            }
-            
-            .content {
-                font-size: 16px;
-            }
-            
-            .scroll-bottom-btn {
-                width: 48px;
-                height: 48px;
-                font-size: 20px;
-                bottom: 20px;
-                right: 20px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- ЧАСТИЦЫ -->
-    <div class="particles">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-    </div>
-    
-    <div class="container">
-        <!-- HEADER -->
-        <div class="header">
-            <div class="header-top">
-                <div class="header-title">
-                    <span class="header-icon">💬</span>
-                    <h1>Soul Dialog</h1>
-                </div>
-                <div class="header-buttons">
-                    <button class="btn" onclick="copyLink()">
-                        🔗 Ссылка
-                    </button>
-                    <button class="btn" onclick="copyAllText()">
-                        📋 Копировать
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- MESSAGES -->
-        <div class="messages-wrapper">
-            {% for msg in messages %}
-            <div class="message">
-                <div class="message-header">
-                    <span class="role role-{{ msg.role }}">
-                        {{ '👤 Вы' if msg.role == 'user' else '🤖 Soul AI' }}
-                    </span>
-                    <span class="timestamp">{{ msg.timestamp }}</span>
-                </div>
-                <div class="content">{{ msg.formatted_content|safe }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        
-        <!-- FOOTER -->
-        <div class="footer">
-            <p>Powered by Soul Bot 🙏</p>
-            <p><a href="https://soul-bot.ru" target="_blank">soul-bot.ru</a></p>
-        </div>
-    </div>
-    
-    <!-- SCROLL TO BOTTOM BUTTON -->
-    <button class="scroll-bottom-btn" id="scrollBtn" onclick="scrollToBottom()">
-        ⬇️
-    </button>
-    
-    <!-- TOAST -->
-    <div class="toast" id="toast">Скопировано!</div>
-    
-    <script>
-        // Автоскролл к последнему сообщению при загрузке
-        window.addEventListener('load', function() {
-            scrollToBottom(true);
-        });
-        
-        // Показ/скрытие кнопки скролла
-        window.addEventListener('scroll', function() {
-            const scrollBtn = document.getElementById('scrollBtn');
-            const scrollPosition = window.innerHeight + window.scrollY;
-            const pageHeight = document.documentElement.scrollHeight;
-            
-            if (scrollPosition < pageHeight - 200) {
-                scrollBtn.classList.add('show');
-            } else {
-                scrollBtn.classList.remove('show');
-            }
-        });
-        
-        function scrollToBottom(instant = false) {
-            const behavior = instant ? 'instant' : 'smooth';
-            window.scrollTo({
-                top: document.documentElement.scrollHeight,
-                behavior: behavior
-            });
-        }
-        
-        function copyLink() {
-            const url = window.location.href;
-            navigator.clipboard.writeText(url).then(() => {
-                showToast('✓ Ссылка скопирована!');
-            });
-        }
-        
-        function copyAllText() {
-            const messages = document.querySelectorAll('.message .content');
-            let text = '';
-            messages.forEach(msg => {
-                text += msg.textContent + '\\n\\n';
-            });
-            navigator.clipboard.writeText(text).then(() => {
-                showToast('✓ Текст скопирован!');
-            });
-        }
-        
-        function copyCode(btn) {
-            const codeBlock = btn.closest('.code-block').querySelector('code');
-            const text = codeBlock.textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = btn.textContent;
-                btn.textContent = '✓ Скопировано';
-                btn.classList.add('copied');
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                    btn.classList.remove('copied');
-                }, 2000);
-            });
-        }
-        
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.classList.add('show');
-            
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 2500);
-        }
-    </script>
-</body>
-</html>
-"""
-
-
 def format_message_content(content: str) -> str:
     """Форматирование контента сообщения"""
     # Удаляем строку "Модель: #Claude" и подобные
@@ -770,43 +233,54 @@ def format_message_content(content: str) -> str:
     # Жирный текст
     content = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', content)
     
-    # Параграфы
-    paragraphs = content.split('\n\n')
-    content = ''.join(f'<p>{p}</p>' for p in paragraphs if p.strip())
+    # Заменяем переносы строк на <br> для корректного отображения
+    content = content.replace('\n', '<br>')
+    
+    # Параграфы (двойные переносы)
+    content = content.replace('<br><br>', '</p><p>')
+    
+    # Оборачиваем в параграф если ещё не обёрнут
+    if not content.startswith('<p>'):
+        content = f'<p>{content}</p>'
+    
+    # Очищаем пустые параграфы
+    content = re.sub(r'<p>\s*</p>', '', content)
     
     return content
 
 
 @app.route('/chat/<int:conv_id>')
 def view_chat(conv_id):
-    """Просмотр диалога"""
+    """
+    Просмотр диалога в WebApp.
+    Использует СИНХРОННОЕ подключение psycopg2 вместо asyncpg.
+    Исправлено: ошибка "Task got Future attached to a different loop"
+    """
     try:
-        print(f"[DEBUG] view_chat called with conv_id={conv_id}")
-        ensure_pool_initialized()
-        loop = get_or_create_loop()
+        print(f"[INFO] view_chat called with conv_id={conv_id}")
         
-        # Получаем диалог и сообщения
-        conv = loop.run_until_complete(get_conversation(conv_id))
+        # Получаем диалог СИНХРОННО (через psycopg2)
+        conv = get_conversation_sync(conv_id)
         if not conv:
             print(f"[ERROR] Conversation {conv_id} not found")
             abort(404)
         
-        print(f"[DEBUG] Conversation found: user_id={conv.get('user_id')}, bot={conv.get('bot')}")
-        messages = loop.run_until_complete(get_conversation_messages(conv_id))
-        print(f"[DEBUG] Found {len(messages)} messages")
+        print(f"[INFO] Conversation found: user_id={conv.get('user_id')}, bot={conv.get('bot')}")
         
-        # Форматируем сообщения
+        # Получаем сообщения СИНХРОННО (через psycopg2)
+        messages = get_conversation_messages_sync(conv_id)
+        print(f"[INFO] Found {len(messages)} messages")
+        
+        # Форматируем сообщения для шаблона
         formatted_messages = []
-        for idx, msg in enumerate(messages):
-            # Форматируем timestamp
+        for msg in messages:
             timestamp = msg['timestamp']
-            print(f"[DEBUG] Message {idx}: timestamp type={type(timestamp)}, value={timestamp}")
             
+            # Форматируем timestamp
             if isinstance(timestamp, str):
-                timestamp_str = timestamp[:19].replace('T', ' ')
+                timestamp_str = timestamp[:16].replace('T', ' ')
             else:
-                # Если это datetime объект
-                timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                timestamp_str = timestamp.strftime('%d.%m %H:%M')
             
             formatted_messages.append({
                 'role': msg['role'],
@@ -815,14 +289,17 @@ def view_chat(conv_id):
                 'timestamp': timestamp_str
             })
         
-        print(f"[DEBUG] Formatted {len(formatted_messages)} messages, rendering template")
-        return render_template_string(
-            CHAT_TEMPLATE,
+        print(f"[INFO] Rendering chat_dialog.html with {len(formatted_messages)} messages")
+        
+        # Рендерим шаблон из templates/
+        return render_template(
+            'chat_dialog.html',
             conv_id=conv_id,
             messages=formatted_messages
         )
+        
     except Exception as e:
-        print(f"[ERROR] Error viewing chat {conv_id}: {e}")
+        print(f"[ERROR] view_chat({conv_id}): {e}")
         import traceback
         traceback.print_exc()
         abort(500)

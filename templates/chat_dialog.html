@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul Bot - Диалог #{{ conv_id }}</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 60px;
+            color: #333;
+            overflow-x: hidden;
+        }
+        
+        /* === ПЛАВАЮЩИЕ ЧАСТИЦЫ === */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+        
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: floatParticle 6s ease-in-out infinite;
+        }
+        
+        .particle:nth-child(1) { width: 20px; height: 20px; top: 10%; left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; top: 20%; left: 80%; animation-delay: 1s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; top: 40%; left: 20%; animation-delay: 2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 50%; left: 70%; animation-delay: 3s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; top: 70%; left: 30%; animation-delay: 4s; }
+        .particle:nth-child(6) { width: 22px; height: 22px; top: 80%; left: 85%; animation-delay: 5s; }
+        
+        @keyframes floatParticle {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) scale(1);
+                opacity: 0.15;
+            }
+            25% {
+                transform: translateY(-20px) translateX(10px) scale(1.1);
+                opacity: 0.3;
+            }
+            50% {
+                transform: translateY(-35px) translateX(-5px) scale(1);
+                opacity: 0.2;
+            }
+            75% {
+                transform: translateY(-15px) translateX(-10px) scale(1.05);
+                opacity: 0.25;
+            }
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* === HEADER (КОМПАКТНЫЙ) === */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 14px 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            position: sticky;
+            top: 12px;
+            z-index: 10;
+            animation: fadeInDown 0.6s ease-out;
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .header-icon {
+            font-size: 24px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #667eea;
+            margin: 0;
+        }
+        
+        /* === MESSAGES === */
+        .messages-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .message {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .message:nth-child(odd) { animation-delay: 0.1s; }
+        .message:nth-child(even) { animation-delay: 0.15s; }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .role {
+            font-weight: 700;
+            font-size: 16px;
+            padding: 8px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .role-user {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            color: #1976d2;
+        }
+        
+        .role-assistant {
+            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+            color: #7b1fa2;
+        }
+        
+        .timestamp {
+            font-size: 13px;
+            color: #888;
+            font-weight: 600;
+        }
+        
+        /* === КОНТЕНТ (УВЕЛИЧЕННЫЙ РАЗМЕР) === */
+        .content {
+            color: #333;
+            font-size: 18px;
+            line-height: 1.85;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .content p {
+            margin-bottom: 18px;
+        }
+        
+        .content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* === ЗАГОЛОВКИ === */
+        .content h1, .content h2, .content h3, .content h4 {
+            color: #667eea;
+            font-weight: 800;
+            margin: 24px 0 12px 0;
+            line-height: 1.3;
+        }
+
+        .content h1 {
+            font-size: 26px;
+            border-bottom: 3px solid rgba(102, 126, 234, 0.2);
+            padding-bottom: 8px;
+        }
+
+        .content h2 {
+            font-size: 22px;
+        }
+
+        .content h3 {
+            font-size: 19px;
+        }
+
+        .content h4 {
+            font-size: 17px;
+            color: #764ba2;
+        }
+
+        /* === СПИСКИ === */
+        .content ul, .content ol {
+            margin: 16px 0;
+            padding-left: 24px;
+        }
+
+        .content li {
+            margin: 10px 0;
+            line-height: 1.7;
+        }
+
+        .content ul li::marker {
+            color: #667eea;
+        }
+
+        .content ol li::marker {
+            color: #667eea;
+            font-weight: 700;
+        }
+        
+        /* === БЛОКИ КОДА (ТЁМНЫЙ ФОН) === */
+        .code-block {
+            background: #1e1e1e;
+            border: none;
+            border-radius: 12px;
+            padding: 0;
+            margin: 16px 0;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .code-lang {
+            font-size: 13px;
+            color: #9cdcfe;
+            font-weight: 700;
+            text-transform: lowercase;
+        }
+        
+        .copy-btn {
+            padding: 5px 12px;
+            background: #404040;
+            color: #d4d4d4;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .copy-btn:hover {
+            background: #505050;
+            color: white;
+        }
+        
+        .copy-btn.copied {
+            background: #10B981;
+            color: white;
+        }
+        
+        code {
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            display: block;
+            color: #d4d4d4;
+            padding: 16px;
+        }
+        
+        /* === INLINE КОД (ФИОЛЕТОВЫЙ) === */
+        .inline-code {
+            background: rgba(102, 126, 234, 0.15);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 15px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        strong {
+            color: #212529;
+            font-weight: 800;
+        }
+        
+        /* === КНОПКИ ПОД СООБЩЕНИЕМ === */
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Nunito', sans-serif;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .action-btn:active {
+            transform: scale(0.97);
+        }
+        
+        /* === FOOTER (КОМПАКТНЫЙ) === */
+        .footer {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 24px;
+            padding: 12px;
+        }
+        
+        .footer a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* === TOAST === */
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        /* === SCROLL TO BOTTOM BUTTON === */
+        .scroll-bottom-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            z-index: 100;
+            display: none;
+        }
+        
+        .scroll-bottom-btn.show {
+            display: block;
+            animation: bounceIn 0.5s ease;
+        }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .scroll-bottom-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 35px rgba(102, 126, 234, 0.5);
+        }
+        
+        .scroll-bottom-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* === АДАПТИВ === */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+                padding-bottom: 40px;
+            }
+            
+            .header {
+                padding: 12px 16px;
+                top: 8px;
+            }
+            
+            .header h1 {
+                font-size: 18px;
+            }
+            
+            .header-icon {
+                font-size: 22px;
+            }
+            
+            .message {
+                padding: 18px;
+            }
+            
+            .content {
+                font-size: 17px;
+            }
+            
+            .scroll-bottom-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+                bottom: 20px;
+                right: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ЧАСТИЦЫ -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+    
+    <div class="container">
+        <!-- HEADER (КОМПАКТНЫЙ) -->
+        <div class="header">
+            <div class="header-title">
+                <span class="header-icon">💬</span>
+                <h1>Soul Dialog</h1>
+            </div>
+        </div>
+        
+        <!-- MESSAGES -->
+        <div class="messages-wrapper">
+            {% for msg in messages %}
+            <div class="message">
+                <div class="message-header">
+                    <span class="role role-{{ msg.role }}">
+                        {{ '👤 Вы' if msg.role == 'user' else '🤖 Soul AI' }}
+                    </span>
+                    <span class="timestamp">{{ msg.timestamp }}</span>
+                </div>
+                <div class="content">{{ msg.formatted_content|safe }}</div>
+                
+                <!-- МАЛЕНЬКИЕ КНОПКИ ПОД СООБЩЕНИЕМ -->
+                <div class="message-actions">
+                    <button class="action-btn" onclick="copyMessageText(this)">📋 Копировать</button>
+                    <button class="action-btn" onclick="shareMessage(this)">🔗 Поделиться</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- FOOTER (КОМПАКТНЫЙ) -->
+        <div class="footer">
+            <a href="https://soul-bot.ru" target="_blank">Soul Bot</a> 🙏
+        </div>
+    </div>
+    
+    <!-- SCROLL TO BOTTOM BUTTON -->
+    <button class="scroll-bottom-btn" id="scrollBtn" onclick="scrollToBottom()">
+        ⬇️
+    </button>
+    
+    <!-- TOAST -->
+    <div class="toast" id="toast">Скопировано!</div>
+    
+    <script>
+        // Telegram WebApp initialization
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        
+        // Автоскролл к последнему сообщению при загрузке
+        window.addEventListener('load', function() {
+            scrollToBottom(true);
+        });
+        
+        // Показ/скрытие кнопки скролла
+        window.addEventListener('scroll', function() {
+            const scrollBtn = document.getElementById('scrollBtn');
+            const scrollPosition = window.innerHeight + window.scrollY;
+            const pageHeight = document.documentElement.scrollHeight;
+            
+            if (scrollPosition < pageHeight - 200) {
+                scrollBtn.classList.add('show');
+            } else {
+                scrollBtn.classList.remove('show');
+            }
+        });
+        
+        function scrollToBottom(instant = false) {
+            const behavior = instant ? 'instant' : 'smooth';
+            window.scrollTo({
+                top: document.documentElement.scrollHeight,
+                behavior: behavior
+            });
+        }
+        
+        function copyMessageText(btn) {
+            const content = btn.closest('.message').querySelector('.content');
+            navigator.clipboard.writeText(content.textContent).then(() => {
+                const original = btn.textContent;
+                btn.textContent = '✓ Скопировано';
+                setTimeout(() => btn.textContent = original, 1500);
+            });
+        }
+
+        function shareMessage(btn) {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                showToast('✓ Ссылка скопирована!');
+            });
+        }
+        
+        function copyCode(btn) {
+            const codeBlock = btn.closest('.code-block').querySelector('code');
+            const text = codeBlock.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Скопировано';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
