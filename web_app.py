@@ -85,28 +85,44 @@ app.register_blueprint(admin_bp)
 # Глобальный event loop для всех async операций
 _global_loop = None
 _pool_initialized = False
+_current_loop_id = None
 
 def get_or_create_loop():
     """Получить или создать глобальный event loop"""
-    global _global_loop
+    global _global_loop, _pool_initialized, _current_loop_id
+    
+    # Проверяем, нужно ли пересоздать loop
     if _global_loop is None or _global_loop.is_closed():
         _global_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(_global_loop)
+        # При смене loop нужно переинициализировать pool
+        _pool_initialized = False
+        _current_loop_id = id(_global_loop)
+    
     return _global_loop
 
 def ensure_pool_initialized():
-    """Убедиться что пул PostgreSQL инициализирован"""
-    global _pool_initialized
+    """Убедиться что пул PostgreSQL инициализирован в текущем event loop"""
+    global _pool_initialized, _current_loop_id
+    
+    loop = get_or_create_loop()
+    current_id = id(loop)
+    
+    # Если loop изменился, нужно переинициализировать pool
+    if _current_loop_id != current_id:
+        _pool_initialized = False
+        _current_loop_id = current_id
+    
     if _pool_initialized:
         return
     
     try:
-        loop = get_or_create_loop()
-        if not _pool_initialized:
-            loop.run_until_complete(init_pool())
-            loop.run_until_complete(init_db())
-            print("✅ PostgreSQL pool initialized in web_app")
-            _pool_initialized = True
+        # Переинициализируем pool в текущем event loop
+        loop.run_until_complete(init_pool())
+        loop.run_until_complete(init_db())
+        print("✅ PostgreSQL pool initialized in web_app")
+        _pool_initialized = True
+        _current_loop_id = current_id
     except Exception as e:
         print(f"⚠️ Failed to initialize PostgreSQL in web_app: {e}")
         import traceback
@@ -114,9 +130,20 @@ def ensure_pool_initialized():
 
 
 def run_async(coro):
-    """Запуск async функции в глобальном loop."""
-    loop = get_or_create_loop()
-    return loop.run_until_complete(coro)
+    """Запуск async функции в глобальном loop с автоматической реинициализацией при ошибках loop"""
+    try:
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        return loop.run_until_complete(coro)
+    except RuntimeError as e:
+        if "different loop" in str(e) or "attached to a different loop" in str(e):
+            # Pool привязан к другому loop - пересоздаём
+            global _pool_initialized
+            _pool_initialized = False
+            ensure_pool_initialized()
+            loop = get_or_create_loop()
+            return loop.run_until_complete(coro)
+        raise
 
 # Инициализируем при импорте
 ensure_pool_initialized()
@@ -1682,8 +1709,13 @@ def get_image_settings_api(user_id: int):
     try:
         ensure_pool_initialized()
         loop = get_or_create_loop()
-        from database.postgres_db import get_image_settings
-        from database.postgres_db import get_available_stars
+        from database.postgres_db import get_image_settings, get_available_stars, get_user, create_user
+        
+        # Проверяем/создаём пользователя
+        user = loop.run_until_complete(get_user(user_id))
+        if not user:
+            loop.run_until_complete(create_user(uid=user_id, uname=f"user_{user_id}", fname="Пользователь"))
+            print(f"✅ Создан пользователь {user_id} в get_image_settings_api")
         
         settings = loop.run_until_complete(get_image_settings(user_id))
         balance = loop.run_until_complete(get_available_stars(user_id))

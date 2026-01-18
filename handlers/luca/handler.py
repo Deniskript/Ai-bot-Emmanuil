@@ -426,6 +426,12 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
         try:
             resp, stars_used = await ask(messages, model, image_b64)
         except Exception as e:
+            # Удаляем смайлик ожидания при ошибке
+            if waiting_msg:
+                try:
+                    await waiting_msg.delete()
+                except:
+                    pass
             await msg.answer(f"❌ Ошибка: {e}")
             active_requests.pop(user_id, None)
             return
@@ -447,6 +453,12 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
             print(f"Stream error: {e}")
             import traceback
             traceback.print_exc()
+            # Удаляем смайлик ожидания при ошибке
+            if waiting_msg:
+                try:
+                    await waiting_msg.delete()
+                except:
+                    pass
             active_requests.pop(user_id, None)
             return
     

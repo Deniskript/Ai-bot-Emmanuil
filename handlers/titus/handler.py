@@ -134,7 +134,13 @@ async def create_course(msg: Message, state: FSMContext):
     await state.update_data(cid=cid, cname=cname, current_step=1, total_steps=steps)
     await db.clear_msgs(msg.from_user.id, 'titus')
     
-    await msg.answer(texts.COURSE_CREATED, reply_markup=reply.study_chat_kb())
+    # Показываем создание курса с информацией о шаге
+    await msg.answer(
+        f"✅ <b>Курс «{cname}» создан!</b>\n\n"
+        f"📚 Количество шагов: {steps}\n"
+        f"📍 Начинаем <b>Шаг 1</b>...",
+        reply_markup=reply.study_chat_kb()
+    )
     
     # Используем текстовый промпт (голосовой режим удалён)
     base_prompt = TITUS_BASE
@@ -157,7 +163,7 @@ async def create_course(msg: Message, state: FSMContext):
     
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
-    footer = f"\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>"
+    footer = f"\n\n<i>📓 Обучение • Шаг 1/{steps}</i>"
     resp_with_footer = f"{resp_clean}{footer}"
     resp_html = md_to_html(resp_clean)
     

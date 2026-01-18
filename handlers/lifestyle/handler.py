@@ -6,6 +6,8 @@ from aiogram import Router, F
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from keyboards import reply
+from database import postgres_db as db
+from utils.calories import format_calories_summary
 
 # Локальные импорты модуля
 from . import config as lifestyle_config
@@ -41,3 +43,30 @@ async def lifestyle_menu(msg: Message, state: FSMContext):
         photo=banner,
         reply_markup=reply.lifestyle_kb(msg.from_user.id)
     )
+
+
+# ========== ПЕРЕХОД В ЗДОРОВЬЕ ИЗ ЛЮБОГО СОСТОЯНИЯ ==========
+
+@router.message(routine.RoutineStates.menu, F.text == "🍎 Здоровье")
+@router.message(mental.MentalStates.menu, F.text == "🍎 Здоровье")
+@router.message(magic.MagicSt.menu, F.text == "🍎 Здоровье")
+async def go_to_health_from_lifestyle(msg: Message, state: FSMContext):
+    """Переход в раздел Здоровье из состояний Lifestyle"""
+    from handlers.health import HealthStates
+    
+    await state.set_state(HealthStates.menu)
+    
+    # Получаем статистику за сегодня
+    today_stats = await db.get_today_calories(msg.from_user.id)
+    goal = await db.get_nutrition_goal(msg.from_user.id)
+    
+    text = "🍎 <b>Здоровье</b>\n\n"
+    text += "Следи за питанием и достигай целей!\n\n"
+    
+    if today_stats['calories'] > 0:
+        text += "📊 <b>Сегодня:</b>\n"
+        text += format_calories_summary(today_stats, goal)
+    else:
+        text += "<i>Сегодня ещё нет записей</i>"
+    
+    await msg.answer(text, parse_mode="HTML", reply_markup=reply.health_kb(msg.from_user.id))

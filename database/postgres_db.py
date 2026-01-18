@@ -1809,6 +1809,12 @@ async def add_routine_checkin(uid: int, routine_type: str, completed_items: List
             """
             INSERT INTO routine_checkins (user_id, routine_type, date, completed_items, total_items, completion_percent, reflection, mood)
             VALUES ($1, $2, CURRENT_DATE, $3, $4, $5, $6, $7)
+            ON CONFLICT (user_id, routine_type, date) DO UPDATE SET
+                completed_items = EXCLUDED.completed_items,
+                total_items = EXCLUDED.total_items,
+                completion_percent = EXCLUDED.completion_percent,
+                reflection = COALESCE(EXCLUDED.reflection, routine_checkins.reflection),
+                mood = COALESCE(EXCLUDED.mood, routine_checkins.mood)
             """,
             uid, routine_type, completed_json, total_items, completion_percent, reflection, mood
         )
@@ -2863,11 +2869,11 @@ async def reset_msg_counter(uid: int, bot: str):
 
 
 # ============================================================================
-# MOOD STATS - Статистика настроения
+# HEALTH MOOD STATS - Старая статистика настроения для раздела Здоровье
 # ============================================================================
 
-async def get_mood_stats(uid: int) -> Dict:
-    """Получить статистику настроения за последние 30 дней"""
+async def get_health_mood_stats(uid: int) -> Dict:
+    """Получить статистику настроения за последние 30 дней (для раздела Здоровье)"""
     async with get_connection() as conn:
         since = datetime.now() - timedelta(days=30)
         

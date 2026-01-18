@@ -259,7 +259,7 @@ async def save_mood(callback: CallbackQuery, state: FSMContext):
         
         # AI совет на основе настроения
         if mood <= 2:
-            tip = await get_mood_tip(mood, tags)
+            tip = await get_mood_tip(callback.from_user.id, mood, tags)
         else:
             tip = "Отличный настрой! Так держать! 💪"
         
@@ -281,7 +281,7 @@ async def save_mood(callback: CallbackQuery, state: FSMContext):
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
-async def get_mood_tip(mood: int, tags: list) -> str:
+async def get_mood_tip(user_id: int, mood: int, tags: list) -> str:
     """AI совет при плохом настроении"""
     try:
         prompt = f"""
