@@ -95,29 +95,63 @@ migrations/
 - **Использование:** Чат, анализ, генерация текста, стриминг
 - **Функции:** `ask()`, `ask_stream()` в utils/openrouter.py
 
-### ProxyAPI (для изображений):
+### VseGPT (изображения и видео):
+- **URL:** https://api.vsegpt.ru/v1
 - **Ключ:** OPENAI_API_KEY в .env
-- **Модели:** gpt-image-1, gpt-image-1-mini, gpt-image-1.5, gpt-image-1.5-hd
+- **Модели изображений:** img-flux/schnell, img-flux/2, img2img-flux/kontext-pro, img2img-flux/kontext-max, img2img-recraft/v3-upscale
+- **Модели видео:** LTX, Veo, Sora, Kling
 
-### Robokassa (оплата):
-- **Тестовый режим:** включен (ROBOKASSA_TEST_MODE=1)
+### Robokassa (платежный шлюз):
+- **Merchant Login:** ROBOKASSA_MERCHANT_LOGIN в .env
+- **Password 1:** ROBOKASSA_PASSWORD1 (для генерации подписи)
+- **Password 2:** ROBOKASSA_PASSWORD2 (для проверки результата)
+- **Тестовый режим:** ROBOKASSA_TEST_MODE=1 (по умолчанию)
+- **Result URL:** `https://soul-bot.ru/robokassa/result` (webhook)
+- **Success URL:** `https://soul-bot.ru/payment/success`
+- **Fail URL:** `https://soul-bot.ru/payment/fail`
+- **Модуль:** utils/robokassa.py
 
 ---
 
-## 💰 СИСТЕМА ТОКЕНОВ
+## 💰 СИСТЕМА ТОКЕНОВ (ЗВЁЗДЫ ⭐)
 
-**Токены = внутренняя валюта бота (НЕ токены OpenAI!)**
+**Звёзды (⭐) = внутренняя валюта бота**
 
-### Тарифы:
-| Пакет | Токены | Цена |
-|-------|--------|------|
-| Бонус новому | 25,000 | Бесплатно |
-| 100K | 100,000 | 149₽ |
-| 200K | 200,000 | 249₽ |
-| Mini подписка | 400,000 | 490₽/мес |
-| Standard подписка | 900,000 | 990₽/мес |
+### Курс:
+- **1 ⭐ = 0.1225₽** (490₽ / 4,000⭐)
+- **Маржа:** 70% (MARKUP = 1.7x)
 
-### Минимум для запроса: 3,000 токенов
+### Тарифы подписок:
+| Подписка | Звёзды | Цена | Особенности |
+|----------|--------|------|-------------|
+| **Mini** 💎 | 4,000 ⭐ | 490₽/мес | GPT-4o mini, 50 картинок |
+| **Standard** 👑 | 9,000 ⭐ | 990₽/мес | GPT-4o + Claude Sonnet, 150 картинок, видео |
+| **Premium** ✨ | 20,000 ⭐ | 1,990₽/мес | Все модели, безлимит картинок, приоритет |
+
+### Пакеты звёзд (разовые покупки):
+| Пакет | Цена |
+|-------|------|
+| 1,000 ⭐ | 149₽ |
+| 2,000 ⭐ | 249₽ |
+
+### Бонусы:
+- **Новый пользователь:** 250 ⭐ (бесплатно)
+- **Реферал Mini:** +1,000 ⭐ реферу
+- **Реферал Standard:** +2,000 ⭐ реферу
+- **Реферал Premium:** +4,000 ⭐ реферу
+
+### Цены на функционал:
+| Функция | Цена | Модель |
+|---------|------|--------|
+| **Текстовый диалог** | ~1-5 ⭐ | Claude Sonnet 4.5 |
+| **Картинка Flux Schnell** | 50 ⭐ | img-flux/schnell |
+| **Картинка Flux 2** | 120 ⭐ | img-flux/2 |
+| **Картинка Kontext Pro** | 200 ⭐ | img2img-flux/kontext-pro |
+| **Картинка Kontext Max** | 350 ⭐ | img2img-flux/kontext-max |
+| **Upscale (улучшение)** | 30 ⭐ | img2img-recraft/v3-upscale |
+| **Видео Эконом 5s** | 167 ⭐ | LTX |
+| **Видео Стандарт (no audio)** | 1,371 ⭐ | Veo |
+| **Видео Премиум 4s (Sora)** | 1,371 ⭐ | Sora |
 
 ---
 
@@ -329,6 +363,68 @@ alembic upgrade head
 2. **stream_response() возвращает tuple** — `(text, sent_msg)`, не дублировать отправку
 3. **Промпты в handlers/** — актуальные промпты в `handlers/*/prompts.py`, не в `prompts/`
 4. **database/db.py устарел** — использовать только `database/postgres_db.py`
+5. **Звёзды ⭐ не токены OpenAI** — это внутренняя валюта бота (1 ⭐ = 0.1225₽)
+
+---
+
+## 💳 КАРТА ЦЕН В ФАЙЛАХ
+
+### Где захардкожены цены:
+
+| Файл | Что хранит | Назначение |
+|------|------------|------------|
+| **config.py** | SUBSCRIPTIONS, STAR_PACKAGES | Источник истины для подписок |
+| **keyboards/inline.py** | subscription_plans_kb(), stars_packages_kb() | Кнопки в боте |
+| **templates/payment.html** | HTML карточки подписок и пакетов | WebApp покупок |
+| **templates/webapp.html** | Пакеты звёзд в личном кабинете | WebApp профиль |
+| **handlers/images.py** | DEFAULT_MODELS (create/upscale/edit) | Дефолтные цены картинок |
+| **database/postgres_db.py** | create_price=50, upscale_price=350, edit_price=120 | Дефолты БД |
+| **handlers/subscription.py** | Реферальные награды (1000/2000/4000⭐) | Логика рефералов |
+| **templates/video_settings.html** | STAR_COST_RUB=0.1225, MARKUP=1.7 | Формула расчёта видео |
+| **templates/images_settings.html** | rubToTokens(rub * 1.7 * 1000) | Формула расчёта картинок |
+
+### Формулы ценообразования:
+
+**Для звёзд из рублей:**
+```javascript
+// video_settings.html, images_settings.html
+const STAR_COST_RUB = 0.1225;  // 1⭐ = 0.1225₽
+const MARKUP = 1.7;             // Маржа 70%
+
+function rubToStars(rub) {
+    return Math.round((rub * MARKUP) / STAR_COST_RUB);
+}
+```
+
+**Пример:**
+- API стоит 12₽
+- Цена для пользователя: `(12 × 1.7) / 0.1225 = 167⭐`
+- В рублях для пользователя: `167 × 0.1225 = 20.46₽`
+
+---
+
+## 🚀 ВАЖНЫЕ ЭНДПОИНТЫ
+
+### Flask (web_app.py):
+```python
+/api/user/<user_id>            # GET: Данные пользователя (баланс, подписка)
+/api/image_settings/<user_id>  # GET: Настройки картинок
+/api/payment/create             # POST: Создание платежа Robokassa
+/robokassa/result               # POST: Webhook от Robokassa
+/payment/success                # GET: Успешная оплата
+/payment/fail                   # GET: Неудачная оплата
+```
+
+### Telegram Bot (handlers/):
+```python
+/start                          # handlers/start.py
+/admin                          # handlers/admin.py (только ADMIN_IDS)
+callback: sub:buy:mini          # handlers/subscription.py
+callback: sub:buy:standard      # handlers/subscription.py
+callback: sub:buy:premium       # handlers/subscription.py
+callback: stars:buy:1000        # handlers/subscription.py
+callback: stars:buy:2000        # handlers/subscription.py
+```
 
 ---
 
@@ -347,4 +443,83 @@ alembic upgrade head
 2. Как работает стриминг
 3. Какие модули есть и их состояние
 4. Что НЕ трогать
+```
+
+---
+
+## 🛠️ БЫСТРЫЕ КОМАНДЫ
+
+### Перезапуск сервисов:
+```bash
+systemctl restart aibot soul-bot-web
+systemctl status aibot soul-bot-web --no-pager
+```
+
+### Просмотр логов:
+```bash
+journalctl -u aibot -n 50 --no-pager          # Последние 50 строк бота
+journalctl -u soul-bot-web -n 30 --no-pager   # Последние 30 строк веба
+journalctl -u aibot -f                         # Реальное время
+```
+
+### Git:
+```bash
+git status -sb                                 # Краткий статус
+git add . && git commit -m "message"           # Коммит
+git push origin main                           # Пуш
+```
+
+### БД миграции:
+```bash
+source venv/bin/activate
+alembic revision -m "description"              # Создать миграцию
+alembic upgrade head                           # Применить
+alembic current                                # Текущая версия
+```
+
+### Проверка импортов:
+```bash
+python -c "from handlers.MODULE.handler import router; print('OK')"
+```
+
+---
+
+## 📚 ПОЛЕЗНЫЕ ССЫЛКИ
+
+- **Проект:** https://github.com/YOUR_USERNAME/ai-bot
+- **Домен:** https://soul-bot.ru
+- **Бот:** @soul_ai_bot
+- **OpenRouter:** https://openrouter.ai
+- **VseGPT:** https://api.vsegpt.ru
+- **Robokassa:** https://auth.robokassa.ru/Merchant/Index.aspx
+- **aiogram 3.x:** https://docs.aiogram.dev/en/latest/
+
+---
+
+## 🔐 .ENV ПЕРЕМЕННЫЕ
+
+Обязательные для запуска:
+
+```bash
+# Telegram
+BOT_TOKEN=                      # Токен бота
+ADMIN_IDS=                      # Comma-separated ID админов
+
+# PostgreSQL
+DATABASE_PATH=                  # asyncpg://user:pass@host/db
+
+# Redis
+REDIS_URL=                      # redis://localhost:6379/0
+
+# OpenRouter
+OPENROUTER_API_KEY=             # sk-or-...
+
+# VseGPT (изображения/видео)
+OPENAI_API_KEY=                 # API ключ VseGPT
+
+# Robokassa
+ROBOKASSA_MERCHANT_LOGIN=       # Логин магазина
+ROBOKASSA_PASSWORD1=            # Пароль 1
+ROBOKASSA_PASSWORD2=            # Пароль 2
+ROBOKASSA_TEST_MODE=1           # 1=тест, 0=боевой
 ```
