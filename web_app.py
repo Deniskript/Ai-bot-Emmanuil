@@ -185,16 +185,30 @@ def ensure_pool_initialized():
 
 
 def run_async(coro):
-    """Запуск async функции в глобальном loop с автоматической реинициализацией при ошибках loop"""
+    """Запуск async функции в глобальном loop с автоматической реинициализацией при ошибках"""
     try:
         ensure_pool_initialized()
         loop = get_or_create_loop()
         return loop.run_until_complete(coro)
-    except RuntimeError as e:
-        if "different loop" in str(e) or "attached to a different loop" in str(e):
-            # Pool привязан к другому loop - пересоздаём
-            global _pool_initialized
+    except (RuntimeError, Exception) as e:
+        error_str = str(e)
+        # Проверяем различные типы ошибок подключения
+        if any(x in error_str for x in ["different loop", "attached to a different loop", "connection was closed", "ConnectionDoesNotExistError"]):
+            # Pool привязан к другому loop или соединение закрыто - пересоздаём
+            logger.warning(f"Connection/loop error detected, reinitializing pool: {e}")
+            global _pool_initialized, _current_loop_id
             _pool_initialized = False
+            _current_loop_id = None
+            
+            # Пересоздаём loop и pool
+            global _global_loop
+            if _global_loop and not _global_loop.is_closed():
+                try:
+                    _global_loop.close()
+                except:
+                    pass
+            _global_loop = None
+            
             ensure_pool_initialized()
             loop = get_or_create_loop()
             return loop.run_until_complete(coro)
@@ -1607,22 +1621,17 @@ def save_image_settings_api():
 
 def _build_user_response(user_id: int):
     """Собрать данные пользователя для WebApp"""
-    ensure_pool_initialized()
-    loop = get_or_create_loop()
-
-    # Получаем пользователя или создаём, если отсутствует
-    user = loop.run_until_complete(get_user(user_id))
+    # Используем run_async для автоматической обработки ошибок подключения
+    user = run_async(get_user(user_id))
     if not user:
-        loop.run_until_complete(
-            create_user(uid=user_id, uname=f"user_{user_id}", fname="Пользователь")
-        )
-        user = loop.run_until_complete(get_user(user_id))
+        run_async(create_user(uid=user_id, uname=f"user_{user_id}", fname="Пользователь"))
+        user = run_async(get_user(user_id))
 
     # Получаем подписку
-    subscription = loop.run_until_complete(get_subscription(user_id))
+    subscription = run_async(get_subscription(user_id))
 
     # Получаем доступные звёзды (из подписки или бонусные)
-    stars = loop.run_until_complete(get_available_stars(user_id))
+    stars = run_async(get_available_stars(user_id))
 
     # Формируем ответ
     response = {

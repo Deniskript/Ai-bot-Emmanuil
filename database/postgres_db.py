@@ -1157,6 +1157,23 @@ async def get_active_subscriptions() -> List[Dict]:
         return [dict(row) for row in rows]
 
 
+async def has_active_subscription(uid: int) -> bool:
+    """Проверить есть ли у пользователя активная подписка"""
+    sub = await get_subscription(uid)
+    if not sub:
+        return False
+    
+    # Проверяем что подписка активна и не истекла
+    if not sub.get('is_active'):
+        return False
+    
+    expires_at = sub.get('expires_at')
+    if expires_at and expires_at > datetime.now():
+        return True
+    
+    return False
+
+
 # ============================================================================
 # STAR USAGE - Использование звёзд
 # ============================================================================
