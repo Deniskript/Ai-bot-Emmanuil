@@ -69,8 +69,9 @@ def back_kb(cb_data: str):
 
 def subscription_plans_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 Mini (Sonnet) — 490₽", callback_data="sub:buy:mini")],
-        [InlineKeyboardButton(text="👑 Standard (Opus) — 990₽", callback_data="sub:buy:standard")],
+        [InlineKeyboardButton(text="💎 Mini (4,000⭐) — 490₽", callback_data="sub:buy:mini")],
+        [InlineKeyboardButton(text="👑 Standard (9,000⭐) — 990₽", callback_data="sub:buy:standard")],
+        [InlineKeyboardButton(text="✨ Premium (20,000⭐) — 1,990₽", callback_data="sub:buy:premium")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 

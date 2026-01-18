@@ -1855,6 +1855,200 @@ def api_user_query():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/payment/create', methods=['POST'])
+def api_payment_create():
+    """Создание платежа"""
+    try:
+        from utils.robokassa import generate_payment_link
+        from database.postgres_db import create_transaction
+        
+        data = request.json
+        user_id = int(data['user_id'])
+        item_type = data['type']  # 'sub' или 'pkg'
+        item_id = data['item_id']  # 'mini', 'standard', '1000', '2000'
+        amount = float(data['amount'])
+        stars = int(data['stars'])
+        
+        # Формируем тип платежа
+        if item_type == 'sub':
+            payment_type = f"subscription:{item_id}"
+            description = f"Подписка {item_id}"
+        else:
+            payment_type = f"stars:{item_id}"
+            description = f"Пакет {stars} звёзд"
+        
+        # Создаём транзакцию
+        ensure_pool_initialized()
+        loop = get_or_create_loop()
+        tx_id = loop.run_until_complete(
+            create_transaction(user_id, amount, stars, payment_type)
+        )
+        
+        # Генерируем ссылку на оплату
+        payment_url = generate_payment_link(
+            order_id=tx_id,
+            amount=amount,
+            description=description,
+            user_id=user_id,
+            payment_type=payment_type
+        )
+        
+        return jsonify({
+            'success': True,
+            'payment_url': payment_url,
+            'transaction_id': tx_id
+        })
+        
+    except Exception as e:
+        print(f"Error creating payment: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/payment/success')
+def payment_success():
+    """Страница успешной оплаты"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Оплата успешна</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0;
+                color: white;
+                text-align: center;
+                padding: 20px;
+            }
+            .container {
+                max-width: 400px;
+            }
+            .icon {
+                font-size: 80px;
+                margin-bottom: 20px;
+                animation: bounce 1s ease infinite;
+            }
+            @keyframes bounce {
+                0%, 100% { transform: translateY(0); }
+                50% { transform: translateY(-10px); }
+            }
+            h1 {
+                font-size: 28px;
+                margin-bottom: 12px;
+            }
+            p {
+                font-size: 16px;
+                color: rgba(255,255,255,0.7);
+                margin-bottom: 30px;
+            }
+            .btn {
+                background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+                color: #1a1a2e;
+                padding: 16px 32px;
+                border-radius: 12px;
+                border: none;
+                font-size: 16px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="icon">✅</div>
+            <h1>Оплата прошла успешно!</h1>
+            <p>Звёзды зачислены на ваш баланс.<br>Спасибо за покупку!</p>
+            <button class="btn" onclick="Telegram.WebApp.close()">Вернуться в бот</button>
+        </div>
+        <script>
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            setTimeout(() => tg.close(), 3000);
+        </script>
+    </body>
+    </html>
+    """
+
+
+@app.route('/payment/fail')
+def payment_fail():
+    """Страница неуспешной оплаты"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ошибка оплаты</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0;
+                color: white;
+                text-align: center;
+                padding: 20px;
+            }
+            .container {
+                max-width: 400px;
+            }
+            .icon {
+                font-size: 80px;
+                margin-bottom: 20px;
+            }
+            h1 {
+                font-size: 28px;
+                margin-bottom: 12px;
+                color: #EF4444;
+            }
+            p {
+                font-size: 16px;
+                color: rgba(255,255,255,0.7);
+                margin-bottom: 30px;
+            }
+            .btn {
+                background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+                color: white;
+                padding: 16px 32px;
+                border-radius: 12px;
+                border: none;
+                font-size: 16px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="icon">❌</div>
+            <h1>Оплата не прошла</h1>
+            <p>Возможно, вы отменили платёж.<br>Попробуйте ещё раз.</p>
+            <button class="btn" onclick="Telegram.WebApp.close()">Вернуться в бот</button>
+        </div>
+        <script>
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+        </script>
+    </body>
+    </html>
+    """
+
+
 @app.route('/robokassa/result', methods=['POST', 'GET'])
 def robokassa_result():
     """Webhook для обработки ResultURL от Robokassa"""

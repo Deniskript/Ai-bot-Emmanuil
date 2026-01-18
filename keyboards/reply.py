@@ -149,10 +149,10 @@ def lifestyle_kb(user_id: int):
 def magic_kb(user_id: int):
     """Меню раздела Магия"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="✨ Гороскоп", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/horoscope?user_id={user_id}"))],
-        [KeyboardButton(text="🃏 Таро", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/tarot?user_id={user_id}"))],
-        [KeyboardButton(text="🔮 Гадания", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/divination?user_id={user_id}"))],
-        [KeyboardButton(text="🌙 Лунный календарь", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/moon?user_id={user_id}"))],
+        [KeyboardButton(text="✨ Гороскоп", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/horoscope?user_id={user_id}")),
+         KeyboardButton(text="🃏 Таро", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/tarot?user_id={user_id}"))],
+        [KeyboardButton(text="🔮 Гадания", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/divination?user_id={user_id}")),
+         KeyboardButton(text="🌙 Лунный календарь", web_app=WebAppInfo(url=f"https://soul-bot.ru/magic/moon?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]
     ], resize_keyboard=True)
 

@@ -322,6 +322,8 @@ async def process_successful_payment(tx_id: int, robokassa_id: int = None):
                     reward_stars = 1000  # 1,000 ⭐ за Mini
                 elif sub_type == 'standard':
                     reward_stars = 2000  # 2,000 ⭐ за Standard
+                elif sub_type == 'premium':
+                    reward_stars = 4000  # 4,000 ⭐ за Premium
                 else:
                     reward_stars = 0
                 

@@ -92,6 +92,12 @@ SUBSCRIPTIONS = {
         "price": 990,
         "stars": 9000,
         "model": MODEL
+    },
+    "premium": {
+        "name": "Premium",
+        "price": 1990,
+        "stars": 20000,
+        "model": MODEL
     }
 }
 
