@@ -1,6 +1,8 @@
 """
 Утилиты для работы с диалогами
 """
+import logging
+from collections import OrderedDict
 from database.postgres_db import (
     create_conversation,
     add_message,
@@ -8,13 +10,32 @@ from database.postgres_db import (
 )
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
+logger = logging.getLogger(__name__)
+
+# Максимум хранимых диалогов в памяти
+MAX_CONVERSATIONS = 5000
+
 # Текущие активные диалоги пользователей {user_id: conversation_id}
-active_conversations = {}
+active_conversations: OrderedDict = OrderedDict()
+
+
+def _cleanup_old_conversations():
+    """Удалить старые записи при переполнении"""
+    removed = 0
+    while len(active_conversations) > MAX_CONVERSATIONS:
+        active_conversations.popitem(last=False)
+        removed += 1
+    if removed > 0:
+        logger.info(f"Cleaned up {removed} old conversations from cache")
 
 
 async def start_conversation(user_id: int, bot: str) -> int:
     """Начать новый диалог"""
+    _cleanup_old_conversations()
     conv_id = await create_conversation(user_id, bot)
+    # Если ключ уже есть — переместить в конец (обновить позицию)
+    if user_id in active_conversations:
+        active_conversations.move_to_end(user_id)
     active_conversations[user_id] = conv_id
     return conv_id
 

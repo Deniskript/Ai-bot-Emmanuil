@@ -24,7 +24,7 @@ def dialog_kb(user_id: int):
 def dialog_chat_kb():
     """Клавиатура в активном чате"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🧹 Очистить")]
+        [KeyboardButton(text="🛑 Завершить")]
     ], resize_keyboard=True)
 
 
@@ -47,7 +47,7 @@ def dialog_char_kb():
 def voice_chat_kb():
     """Клавиатура для голосового режима"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛑 Завершить"), KeyboardButton(text="🧹 Очистить")],
+        [KeyboardButton(text="🛑 Завершить")],
         [KeyboardButton(text="🔄 Сменить голос")]
     ], resize_keyboard=True)
 
@@ -62,8 +62,7 @@ def voice_chat_loading_kb():
 # ========== INLINE КЛАВИАТУРЫ ==========
 
 def voice_gender_kb():
-    """Выбор голоса для голосового режима"""
+    """Выбор голоса для голосового режима (только мужской голос доступен)"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👨 Мужской", callback_data="voice:gender:male")],
-        [InlineKeyboardButton(text="👩 Женский", callback_data="voice:gender:female")]
+        [InlineKeyboardButton(text="👨 Мужской голос", callback_data="voice:gender:male")]
     ])

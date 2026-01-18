@@ -5,6 +5,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from database import postgres_db as db
 from database import redis_db
 from keyboards import reply as global_reply  # для bots_menu_kb()
@@ -18,11 +19,16 @@ from utils.conversations import save_message, clean_response, should_show_previe
 from utils.status_manager import show_status
 from utils.streaming import stream_response
 from utils.balance_guard import ensure_balance
+from utils.markdown import md_to_html
 from loader import bot
 import asyncio
 import base64
 import re
 import os
+import logging
+from collections import OrderedDict
+
+logger = logging.getLogger(__name__)
 
 # Локальные импорты модуля (всё внутри handlers/luca/)
 from . import config as luca_config
@@ -53,14 +59,13 @@ class LukaSt(StatesGroup):
 
 # ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
 
-active_requests = {}
-last_messages = {}
+active_requests: OrderedDict = OrderedDict()
+last_messages: OrderedDict = OrderedDict()
 
 # Использование настроек из локального config
 MIN_STARS = luca_config.MIN_STARS
 MAX_CACHE_SIZE = luca_config.MAX_CACHE_SIZE
 VOICE_MAP = luca_config.VOICE_MAP
-BOT_NAME = luca_config.BOT_NAME
 
 
 # ========== УТИЛИТЫ ==========
@@ -70,19 +75,23 @@ def get_user_settings(user_id: int) -> dict:
     return redis_db.get_luca_settings(user_id)
 
 
-def md_to_html(text):
-    """Конвертирует **bold** в <b>bold</b>"""
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+def cleanup_cache(cache_dict: OrderedDict, max_size: int = MAX_CACHE_SIZE):
+    """Очистка кэша с удалением самых старых записей (FIFO)"""
+    while len(cache_dict) > max_size:
+        cache_dict.popitem(last=False)  # Удаляем самый старый элемент
 
 
-def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
-    """Очистка кэша при превышении лимита (удаляем самые старые записи)"""
-    if len(cache_dict) > max_size:
-        # Удаляем 20% самых старых записей (если есть способ определить возраст)
-        # Для простоты удаляем случайные записи
-        keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
-        for key in keys_to_remove:
-            cache_dict.pop(key, None)
+async def _safe_background_task(coro, task_name: str = "background"):
+    """Безопасный запуск фоновой задачи с логированием ошибок"""
+    try:
+        await coro
+    except Exception as e:
+        logger.error(f"Background task '{task_name}' failed: {e}", exc_info=True)
+
+
+def create_safe_task(coro, task_name: str = "background"):
+    """Создать фоновую задачу с отслеживанием ошибок"""
+    return asyncio.create_task(_safe_background_task(coro, task_name))
 
 
 # ========== МЕНЮ ==========
@@ -98,12 +107,26 @@ async def luka_enter(msg: Message, state: FSMContext):
     char_key = s.get('character', 'soul')
     char_name = CHAR_NAMES.get(char_key, '🕊 Душа')
     
-    # Отправляем баннер вместо текста
-    banner = FSInputFile("assets/banner_dialog.png")
-    await msg.answer_photo(
-        photo=banner,
-        reply_markup=kb.dialog_kb(msg.from_user.id)
-    )
+    # Отправляем баннер с проверкой существования
+    banner_path = "assets/banner_dialog.png"
+    if os.path.exists(banner_path):
+        try:
+            banner = FSInputFile(banner_path)
+            await msg.answer_photo(
+                photo=banner,
+                reply_markup=kb.dialog_kb(msg.from_user.id)
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send banner: {e}")
+            await msg.answer(
+                texts.MENU_TEXT.format(char_name=char_name),
+                reply_markup=kb.dialog_kb(msg.from_user.id)
+            )
+    else:
+        await msg.answer(
+            texts.MENU_TEXT.format(char_name=char_name),
+            reply_markup=kb.dialog_kb(msg.from_user.id)
+        )
 
 
 @router.message(LukaSt.menu, F.text == "💬 Начать")
@@ -234,13 +257,6 @@ async def voice_stop(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.voice_chat, F.text == "🧹 Очистить")
-async def voice_clear(msg: Message):
-    """Очистка истории в голосовом режиме"""
-    await db.clear_msgs(msg.from_user.id, 'luca')
-    await msg.answer(texts.HISTORY_CLEARED + " Продолжаем:")
-
-
 @router.message(LukaSt.voice_chat, F.text == "🔄 Сменить голос")
 async def voice_change_gender(msg: Message, state: FSMContext):
     """Смена голоса"""
@@ -265,12 +281,12 @@ async def voice_cancel(msg: Message, state: FSMContext):
         try:
             if active_requests[user_id].get('status'):
                 await active_requests[user_id]['status'].stop()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to stop status: {e}")
     
     try:
         await msg.delete()
-    except:
+    except (TelegramBadRequest, TelegramForbiddenError):
         pass
     
     await state.set_state(LukaSt.char)
@@ -291,12 +307,6 @@ async def luka_stop(msg: Message, state: FSMContext):
     )
 
 
-@router.message(LukaSt.chat, F.text == "🧹 Очистить")
-async def luka_chat_clear(msg: Message):
-    await db.clear_msgs(msg.from_user.id, 'luca')
-    await msg.answer(texts.HISTORY_CLEARED + " Продолжай:")
-
-
 @router.message(LukaSt.chat, F.text == CANCEL_REQUEST_BTN)
 async def luka_cancel(msg: Message, state: FSMContext):
     """Отмена запроса в текстовом чате"""
@@ -308,17 +318,17 @@ async def luka_cancel(msg: Message, state: FSMContext):
         try:
             if active_requests[user_id].get('kb_msg'):
                 await active_requests[user_id]['kb_msg'].delete()
-        except:
+        except (TelegramBadRequest, TelegramForbiddenError):
             pass
         try:
             if active_requests[user_id].get('status'):
                 await active_requests[user_id]['status'].stop()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to stop status: {e}")
     
     try:
         await msg.delete()
-    except:
+    except (TelegramBadRequest, TelegramForbiddenError):
         pass
     
     await state.set_state(LukaSt.menu)
@@ -386,15 +396,13 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     char_prompt = CHARS.get(char_key, CHARS['soul'])
     char_name = CHAR_NAMES.get(char_key, '🕊 Душа')
     
-    # Память
-    mem = await get_user_memory(user_id)
+    # Параллельное получение памяти, истории и счётчика
+    mem, hist, cnt = await asyncio.gather(
+        get_user_memory(user_id),
+        db.get_msgs(user_id, 'luca', 20),
+        db.inc_msg_counter(user_id, 'luca')
+    )
     memory_context = build_memory_context(mem)
-    
-    # История (последние 20 сообщений)
-    hist = await db.get_msgs(user_id, 'luca', 20)
-    
-    # Счётчик для упоминания памяти
-    cnt = await db.inc_msg_counter(user_id, 'luca')
     
     # Системный промпт
     system_prompt = f"""{char_prompt}
@@ -428,7 +436,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
             if waiting_msg:
                 try:
                     await waiting_msg.delete()
-                except:
+                except (TelegramBadRequest, TelegramForbiddenError):
                     pass
             await msg.answer(f"❌ Ошибка: {e}")
             active_requests.pop(user_id, None)
@@ -442,7 +450,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
         if waiting_msg:
             try:
                 await waiting_msg.delete()
-            except:
+            except (TelegramBadRequest, TelegramForbiddenError):
                 pass
         
         try:
@@ -455,9 +463,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
             )
             stars_used = calculate_stars(messages, resp)
         except Exception as e:
-            print(f"Stream error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Stream error: {e}", exc_info=True)
             active_requests.pop(user_id, None)
             return
     
@@ -488,7 +494,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     conv_id = await save_message(user_id, 'assistant', resp, 'luca', model)
     
     # Обновляем память в фоне
-    asyncio.create_task(update_memory(user_id, 'luca', text, resp))
+    create_safe_task(update_memory(user_id, 'luca', text, resp), f"update_memory:{user_id}")
     
     # Сохраняем для Telegraph
     last_messages[user_id] = {"text": resp, "char": char_name}
@@ -504,9 +510,6 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     
     # Получаем кнопку для просмотра диалога
     keyboard = get_chat_button(conv_id, len(resp_html))
-    
-    # Проверяем настройки голоса
-    user_settings = get_user_settings(user_id)
 
     if user_settings['voice_enabled']:
         # === ГОЛОСОВОЙ ОТВЕТ ===
@@ -533,7 +536,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                 # Удаляем временный файл
                 try:
                     os.remove(audio_path)
-                except:
+                except OSError:
                     pass
             else:
                 # Fallback на текст если TTS не сработал
@@ -541,7 +544,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                 await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
                 
         except Exception as e:
-            print(f"TTS error in text chat: {e}")
+            logger.error(f"TTS error in text chat: {e}", exc_info=True)
             # Fallback на текст
             footer = texts.RESPONSE_FOOTER.format(char_name=char_name)
             await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
@@ -570,7 +573,7 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
 
 @router.message(LukaSt.chat, F.text)
 async def luka_chat_text(msg: Message, state: FSMContext):
-    if msg.text in ["🛑 Завершить", "🧹 Очистить", "⏹ Стоп", CANCEL_REQUEST_BTN]:
+    if msg.text in ["🛑 Завершить", "⏹ Стоп", CANCEL_REQUEST_BTN]:
         return
     await process_luka_message(msg, state, msg.text)
 
@@ -640,30 +643,25 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
     kb_msg = await msg.answer("⌛️", reply_markup=kb.voice_chat_loading_kb())
     try:
         await kb_msg.delete()
-    except:
+    except (TelegramBadRequest, TelegramForbiddenError):
         pass
     
     status = await show_status(bot, msg.chat.id, "voice")
     request_state['status'] = status
     
     try:
-        # Получаем настройки голоса из Redis
+        # Получаем настройки пользователя из Redis (один раз)
         user_settings = get_user_settings(user_id)
         voice_gender = user_settings['voice_gender']
-        
-        # Модель AI
-        model = await db.get_user_model(user_id)
-        
-        # Память
-        mem = await get_user_memory(user_id)
-        memory_context = build_memory_context(mem)
-        
-        # История (последние 20 сообщений)
-        hist = await db.get_msgs(user_id, 'luca', 20)
-        
-        # Получаем настройки характера из Redis
-        user_settings = get_user_settings(user_id)
         char_key = user_settings['character']
+        
+        # Параллельное получение модели, памяти и истории
+        model, mem, hist = await asyncio.gather(
+            db.get_user_model(user_id),
+            get_user_memory(user_id),
+            db.get_msgs(user_id, 'luca', 20)
+        )
+        memory_context = build_memory_context(mem)
         char_prompt = CHARS.get(char_key, CHARS['soul'])
         voice_style = LUCA_VOICE_STYLE_SOUL if char_key == 'soul' else LUCA_VOICE_STYLE_MIND
         
@@ -713,7 +711,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         await db.add_msg(user_id, 'luca', 'assistant', resp_clean)
         
         # Обновляем память в фоне
-        asyncio.create_task(update_memory(user_id, 'luca', text, resp_clean))
+        create_safe_task(update_memory(user_id, 'luca', text, resp_clean), f"update_memory:{user_id}")
         
         # Проверка на отмену
         if request_state['cancelled']:
@@ -735,7 +733,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         if request_state['cancelled']:
             try:
                 os.remove(audio_path)
-            except:
+            except OSError:
                 pass
             active_requests.pop(user_id, None)
             return
@@ -747,16 +745,14 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
         # Удаляем временный файл
         try:
             os.remove(audio_path)
-        except:
+        except OSError:
             pass
         
         active_requests.pop(user_id, None)
         cleanup_cache(active_requests)  # Предотвращаем утечку памяти
             
     except Exception as e:
-        print(f"Voice processing error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Voice processing error: {e}", exc_info=True)
         await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
         active_requests.pop(user_id, None)
     finally:
@@ -767,7 +763,7 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str):
 @router.message(LukaSt.voice_chat, F.voice)
 async def voice_chat_voice(msg: Message, state: FSMContext):
     """Обработка голосового сообщения от пользователя"""
-    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", CANCEL_REQUEST_BTN]:
+    if msg.text in ["🛑 Завершить", "🔄 Сменить голос", CANCEL_REQUEST_BTN]:
         return
     
     status = await show_status(bot, msg.chat.id, "voice")
@@ -791,7 +787,7 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
         await process_voice_message(msg, state, text)
         
     except Exception as e:
-        print(f"Voice recognition error: {e}")
+        logger.error(f"Voice recognition error: {e}", exc_info=True)
         await msg.answer(f"❌ Ошибка: {str(e)[:100]}")
     finally:
         if status:
@@ -801,7 +797,7 @@ async def voice_chat_voice(msg: Message, state: FSMContext):
 @router.message(LukaSt.voice_chat, F.text)
 async def voice_chat_text(msg: Message, state: FSMContext):
     """Обработка текстового сообщения (бот отвечает голосом)"""
-    if msg.text in ["🛑 Завершить", "🧹 Очистить", "🔄 Сменить голос", CANCEL_REQUEST_BTN]:
+    if msg.text in ["🛑 Завершить", "🔄 Сменить голос", CANCEL_REQUEST_BTN]:
         return
     
     await process_voice_message(msg, state, msg.text)

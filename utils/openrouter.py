@@ -1,8 +1,15 @@
 import httpx
 import json
+import logging
+import asyncio
 import config
 from config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_SITE_URL, OPENROUTER_APP_NAME
 from utils.stars import calculate_stars
+
+logger = logging.getLogger(__name__)
+
+# Глобальный семафор — максимум 50 параллельных запросов к API
+_api_semaphore = asyncio.Semaphore(50)
 
 _client = None
 
@@ -28,95 +35,94 @@ async def close_client():
 
 async def ask(msgs: list, model: str = None, image_base64: str = None, max_tokens: int = 2000) -> tuple:
     """Обычный (не стрим) запрос к OpenRouter"""
-    try:
-        use_model = model or config.MODEL
-        
-        clean_msgs = []
-        for m in msgs:
-            clean_msgs.append({"role": m["role"], "content": m["content"]})
-        
-        if image_base64 and clean_msgs:
-            last_msg = clean_msgs[-1]
-            clean_msgs[-1] = {
-                "role": last_msg["role"],
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_base64}"
+    async with _api_semaphore:
+        try:
+            use_model = model or config.MODEL
+            
+            clean_msgs = []
+            for m in msgs:
+                clean_msgs.append({"role": m["role"], "content": m["content"]})
+            
+            if image_base64 and clean_msgs:
+                last_msg = clean_msgs[-1]
+                clean_msgs[-1] = {
+                    "role": last_msg["role"],
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": last_msg["content"] or "Что на этом изображении?"
                         }
-                    },
-                    {
-                        "type": "text",
-                        "text": last_msg["content"] or "Что на этом изображении?"
-                    }
-                ]
+                    ]
+                }
+            
+            if not clean_msgs:
+                clean_msgs = [{"role": "user", "content": "Привет"}]
+            
+            payload = {
+                "model": use_model,
+                "messages": clean_msgs,
+                "max_tokens": max_tokens,
+                "provider": {
+                    "order": ["Google", "Anthropic", "AWS Bedrock"],
+                    "allow_fallbacks": True
+                }
             }
-        
-        if not clean_msgs:
-            clean_msgs = [{"role": "user", "content": "Привет"}]
-        
-        payload = {
-            "model": use_model,
-            "messages": clean_msgs,
-            "max_tokens": max_tokens,
-            "provider": {
-                "order": ["Google", "Anthropic", "AWS Bedrock"],
-                "allow_fallbacks": True
-            }
-        }
-        
-        client = await get_client()
-        response = await client.post(
-            f"{OPENROUTER_BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "HTTP-Referer": OPENROUTER_SITE_URL or "https://t.me/lukabotai",
-                "X-Title": OPENROUTER_APP_NAME or "Luka AI Bot",
-                "Content-Type": "application/json"
-            },
-            json=payload
-        )
-        
-        if response.status_code != 200:
-            error_text = response.text
-            print(f"OpenRouter Error {response.status_code}: {error_text}")
-            return f"Ошибка API: {response.status_code}", 0
-        
-        data = response.json()
-        text = data["choices"][0]["message"]["content"]
-        
-        # Читаем usage из ответа API (ПРИОРИТЕТ!)
-        usage = data.get("usage", None)
-        
-        # Рассчитываем звёзды с приоритетом на реальные данные
-        stars_to_charge = calculate_stars(
-            messages=clean_msgs,
-            response_text=text,
-            usage=usage,
-            model=use_model
-        )
-        
-        # Логируем для мониторинга
-        method = "API" if usage else "FALLBACK"
-        print(
-            f"[STARS] method={method}, model={use_model}, "
-            f"prompt_tokens={usage.get('prompt_tokens') if usage else None}, "
-            f"completion_tokens={usage.get('completion_tokens') if usage else None}, "
-            f"total_tokens={usage.get('total_tokens') if usage else None}, "
-            f"stars={stars_to_charge}"
-        )
-        
-        return text, stars_to_charge
-        
-    except httpx.TimeoutException:
-        print("OpenRouter Timeout")
-        return "Превышено время ожидания. Попробуйте ещё раз.", 0
-    except Exception as e:
-        print(f"OpenRouter Exception: {e}")
-        import traceback
-        traceback.print_exc()
-        return f"Ошибка: {e}", 0
+            
+            client = await get_client()
+            response = await client.post(
+                f"{OPENROUTER_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": OPENROUTER_SITE_URL or "https://t.me/lukabotai",
+                    "X-Title": OPENROUTER_APP_NAME or "Luka AI Bot",
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                error_text = response.text
+                logger.error(f"OpenRouter Error {response.status_code}: {error_text}")
+                return f"Ошибка API: {response.status_code}", 0
+            
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+            
+            # Читаем usage из ответа API (ПРИОРИТЕТ!)
+            usage = data.get("usage", None)
+            
+            # Рассчитываем звёзды с приоритетом на реальные данные
+            stars_to_charge = calculate_stars(
+                messages=clean_msgs,
+                response_text=text,
+                usage=usage,
+                model=use_model
+            )
+            
+            # Логируем для мониторинга (только в debug mode)
+            if logger.isEnabledFor(logging.DEBUG):
+                method = "API" if usage else "FALLBACK"
+                logger.debug(
+                    f"[STARS] method={method}, model={use_model}, "
+                    f"prompt_tokens={usage.get('prompt_tokens') if usage else None}, "
+                    f"completion_tokens={usage.get('completion_tokens') if usage else None}, "
+                    f"stars={stars_to_charge}"
+                )
+            
+            return text, stars_to_charge
+            
+        except httpx.TimeoutException:
+            logger.warning("OpenRouter Timeout")
+            return "Превышено время ожидания. Попробуйте ещё раз.", 0
+        except Exception as e:
+            logger.error(f"OpenRouter Exception: {e}", exc_info=True)
+            return f"Ошибка: {e}", 0
 
 
 async def ask_stream(msgs: list, model: str = None, max_tokens: int = 2000):
@@ -165,14 +171,13 @@ async def ask_stream(msgs: list, model: str = None, max_tokens: int = 2000):
                         delta = chunk["choices"][0].get("delta", {})
                         if "content" in delta:
                             text = delta["content"]
-                            print(f"[STREAM CHUNK] {len(text)} chars")
                             yield text
                     except Exception as e:
-                        print(f"[STREAM ERROR] {e}")
+                        logger.debug(f"[STREAM ERROR] {e}")
                         pass
                         
     except Exception as e:
-        print(f"Stream error: {e}")
+        logger.error(f"Stream error: {e}", exc_info=True)
         yield f"Ошибка: {e}"
 
 
