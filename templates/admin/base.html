@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}Админ-панель{% endblock %} — Soul AI</title>
+    
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #667eea;
+            --primary-dark: #764ba2;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-radius: 20px;
+            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            --text-dark: #333;
+            --text-medium: #555;
+            --text-light: #888;
+            --success: #4CAF50;
+            --warning: #FF9800;
+            --danger: #f44336;
+            --info: #2196F3;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+        
+        /* Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+        
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .particle:nth-child(1) { width: 20px; height: 20px; top: 10%; left: 15%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; top: 25%; left: 75%; animation-delay: 1s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; top: 50%; left: 25%; animation-delay: 2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 70%; left: 80%; animation-delay: 3s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; top: 85%; left: 40%; animation-delay: 4s; }
+        
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); opacity: 0.3; }
+            50% { transform: translateY(-40px) rotate(180deg); opacity: 0.6; }
+            100% { transform: translateY(0px) rotate(360deg); opacity: 0.3; }
+        }
+        
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(30px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+            padding-bottom: 100px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            color: white;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+        
+        .header-icon {
+            font-size: 48px;
+            display: inline-block;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .header-title {
+            font-size: 24px;
+            font-weight: 900;
+            margin: 10px 0 5px;
+        }
+        
+        .header-subtitle {
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+        
+        /* Navigation */
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 20px 0;
+            justify-content: center;
+            animation: fadeIn 0.6s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+        
+        .nav-item {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--primary);
+        }
+        
+        .nav-icon {
+            font-size: 16px;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: var(--card-shadow);
+            animation: fadeIn 0.6s ease-out 0.4s forwards;
+            opacity: 0;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: var(--card-shadow);
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+        
+        .stat-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--text-dark);
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+        
+        /* Tables */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        th, td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        th {
+            font-weight: 700;
+            color: var(--text-medium);
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        tr:hover td {
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 700;
+            color: var(--text-medium);
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            transition: border-color 0.3s ease;
+            background: white;
+        }
+        
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--bg-gradient);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: rgba(0, 0, 0, 0.1);
+            color: var(--text-medium);
+        }
+        
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        .btn-block {
+            width: 100%;
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        
+        .badge-success { background: rgba(76, 175, 80, 0.15); color: var(--success); }
+        .badge-warning { background: rgba(255, 152, 0, 0.15); color: var(--warning); }
+        .badge-danger { background: rgba(244, 67, 54, 0.15); color: var(--danger); }
+        .badge-info { background: rgba(33, 150, 243, 0.15); color: var(--info); }
+        .badge-mini { background: rgba(33, 150, 243, 0.15); color: #2196F3; }
+        .badge-standard { background: rgba(156, 39, 176, 0.15); color: #9C27B0; }
+        .badge-premium { background: rgba(255, 193, 7, 0.15); color: #FFA000; }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .page-link {
+            padding: 8px 14px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-medium);
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        .page-link.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        /* Alerts */
+        .alert {
+            padding: 14px 18px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .alert-success { background: rgba(76, 175, 80, 0.15); color: #2e7d32; }
+        .alert-error { background: rgba(244, 67, 54, 0.15); color: #c62828; }
+        .alert-warning { background: rgba(255, 152, 0, 0.15); color: #e65100; }
+        .alert-info { background: rgba(33, 150, 243, 0.15); color: #1565c0; }
+        
+        /* Progress */
+        .progress {
+            height: 8px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: var(--bg-gradient);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        /* Server Load */
+        .load-bar {
+            height: 24px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            margin: 8px 0;
+        }
+        
+        .load-fill {
+            height: 100%;
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+        
+        .load-fill.green { background: linear-gradient(90deg, #4CAF50, #8BC34A); }
+        .load-fill.yellow { background: linear-gradient(90deg, #FFC107, #FF9800); }
+        .load-fill.red { background: linear-gradient(90deg, #FF5722, #f44336); }
+        
+        .load-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 700;
+            font-size: 12px;
+            color: var(--text-dark);
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: var(--card-radius);
+            padding: 24px;
+            max-width: 400px;
+            width: 100%;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .nav-item {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .header-title {
+                font-size: 20px;
+            }
+            
+            th, td {
+                padding: 8px 4px;
+                font-size: 12px;
+            }
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 10px 18px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            color: var(--text-medium);
+        }
+        
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        /* Action buttons in table */
+        .actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        /* Toggle switch */
+        .toggle {
+            position: relative;
+            width: 48px;
+            height: 26px;
+        }
+        
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #ccc;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        .toggle input:checked + .toggle-slider {
+            background: var(--success);
+        }
+        
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin: 15px 0;
+        }
+        
+        /* Grid layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        
+        /* Search */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .search-box .form-input {
+            flex: 1;
+        }
+        
+        /* User info */
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+        }
+        
+        /* Details card */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .detail-label {
+            color: var(--text-light);
+            font-weight: 600;
+        }
+        
+        .detail-value {
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        
+        /* Hidden form with initData */
+        .hidden-init-data {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Particles background -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+    
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <span class="header-icon">👑</span>
+            <h1 class="header-title">Soul AI Admin</h1>
+            <p class="header-subtitle">
+                {% if admin_user %}
+                    Добро пожаловать, {{ admin_user.first_name or admin_user.username or 'Admin' }}!
+                {% else %}
+                    Панель управления
+                {% endif %}
+            </p>
+        </div>
+        
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/admin/?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                <span class="nav-icon">📊</span> Дашборд
+            </a>
+            <a href="/admin/users?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'users' %}active{% endif %}">
+                <span class="nav-icon">👥</span> Юзеры
+            </a>
+            <a href="/admin/subscriptions?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'subscriptions' %}active{% endif %}">
+                <span class="nav-icon">⭐</span> Подписки
+            </a>
+            <a href="/admin/tokens?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'tokens' %}active{% endif %}">
+                <span class="nav-icon">💰</span> Токены
+            </a>
+            <a href="/admin/broadcast?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'broadcast' %}active{% endif %}">
+                <span class="nav-icon">📢</span> Рассылка
+            </a>
+            <a href="/admin/memory?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'memory' %}active{% endif %}">
+                <span class="nav-icon">🧠</span> Память
+            </a>
+            <a href="/admin/finance?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'finance' %}active{% endif %}">
+                <span class="nav-icon">💳</span> Финансы
+            </a>
+            <a href="/admin/settings?initData={{ init_data|default('', true)|urlencode }}" 
+               class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                <span class="nav-icon">⚙️</span> Настройки
+            </a>
+        </nav>
+        
+        <!-- Alerts -->
+        {% if message %}
+        <div class="alert alert-{{ message_type|default('success') }}">
+            {% if message_type == 'error' %}❌{% elif message_type == 'warning' %}⚠️{% else %}✅{% endif %}
+            {{ message }}
+        </div>
+        {% endif %}
+        
+        <!-- Page content -->
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Telegram WebApp Integration -->
+    <script>
+        // Initialize Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        
+        // Store initData globally
+        const initData = tg.initData || '';
+        
+        // Проверка авторизации при загрузке
+        async function checkAuth() {
+            if (!initData) {
+                showError('Откройте админ-панель через Telegram бота командой /admin');
+                return false;
+            }
+            
+            try {
+                const response = await fetch('/admin/api/auth/check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': initData
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.authorized) {
+                    if (data.error === 'not_admin') {
+                        showError('Доступ запрещён. Только администраторы могут использовать эту панель.');
+                    } else {
+                        showError('Ошибка авторизации. Попробуйте перезапустить бота.');
+                    }
+                    return false;
+                }
+                
+                // Если нужен пароль, показываем форму ввода
+                if (data.password_required) {
+                    showPasswordForm();
+                    return false;
+                }
+                
+                return true;
+                
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showError('Ошибка соединения с сервером');
+                return false;
+            }
+        }
+        
+        // Показать форму ввода пароля
+        function showPasswordForm() {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.9);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                backdrop-filter: blur(10px);
+            `;
+            
+            overlay.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 20px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                    <h2 style="margin: 0 0 10px 0; text-align: center;">🔐 Вход в админ-панель</h2>
+                    <p style="color: #888; text-align: center; margin-bottom: 20px;">Введите пароль для доступа</p>
+                    <input 
+                        type="password" 
+                        id="admin-password" 
+                        placeholder="Введите пароль" 
+                        style="width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px; margin-bottom: 15px;"
+                    >
+                    <button 
+                        id="submit-password" 
+                        style="width: 100%; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer;"
+                    >Войти</button>
+                    <div id="password-error" style="color: #f44336; margin-top: 15px; text-align: center; display: none;"></div>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            
+            const passwordInput = document.getElementById('admin-password');
+            const submitBtn = document.getElementById('submit-password');
+            const errorDiv = document.getElementById('password-error');
+            
+            passwordInput.focus();
+            
+            async function submitPassword() {
+                const password = passwordInput.value.trim();
+                if (!password) return;
+                
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Проверка...';
+                
+                try {
+                    const response = await fetch('/admin/api/auth/password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Telegram-Init-Data': initData
+                        },
+                        body: JSON.stringify({ password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        overlay.remove();
+                        location.reload();
+                    } else {
+                        errorDiv.textContent = data.message || 'Неверный пароль';
+                        errorDiv.style.display = 'block';
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                } catch (error) {
+                    errorDiv.textContent = 'Ошибка соединения';
+                    errorDiv.style.display = 'block';
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Войти';
+                }
+            }
+            
+            submitBtn.onclick = submitPassword;
+            passwordInput.onkeypress = (e) => {
+                if (e.key === 'Enter') submitPassword();
+            };
+        }
+        
+        // Показать ошибку
+        function showError(message) {
+            document.body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div style="background: white; padding: 40px; border-radius: 20px; max-width: 500px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+                        <div style="font-size: 60px; margin-bottom: 20px;">🚫</div>
+                        <h2 style="margin: 0 0 15px 0; color: #333;">Доступ запрещён</h2>
+                        <p style="color: #666; margin-bottom: 25px;">${message}</p>
+                        <button onclick="tg.close()" style="padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; cursor: pointer;">Закрыть</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Проверяем авторизацию при загрузке
+        checkAuth();
+        
+        // Helper function for API calls with auth
+        async function apiCall(url, method = 'GET', data = null) {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telegram-Init-Data': initData
+                }
+            };
+            
+            if (data && method !== 'GET') {
+                options.body = JSON.stringify(data);
+            }
+            
+            const response = await fetch(url, options);
+            return await response.json();
+        }
+        
+        // Перехватываем все формы и отправляем с initData в заголовке
+        document.addEventListener('submit', async (e) => {
+            const form = e.target;
+            
+            // Если форма имеет класс 'no-intercept', не перехватываем
+            if (form.classList.contains('no-intercept')) {
+                return;
+            }
+            
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                if (key !== 'initData') { // Исключаем initData из данных
+                    data[key] = value;
+                }
+            });
+            
+            const method = form.method.toUpperCase();
+            const url = form.action;
+            
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': initData
+                    },
+                    body: method !== 'GET' ? JSON.stringify(data) : undefined
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success !== false) {
+                    showToast(result.message || 'Успешно выполнено', 'success');
+                    // Перезагружаем страницу через 1 секунду
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(result.message || result.error || 'Ошибка', 'error');
+                }
+            } catch (error) {
+                console.error('Form submit error:', error);
+                showToast('Ошибка отправки данных', 'error');
+            }
+        });
+        
+        // Helper to add initData to forms (для обратной совместимости)
+        document.querySelectorAll('form').forEach(form => {
+            // Add hidden input with initData
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'initData';
+            input.value = initData;
+            form.appendChild(input);
+        });
+        
+        // Helper to add initData to links
+        function updateLinks() {
+            document.querySelectorAll('a[href^="/admin"]').forEach(link => {
+                const url = new URL(link.href, window.location.origin);
+                if (!url.searchParams.has('initData') && initData) {
+                    url.searchParams.set('initData', initData);
+                    link.href = url.toString();
+                }
+            });
+        }
+        updateLinks();
+        
+        // Helper for number formatting
+        function formatNumber(num) {
+            return new Intl.NumberFormat('ru-RU').format(num);
+        }
+        
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type}`;
+            toast.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; max-width: 90%; animation: fadeIn 0.3s ease;';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        // Close button handler
+        function closeAdmin() {
+            tg.close();
+        }
+        
+        // Confirm action
+        function confirmAction(message) {
+            return confirm(message);
+        }
+        
+        // Submit form with API call
+        async function submitForm(formId, apiUrl, successMessage) {
+            const form = document.getElementById(formId);
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const result = await apiCall(apiUrl, 'POST', data);
+                if (result.success) {
+                    showToast(successMessage || result.message, 'success');
+                    return true;
+                } else {
+                    showToast(result.message || 'Ошибка', 'error');
+                    return false;
+                }
+            } catch (error) {
+                showToast('Ошибка сети', 'error');
+                return false;
+            }
+        }
+        
+        // Handle back button
+        tg.BackButton.onClick(() => {
+            window.history.back();
+        });
+        
+        // Show back button on inner pages
+        if (window.location.pathname !== '/admin/' && window.location.pathname !== '/admin') {
+            tg.BackButton.show();
+        }
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

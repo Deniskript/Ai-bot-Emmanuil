@@ -1,0 +1,152 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Токены{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid" style="animation-delay: 0.1s;">
+    <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value">{{ "{:,}".format(total_users).replace(",", " ") }}</div>
+        <div class="stat-label">Всего юзеров</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📭</div>
+        <div class="stat-value">{{ "{:,}".format(users_without_sub).replace(",", " ") }}</div>
+        <div class="stat-label">Без подписки</div>
+    </div>
+</div>
+
+<!-- Individual User -->
+<div class="card" style="animation-delay: 0.2s;">
+    <h3 class="card-title">💰 Выдать звёзды пользователю</h3>
+    
+    <form method="POST" action="/admin/tokens/give">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">ID пользователя</label>
+                <input type="number" name="user_id" class="form-input" placeholder="123456789" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Количество звёзд</label>
+                <input type="number" name="amount" class="form-input" placeholder="1000" required min="1">
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-success btn-block">✅ Выдать звёзды</button>
+    </form>
+</div>
+
+<!-- Mass Actions -->
+<div class="grid-2">
+    <!-- All Users -->
+    <div class="card" style="animation-delay: 0.3s;">
+        <h3 class="card-title">🌍 Всем пользователям</h3>
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            Массовая выдача звёзд всем {{ total_users }} пользователям.<br>
+            Используйте для компенсации при сбоях.
+        </p>
+        
+        <form method="POST" action="/admin/tokens/mass" onsubmit="return confirm('Выдать звёзды ВСЕМ {{ total_users }} пользователям?')">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            
+            <div class="form-group">
+                <label class="form-label">Количество звёзд</label>
+                <input type="number" name="amount" class="form-input" placeholder="100" required min="1">
+            </div>
+            
+            <button type="submit" class="btn btn-warning btn-block">⚡ Выдать всем</button>
+        </form>
+    </div>
+    
+    <!-- Without Subscription -->
+    <div class="card" style="animation-delay: 0.35s;">
+        <h3 class="card-title">📭 Без подписки</h3>
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            Выдать звёзды {{ users_without_sub }} пользователям без активной подписки.<br>
+            Используйте для привлечения внимания.
+        </p>
+        
+        <form method="POST" action="/admin/tokens/no-sub" onsubmit="return confirm('Выдать звёзды {{ users_without_sub }} пользователям без подписки?')">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            
+            <div class="form-group">
+                <label class="form-label">Количество звёзд</label>
+                <input type="number" name="amount" class="form-input" placeholder="500" required min="1">
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block">🎁 Выдать без подписки</button>
+        </form>
+    </div>
+</div>
+
+<!-- Subscribers Only -->
+<div class="card" style="animation-delay: 0.4s;">
+    <h3 class="card-title">⭐ Только подписчикам</h3>
+    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+        Бонус для активных подписчиков — повышает лояльность.
+    </p>
+    
+    <form method="POST" action="/admin/tokens/subscribers" onsubmit="return confirm('Выдать бонус подписчикам?')">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">Количество звёзд</label>
+                <input type="number" name="amount" class="form-input" placeholder="200" required min="1">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Тип подписки</label>
+                <select name="sub_type" class="form-select">
+                    <option value="all">Все подписчики</option>
+                    <option value="mini">💎 Только Mini</option>
+                    <option value="standard">👑 Только Standard</option>
+                    <option value="premium">✨ Только Premium</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-success btn-block">🎉 Выдать подписчикам</button>
+    </form>
+</div>
+
+<!-- Quick Presets -->
+<div class="card" style="animation-delay: 0.5s;">
+    <h3 class="card-title">⚡ Быстрые пресеты</h3>
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn-secondary" onclick="fillForm('all', 50)">
+            🌍 50⭐ всем
+        </button>
+        <button class="btn btn-secondary" onclick="fillForm('all', 100)">
+            🌍 100⭐ всем
+        </button>
+        <button class="btn btn-secondary" onclick="fillForm('nosub', 200)">
+            📭 200⭐ без подписки
+        </button>
+        <button class="btn btn-secondary" onclick="fillForm('nosub', 500)">
+            📭 500⭐ без подписки
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function fillForm(target, amount) {
+        if (target === 'all') {
+            const form = document.querySelector('form[action="/admin/tokens/mass"]');
+            form.querySelector('input[name="amount"]').value = amount;
+            form.scrollIntoView({ behavior: 'smooth' });
+        } else if (target === 'nosub') {
+            const form = document.querySelector('form[action="/admin/tokens/no-sub"]');
+            form.querySelector('input[name="amount"]').value = amount;
+            form.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+</script>
+{% endblock %}

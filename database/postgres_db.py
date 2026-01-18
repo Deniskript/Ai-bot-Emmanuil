@@ -2756,7 +2756,7 @@ async def count_subscribers_by_type(sub_type: str) -> int:
         count = await conn.fetchval(
             """
             SELECT COUNT(*) FROM subscriptions 
-            WHERE type = $1 AND is_active = TRUE AND expires_at > NOW()
+            WHERE type = $1 AND is_active = 1 AND expires_at > NOW()
             """,
             sub_type
         )

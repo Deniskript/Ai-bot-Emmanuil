@@ -1,0 +1,271 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Настройки{% endblock %}
+
+{% block content %}
+<!-- Subscription Prices -->
+<div class="card" style="animation-delay: 0.1s;">
+    <h3 class="card-title">⭐ Тарифы подписок</h3>
+    
+    <form method="POST" action="/admin/settings/subscriptions">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <!-- Mini -->
+            <div style="background: rgba(33, 150, 243, 0.1); padding: 15px; border-radius: 12px;">
+                <h4 style="margin-bottom: 10px;">💎 Mini</h4>
+                <div class="form-group">
+                    <label class="form-label">Цена (₽)</label>
+                    <input type="number" name="mini_price" class="form-input" 
+                           value="{{ settings.get('mini_price', 490) }}">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Звёзды</label>
+                    <input type="number" name="mini_stars" class="form-input" 
+                           value="{{ settings.get('mini_stars', 4000) }}">
+                </div>
+            </div>
+            
+            <!-- Standard -->
+            <div style="background: rgba(156, 39, 176, 0.1); padding: 15px; border-radius: 12px;">
+                <h4 style="margin-bottom: 10px;">👑 Standard</h4>
+                <div class="form-group">
+                    <label class="form-label">Цена (₽)</label>
+                    <input type="number" name="standard_price" class="form-input" 
+                           value="{{ settings.get('standard_price', 990) }}">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Звёзды</label>
+                    <input type="number" name="standard_stars" class="form-input" 
+                           value="{{ settings.get('standard_stars', 9000) }}">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Premium -->
+        <div style="background: rgba(255, 193, 7, 0.1); padding: 15px; border-radius: 12px; margin-top: 15px;">
+            <h4 style="margin-bottom: 10px;">✨ Premium</h4>
+            <div class="grid-2">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Цена (₽)</label>
+                    <input type="number" name="premium_price" class="form-input" 
+                           value="{{ settings.get('premium_price', 1990) }}">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Звёзды</label>
+                    <input type="number" name="premium_stars" class="form-input" 
+                           value="{{ settings.get('premium_stars', 20000) }}">
+                </div>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;">
+            💾 Сохранить тарифы
+        </button>
+    </form>
+</div>
+
+<!-- Star Packages -->
+<div class="card" style="animation-delay: 0.2s;">
+    <h3 class="card-title">💫 Пакеты звёзд</h3>
+    
+    <form method="POST" action="/admin/settings/packages">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">Пакет 1</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" name="pack1_stars" class="form-input" 
+                           placeholder="Звёзды" value="{{ settings.get('pack1_stars', 1000) }}">
+                    <input type="number" name="pack1_price" class="form-input" 
+                           placeholder="Цена ₽" value="{{ settings.get('pack1_price', 149) }}">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Пакет 2</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" name="pack2_stars" class="form-input" 
+                           placeholder="Звёзды" value="{{ settings.get('pack2_stars', 2000) }}">
+                    <input type="number" name="pack2_price" class="form-input" 
+                           placeholder="Цена ₽" value="{{ settings.get('pack2_price', 249) }}">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Пакет 3</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" name="pack3_stars" class="form-input" 
+                           placeholder="Звёзды" value="{{ settings.get('pack3_stars', 10000) }}">
+                    <input type="number" name="pack3_price" class="form-input" 
+                           placeholder="Цена ₽" value="{{ settings.get('pack3_price', 1190) }}">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Пакет 4</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" name="pack4_stars" class="form-input" 
+                           placeholder="Звёзды" value="{{ settings.get('pack4_stars', 25000) }}">
+                    <input type="number" name="pack4_price" class="form-input" 
+                           placeholder="Цена ₽" value="{{ settings.get('pack4_price', 2790) }}">
+                </div>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block">💾 Сохранить пакеты</button>
+    </form>
+</div>
+
+<!-- Anti-flood -->
+<div class="card" style="animation-delay: 0.3s;">
+    <h3 class="card-title">🛡 Антифлуд</h3>
+    
+    <form method="POST" action="/admin/settings/antiflood">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">Интервал (сек)</label>
+                <input type="number" name="spam_interval" class="form-input" 
+                       value="{{ settings.get('spam_interval', 2) }}" min="1" max="60">
+                <small style="color: #888;">Минимальное время между сообщениями</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Макс. сообщений/мин</label>
+                <input type="number" name="spam_max_rpm" class="form-input" 
+                       value="{{ settings.get('spam_max_rpm', 8) }}" min="1" max="60">
+                <small style="color: #888;">Лимит сообщений в минуту</small>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-warning btn-block">💾 Сохранить антифлуд</button>
+    </form>
+</div>
+
+<!-- Notifications -->
+<div class="card" style="animation-delay: 0.35s;">
+    <h3 class="card-title">🔔 Уведомления</h3>
+    
+    <form method="POST" action="/admin/settings/notifications">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                <label class="toggle">
+                    <input type="checkbox" name="notify_new_sub" 
+                           {% if settings.get('notify_new_sub', false) %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+                <div>
+                    <strong>Новые подписки</strong>
+                    <div style="font-size: 12px; color: #888;">Уведомление при оформлении подписки</div>
+                </div>
+            </label>
+            
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                <label class="toggle">
+                    <input type="checkbox" name="notify_payments" 
+                           {% if settings.get('notify_payments', false) %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+                <div>
+                    <strong>Все платежи</strong>
+                    <div style="font-size: 12px; color: #888;">Уведомление о каждом платеже</div>
+                </div>
+            </label>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;">
+            💾 Сохранить уведомления
+        </button>
+    </form>
+</div>
+
+<!-- New User Bonus -->
+<div class="card" style="animation-delay: 0.4s;">
+    <h3 class="card-title">🎁 Бонус новому пользователю</h3>
+    
+    <form method="POST" action="/admin/settings/bonus">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="form-group">
+            <label class="form-label">Звёзды при регистрации</label>
+            <input type="number" name="new_user_bonus" class="form-input" 
+                   value="{{ settings.get('new_user_bonus', 250) }}" min="0">
+        </div>
+        
+        <button type="submit" class="btn btn-success btn-block">💾 Сохранить бонус</button>
+    </form>
+</div>
+
+<!-- Referral Rewards -->
+<div class="card" style="animation-delay: 0.45s;">
+    <h3 class="card-title">👥 Реферальные награды</h3>
+    
+    <form method="POST" action="/admin/settings/referrals">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">💎 За Mini</label>
+                <input type="number" name="ref_mini" class="form-input" 
+                       value="{{ settings.get('ref_mini', 1000) }}">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">👑 За Standard</label>
+                <input type="number" name="ref_standard" class="form-input" 
+                       value="{{ settings.get('ref_standard', 2000) }}">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">✨ За Premium</label>
+            <input type="number" name="ref_premium" class="form-input" 
+                   value="{{ settings.get('ref_premium', 4000) }}">
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block">💾 Сохранить награды</button>
+    </form>
+</div>
+
+<!-- System Info -->
+<div class="card" style="animation-delay: 0.5s;">
+    <h3 class="card-title">⚙️ Система</h3>
+    
+    <div class="detail-row">
+        <span class="detail-label">🐍 Python</span>
+        <span class="detail-value">{{ system.python_version }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">⏱ Uptime</span>
+        <span class="detail-value">{{ system.uptime }}</span>
+    </div>
+    <div class="detail-row" style="border: none;">
+        <span class="detail-label">🌐 Домен</span>
+        <span class="detail-value">soul-bot.ru</span>
+    </div>
+    
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn btn-danger btn-sm" onclick="restartBot()">
+            🔄 Перезапустить бота
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="closeAdmin()">
+            ← Закрыть
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function restartBot() {
+        if (confirm('Перезапустить бота? Это может занять несколько секунд.')) {
+            showToast('Функция в разработке', 'warning');
+        }
+    }
+</script>
+{% endblock %}

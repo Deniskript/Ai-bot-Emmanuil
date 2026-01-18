@@ -1,0 +1,258 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Рассылка{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid" style="animation-delay: 0.1s;">
+    <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value">{{ "{:,}".format(counts.all).replace(",", " ") }}</div>
+        <div class="stat-label">Всего</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value">{{ counts.sub }}</div>
+        <div class="stat-label">С подпиской</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📭</div>
+        <div class="stat-value">{{ "{:,}".format(counts.nosub).replace(",", " ") }}</div>
+        <div class="stat-label">Без подписки</div>
+    </div>
+</div>
+
+<!-- Broadcast Form -->
+<div class="card" style="animation-delay: 0.2s;">
+    <h3 class="card-title">📢 Создать рассылку</h3>
+    
+    <form method="POST" action="/admin/broadcast/send" id="broadcastForm">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <!-- Audience Filter -->
+        <div class="form-group">
+            <label class="form-label">👥 Аудитория</label>
+            <div class="tabs" id="filterTabs">
+                <label class="tab active" data-filter="all" data-count="{{ counts.all }}">
+                    <input type="radio" name="filter" value="all" checked style="display: none;">
+                    🌍 Все ({{ counts.all }})
+                </label>
+                <label class="tab" data-filter="sub" data-count="{{ counts.sub }}">
+                    <input type="radio" name="filter" value="sub" style="display: none;">
+                    ⭐ С подпиской ({{ counts.sub }})
+                </label>
+                <label class="tab" data-filter="nosub" data-count="{{ counts.nosub }}">
+                    <input type="radio" name="filter" value="nosub" style="display: none;">
+                    📭 Без подписки ({{ counts.nosub }})
+                </label>
+            </div>
+            <div class="tabs" style="margin-top: 8px;">
+                <label class="tab" data-filter="mini" data-count="{{ counts.mini }}">
+                    <input type="radio" name="filter" value="mini" style="display: none;">
+                    💎 Mini ({{ counts.mini }})
+                </label>
+                <label class="tab" data-filter="standard" data-count="{{ counts.standard }}">
+                    <input type="radio" name="filter" value="standard" style="display: none;">
+                    👑 Standard ({{ counts.standard }})
+                </label>
+                <label class="tab" data-filter="premium" data-count="{{ counts.premium }}">
+                    <input type="radio" name="filter" value="premium" style="display: none;">
+                    ✨ Premium ({{ counts.premium }})
+                </label>
+            </div>
+        </div>
+        
+        <!-- Message -->
+        <div class="form-group">
+            <label class="form-label">💬 Текст сообщения</label>
+            <textarea name="text" class="form-textarea" id="messageText" rows="6" 
+                      placeholder="Введите текст рассылки...&#10;&#10;Поддерживаются HTML теги:&#10;&lt;b&gt;жирный&lt;/b&gt;&#10;&lt;i&gt;курсив&lt;/i&gt;&#10;&lt;code&gt;код&lt;/code&gt;"
+                      required></textarea>
+        </div>
+        
+        <!-- Preview -->
+        <div class="form-group">
+            <label class="form-label">👁 Превью</label>
+            <div id="preview" style="background: #f5f5f5; padding: 15px; border-radius: 12px; min-height: 60px;">
+                <span style="color: #888;">Начните вводить текст...</span>
+            </div>
+        </div>
+        
+        <!-- Recipients count -->
+        <div class="alert alert-info" id="recipientsInfo">
+            📨 Получателей: <strong id="recipientsCount">{{ counts.all }}</strong>
+        </div>
+        
+        <!-- Send Button -->
+        <button type="submit" class="btn btn-primary btn-block" id="sendBtn">
+            📤 Отправить рассылку
+        </button>
+    </form>
+</div>
+
+<!-- Progress -->
+<div class="card" style="animation-delay: 0.3s; display: none;" id="progressCard">
+    <h3 class="card-title">📤 Отправка...</h3>
+    
+    <div class="progress" style="margin: 20px 0;">
+        <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+    </div>
+    
+    <div style="text-align: center;">
+        <span id="progressText">0 / 0</span>
+    </div>
+</div>
+
+<!-- Templates -->
+<div class="card" style="animation-delay: 0.4s;">
+    <h3 class="card-title">📝 Шаблоны</h3>
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="useTemplate('update')">
+            🆕 Обновление
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="useTemplate('promo')">
+            🎁 Акция
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="useTemplate('maintenance')">
+            🔧 Тех. работы
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="useTemplate('thanks')">
+            💖 Благодарность
+        </button>
+    </div>
+</div>
+
+<!-- Tips -->
+<div class="card" style="animation-delay: 0.5s;">
+    <h3 class="card-title">💡 Советы</h3>
+    
+    <ul style="color: #666; font-size: 14px; line-height: 1.8; margin-left: 20px;">
+        <li>Используйте <code>&lt;b&gt;жирный&lt;/b&gt;</code> для выделения</li>
+        <li>Эмодзи делают сообщение более заметным 🎉</li>
+        <li>Короткие сообщения читают чаще</li>
+        <li>Лучшее время для рассылки: 10:00-12:00 и 18:00-21:00</li>
+        <li>Не злоупотребляйте рассылками — это раздражает</li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const messageText = document.getElementById('messageText');
+    const preview = document.getElementById('preview');
+    const recipientsCount = document.getElementById('recipientsCount');
+    
+    // Live preview
+    messageText.addEventListener('input', function() {
+        if (this.value.trim()) {
+            preview.innerHTML = this.value.replace(/\n/g, '<br>');
+        } else {
+            preview.innerHTML = '<span style="color: #888;">Начните вводить текст...</span>';
+        }
+    });
+    
+    // Filter tabs
+    document.querySelectorAll('#filterTabs .tab, .tabs .tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Remove active from all tabs
+            document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+            // Add active to clicked
+            this.classList.add('active');
+            // Update recipients count
+            const count = this.dataset.count;
+            recipientsCount.textContent = count;
+        });
+    });
+    
+    // Templates
+    const templates = {
+        update: `🆕 <b>Обновление Soul AI!</b>
+
+Мы добавили новые функции:
+• Улучшенный AI-ассистент
+• Новые режимы генерации
+• Исправление багов
+
+Попробуйте прямо сейчас! 🚀`,
+        
+        promo: `🎁 <b>Специальное предложение!</b>
+
+Только сегодня:
+⭐ +500 звёзд каждому!
+
+Используйте их для:
+• Генерации изображений
+• Общения с AI
+• Создания контента
+
+Успейте воспользоваться! 💫`,
+        
+        maintenance: `🔧 <b>Технические работы</b>
+
+Уважаемые пользователи!
+
+Сегодня с 03:00 до 05:00 (МСК) будут проводиться технические работы.
+
+Бот может быть временно недоступен.
+Приносим извинения за неудобства! 🙏`,
+        
+        thanks: `💖 <b>Спасибо, что вы с нами!</b>
+
+Дорогие пользователи Soul AI!
+
+Благодарим вас за доверие и поддержку.
+Вы — лучшие! 🌟
+
+С любовью,
+Команда Soul AI 💫`
+    };
+    
+    function useTemplate(name) {
+        messageText.value = templates[name];
+        messageText.dispatchEvent(new Event('input'));
+    }
+    
+    // Form submit with progress
+    document.getElementById('broadcastForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const text = formData.get('text');
+        const filter = formData.get('filter');
+        
+        if (!text.trim()) {
+            showToast('Введите текст рассылки', 'error');
+            return;
+        }
+        
+        if (!confirm(`Отправить рассылку ${recipientsCount.textContent} пользователям?`)) {
+            return;
+        }
+        
+        // Show progress
+        document.getElementById('sendBtn').disabled = true;
+        document.getElementById('progressCard').style.display = 'block';
+        
+        try {
+            const result = await apiCall('/admin/api/broadcast/send', 'POST', {
+                filter: filter,
+                text: text
+            });
+            
+            if (result.success) {
+                showToast(`Отправлено: ${result.sent}, ошибок: ${result.errors}`, 'success');
+                messageText.value = '';
+                preview.innerHTML = '<span style="color: #888;">Начните вводить текст...</span>';
+            } else {
+                showToast(result.message || 'Ошибка', 'error');
+            }
+        } catch (error) {
+            showToast('Ошибка сети', 'error');
+        }
+        
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('progressCard').style.display = 'none';
+    });
+</script>
+{% endblock %}

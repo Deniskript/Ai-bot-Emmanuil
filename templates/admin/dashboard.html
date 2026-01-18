@@ -1,0 +1,231 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Дашборд{% endblock %}
+
+{% block content %}
+<!-- Stats Grid -->
+<div class="stats-grid" style="animation-delay: 0.1s;">
+    <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value">{{ "{:,}".format(stats.total_users).replace(",", " ") }}</div>
+        <div class="stat-label">Пользователей</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value">{{ stats.subscribers }}</div>
+        <div class="stat-label">Подписчиков</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🚫</div>
+        <div class="stat-value">{{ stats.blocked }}</div>
+        <div class="stat-label">Заблокировано</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">💫</div>
+        <div class="stat-value">{{ "{:,}".format(stats.stars_used).replace(",", " ") }}</div>
+        <div class="stat-label">Звёзд использовано</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <!-- Server Load -->
+    <div class="card" style="animation-delay: 0.2s;">
+        <h3 class="card-title">💻 Нагрузка сервера</h3>
+        
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>CPU</span>
+                <span>{{ server.cpu }}%</span>
+            </div>
+            <div class="load-bar">
+                <div class="load-fill {% if server.cpu < 50 %}green{% elif server.cpu < 80 %}yellow{% else %}red{% endif %}" 
+                     style="width: {{ server.cpu }}%;"></div>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>RAM</span>
+                <span>{{ server.ram }}%</span>
+            </div>
+            <div class="load-bar">
+                <div class="load-fill {% if server.ram < 50 %}green{% elif server.ram < 80 %}yellow{% else %}red{% endif %}" 
+                     style="width: {{ server.ram }}%;"></div>
+            </div>
+        </div>
+        
+        <div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Диск</span>
+                <span>{{ server.disk }}%</span>
+            </div>
+            <div class="load-bar">
+                <div class="load-fill {% if server.disk < 50 %}green{% elif server.disk < 80 %}yellow{% else %}red{% endif %}" 
+                     style="width: {{ server.disk }}%;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Subscriptions -->
+    <div class="card" style="animation-delay: 0.3s;">
+        <h3 class="card-title">⭐ Подписки</h3>
+        
+        <div class="detail-row">
+            <span class="detail-label">💎 Mini</span>
+            <span class="detail-value">{{ stats.mini_count }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">👑 Standard</span>
+            <span class="detail-value">{{ stats.standard_count }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">✨ Premium</span>
+            <span class="detail-value">{{ stats.premium_count }}</span>
+        </div>
+        <div class="detail-row" style="border: none;">
+            <span class="detail-label"><b>Всего</b></span>
+            <span class="detail-value"><b>{{ stats.subscribers }}</b></span>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="card" style="animation-delay: 0.4s;">
+    <h3 class="card-title">📈 Использование звёзд</h3>
+    <div class="chart-container">
+        <canvas id="starsChart"></canvas>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card" style="animation-delay: 0.5s;">
+        <h3 class="card-title">👥 Новые пользователи</h3>
+        <div class="chart-container">
+            <canvas id="usersChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card" style="animation-delay: 0.6s;">
+        <h3 class="card-title">🎯 По функциям</h3>
+        <div class="chart-container">
+            <canvas id="functionsChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card" style="animation-delay: 0.7s;">
+    <h3 class="card-title">⚡ Быстрые действия</h3>
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="/admin/broadcast?initData={{ request.args.get('initData', '')|urlencode }}" class="btn btn-primary">
+            📢 Рассылка
+        </a>
+        <a href="/admin/tokens?initData={{ request.args.get('initData', '')|urlencode }}" class="btn btn-success">
+            💰 Выдать звёзды
+        </a>
+        <a href="/admin/users?initData={{ request.args.get('initData', '')|urlencode }}" class="btn btn-secondary">
+            👥 Пользователи
+        </a>
+        <button class="btn btn-warning" onclick="refreshStats()">
+            🔄 Обновить
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Stars usage chart
+    const starsData = {{ stars_by_day | tojson }};
+    const starsCtx = document.getElementById('starsChart').getContext('2d');
+    new Chart(starsCtx, {
+        type: 'line',
+        data: {
+            labels: starsData.map(d => d.date),
+            datasets: [{
+                label: 'Звёзды',
+                data: starsData.map(d => d.total),
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+    
+    // New users chart
+    const usersData = {{ users_by_day | tojson }};
+    const usersCtx = document.getElementById('usersChart').getContext('2d');
+    new Chart(usersCtx, {
+        type: 'bar',
+        data: {
+            labels: usersData.map(d => d.date),
+            datasets: [{
+                label: 'Новые',
+                data: usersData.map(d => d.count),
+                backgroundColor: '#764ba2',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+    
+    // Functions pie chart
+    const functionsData = {{ stars_by_function | tojson }};
+    const functionsCtx = document.getElementById('functionsChart').getContext('2d');
+    new Chart(functionsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(functionsData),
+            datasets: [{
+                data: Object.values(functionsData),
+                backgroundColor: [
+                    '#667eea',
+                    '#764ba2',
+                    '#4CAF50',
+                    '#FF9800',
+                    '#2196F3'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+    
+    // Refresh stats
+    async function refreshStats() {
+        try {
+            const result = await apiCall('/admin/api/stats');
+            showToast('Статистика обновлена', 'success');
+            location.reload();
+        } catch (error) {
+            showToast('Ошибка обновления', 'error');
+        }
+    }
+</script>
+{% endblock %}

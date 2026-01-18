@@ -1,0 +1,227 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Пользователи{% endblock %}
+
+{% block content %}
+<!-- Search -->
+<div class="card" style="animation-delay: 0.1s;">
+    <h3 class="card-title">🔍 Поиск пользователя</h3>
+    <form class="search-box" method="GET" action="/admin/users">
+        <input type="text" name="search" class="form-input" 
+               placeholder="ID или @username" value="{{ search }}">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        <button type="submit" class="btn btn-primary">🔍 Найти</button>
+    </form>
+</div>
+
+{% if user_detail %}
+<!-- User Detail Card -->
+<div class="card" style="animation-delay: 0.15s;">
+    <h3 class="card-title">👤 Пользователь найден</h3>
+    
+    <div class="user-info" style="margin-bottom: 20px;">
+        <div class="user-avatar">{{ user_detail.first_name[0] if user_detail.first_name else '?' }}</div>
+        <div>
+            <strong>{{ user_detail.first_name or 'Без имени' }}</strong>
+            {% if user_detail.username %}<br>@{{ user_detail.username }}{% endif %}
+        </div>
+    </div>
+    
+    <div class="detail-row">
+        <span class="detail-label">🆔 ID</span>
+        <span class="detail-value"><code>{{ user_detail.user_id }}</code></span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">⭐ Баланс</span>
+        <span class="detail-value">{{ "{:,}".format(user_detail.stars).replace(",", " ") }} ⭐</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">📊 Запросов</span>
+        <span class="detail-value">{{ user_detail.total_requests }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">🚫 Статус</span>
+        <span class="detail-value">
+            {% if user_detail.is_blocked %}
+                <span class="badge badge-danger">Заблокирован</span>
+            {% else %}
+                <span class="badge badge-success">Активен</span>
+            {% endif %}
+        </span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">⭐ Подписка</span>
+        <span class="detail-value">
+            {% if user_detail.subscription and user_detail.subscription.is_active %}
+                <span class="badge badge-{{ user_detail.subscription.type }}">
+                    {{ user_detail.subscription.type|upper }}
+                </span>
+            {% else %}
+                <span class="badge badge-warning">Нет</span>
+            {% endif %}
+        </span>
+    </div>
+    
+    <!-- Actions -->
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;">
+        {% if user_detail.is_blocked %}
+        <form method="POST" action="/admin/users/{{ user_detail.user_id }}/unblock" style="margin: 0;">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            <button type="submit" class="btn btn-success btn-sm">✅ Разблокировать</button>
+        </form>
+        {% else %}
+        <form method="POST" action="/admin/users/{{ user_detail.user_id }}/block" style="margin: 0;"
+              onsubmit="return confirm('Заблокировать пользователя?')">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            <button type="submit" class="btn btn-danger btn-sm">🚫 Заблокировать</button>
+        </form>
+        {% endif %}
+        
+        <button class="btn btn-success btn-sm" onclick="showGiveStarsModal({{ user_detail.user_id }})">
+            💰 Выдать звёзды
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="showGiveSubModal({{ user_detail.user_id }})">
+            ⭐ Выдать подписку
+        </button>
+        <a href="/admin/memory?user_id={{ user_detail.user_id }}&initData={{ request.args.get('initData', '')|urlencode }}" 
+           class="btn btn-secondary btn-sm">🧠 Память</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Users List -->
+<div class="card" style="animation-delay: 0.2s;">
+    <h3 class="card-title">👥 Все пользователи ({{ total_users }})</h3>
+    
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Имя</th>
+                    <th>⭐ Баланс</th>
+                    <th>Подписка</th>
+                    <th>Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr onclick="window.location='/admin/users?search={{ user.user_id }}&initData={{ request.args.get('initData', '')|urlencode }}'" 
+                    style="cursor: pointer;">
+                    <td><code>{{ user.user_id }}</code></td>
+                    <td>
+                        {{ user.first_name or '—' }}
+                        {% if user.username %}<br><small>@{{ user.username }}</small>{% endif %}
+                    </td>
+                    <td>{{ "{:,}".format(user.stars).replace(",", " ") }}</td>
+                    <td>
+                        {% if user.subscription and user.subscription.is_active %}
+                            <span class="badge badge-{{ user.subscription.type }}">
+                                {{ user.subscription.type|upper }}
+                            </span>
+                        {% else %}
+                            <span class="badge badge-warning">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_blocked %}
+                            <span class="badge badge-danger">🚫</span>
+                        {% else %}
+                            <span class="badge badge-success">✅</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, total_pages + 1) %}
+            <a href="/admin/users?page={{ p }}&search={{ search }}&initData={{ request.args.get('initData', '')|urlencode }}" 
+               class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Give Stars Modal -->
+<div class="modal-overlay" id="giveStarsModal">
+    <div class="modal">
+        <h3 class="modal-title">💰 Выдать звёзды</h3>
+        <form id="giveStarsForm" method="POST">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            <div class="form-group">
+                <label class="form-label">Количество звёзд</label>
+                <input type="number" name="amount" class="form-input" placeholder="1000" required min="1">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn btn-success" style="flex: 1;">✅ Выдать</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('giveStarsModal')">Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Give Subscription Modal -->
+<div class="modal-overlay" id="giveSubModal">
+    <div class="modal">
+        <h3 class="modal-title">⭐ Выдать подписку</h3>
+        <form id="giveSubForm" method="POST">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            <div class="form-group">
+                <label class="form-label">Тип подписки</label>
+                <select name="sub_type" class="form-select">
+                    <option value="mini">💎 Mini</option>
+                    <option value="standard">👑 Standard</option>
+                    <option value="premium">✨ Premium</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Срок (дней)</label>
+                <select name="days" class="form-select">
+                    <option value="7">7 дней</option>
+                    <option value="30" selected>30 дней</option>
+                    <option value="90">90 дней</option>
+                    <option value="365">1 год</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">✅ Выдать</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('giveSubModal')">Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showGiveStarsModal(userId) {
+        const form = document.getElementById('giveStarsForm');
+        form.action = `/admin/users/${userId}/give-stars`;
+        document.getElementById('giveStarsModal').classList.add('active');
+    }
+    
+    function showGiveSubModal(userId) {
+        const form = document.getElementById('giveSubForm');
+        form.action = `/admin/users/${userId}/give-subscription`;
+        document.getElementById('giveSubModal').classList.add('active');
+    }
+    
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+    
+    // Close modal on click outside
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+            }
+        });
+    });
+</script>
+{% endblock %}

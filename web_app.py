@@ -75,6 +75,13 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__, template_folder='templates')
 
+# Session configuration for admin panel
+app.secret_key = os.getenv('SECRET_KEY', 'soul-ai-secret-key-2026-secure')
+
+# Register admin blueprint
+from admin_routes import admin_bp
+app.register_blueprint(admin_bp)
+
 # Глобальный event loop для всех async операций
 _global_loop = None
 _pool_initialized = False

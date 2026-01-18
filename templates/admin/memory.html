@@ -1,0 +1,164 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Память{% endblock %}
+
+{% block content %}
+<!-- Search -->
+<div class="card" style="animation-delay: 0.1s;">
+    <h3 class="card-title">🔍 Поиск памяти пользователя</h3>
+    <form class="search-box" method="GET" action="/admin/memory">
+        <input type="number" name="user_id" class="form-input" 
+               placeholder="ID пользователя" value="{{ user_id or '' }}">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        <button type="submit" class="btn btn-primary">🔍 Найти</button>
+    </form>
+</div>
+
+{% if user_id and user_memory %}
+<!-- User Memory Card -->
+<div class="card" style="animation-delay: 0.15s;">
+    <h3 class="card-title">🧠 Память пользователя {{ user_id }}</h3>
+    
+    <!-- Bot Tabs -->
+    <div class="tabs" style="margin-bottom: 20px;">
+        {% for bot_name in ['luca', 'silas', 'titus', 'voice'] %}
+        <button class="tab {% if loop.first %}active{% endif %}" 
+                onclick="showBot('{{ bot_name }}')">
+            {% if bot_name == 'luca' %}💭 Luca{% endif %}
+            {% if bot_name == 'silas' %}🛋️ Silas{% endif %}
+            {% if bot_name == 'titus' %}📓 Titus{% endif %}
+            {% if bot_name == 'voice' %}🎤 Voice{% endif %}
+            {% if user_memory.get(bot_name) %}({{ user_memory[bot_name]|length }}){% endif %}
+        </button>
+        {% endfor %}
+    </div>
+    
+    <!-- Facts for each bot -->
+    {% for bot_name in ['luca', 'silas', 'titus', 'voice'] %}
+    <div class="bot-facts" id="facts-{{ bot_name }}" 
+         style="{% if not loop.first %}display: none;{% endif %}">
+        
+        {% if user_memory.get(bot_name) %}
+            {% for fact in user_memory[bot_name] %}
+            <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 10px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                <div style="flex: 1; font-size: 14px; line-height: 1.5;">{{ fact }}</div>
+                <form method="POST" 
+                      action="/admin/memory/{{ user_id }}/delete/{{ bot_name }}/{{ loop.index0 }}"
+                      style="margin: 0;"
+                      onsubmit="return confirm('Удалить этот факт?')">
+                    <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 8px;">🗑</button>
+                </form>
+            </div>
+            {% endfor %}
+            
+            <!-- Clear button -->
+            <form method="POST" 
+                  action="/admin/memory/{{ user_id }}/clear/{{ bot_name }}"
+                  style="margin-top: 15px;"
+                  onsubmit="return confirm('Очистить всю память {{ bot_name }}?')">
+                <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+                <button type="submit" class="btn btn-warning btn-sm">🗑 Очистить {{ bot_name }}</button>
+            </form>
+        {% else %}
+            <div style="color: #888; text-align: center; padding: 30px;">
+                Нет сохранённых фактов
+            </div>
+        {% endif %}
+        
+        <!-- Add fact -->
+        <form method="POST" action="/admin/memory/{{ user_id }}/add/{{ bot_name }}" 
+              style="margin-top: 20px;">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            <div class="form-group">
+                <label class="form-label">➕ Добавить факт</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" name="fact" class="form-input" placeholder="Новый факт о пользователе...">
+                    <button type="submit" class="btn btn-success">➕</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    {% endfor %}
+    
+    <!-- Clear All -->
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+        <form method="POST" 
+              action="/admin/memory/{{ user_id }}/clear-all"
+              onsubmit="return confirm('УДАЛИТЬ ВСЮ ПАМЯТЬ пользователя {{ user_id }}?')">
+            <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+            <button type="submit" class="btn btn-danger">🗑 Удалить всю память</button>
+        </form>
+    </div>
+</div>
+{% elif user_id %}
+<div class="card" style="animation-delay: 0.15s;">
+    <div style="text-align: center; padding: 30px; color: #888;">
+        🧠 У пользователя {{ user_id }} нет сохранённой памяти
+    </div>
+</div>
+{% endif %}
+
+<!-- Users with Memory -->
+<div class="card" style="animation-delay: 0.2s;">
+    <h3 class="card-title">👥 Пользователи с памятью ({{ total_with_memory }})</h3>
+    
+    {% if users_with_memory %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>💭 Luca</th>
+                    <th>🛋️ Silas</th>
+                    <th>📓 Titus</th>
+                    <th>🎤 Voice</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users_with_memory %}
+                <tr onclick="window.location='/admin/memory?user_id={{ u.user_id }}&initData={{ request.args.get('initData', '')|urlencode }}'" 
+                    style="cursor: pointer;">
+                    <td><code>{{ u.user_id }}</code></td>
+                    <td>{{ u.username or '—' }}</td>
+                    <td>{{ u.memory_counts.get('luca', '—') }}</td>
+                    <td>{{ u.memory_counts.get('silas', '—') }}</td>
+                    <td>{{ u.memory_counts.get('titus', '—') }}</td>
+                    <td>{{ u.memory_counts.get('voice', '—') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, total_pages + 1) %}
+            <a href="/admin/memory?page={{ p }}&initData={{ request.args.get('initData', '')|urlencode }}" 
+               class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="text-align: center; padding: 30px; color: #888;">
+        Нет пользователей с сохранённой памятью
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showBot(botName) {
+        // Hide all
+        document.querySelectorAll('.bot-facts').forEach(el => el.style.display = 'none');
+        // Show selected
+        document.getElementById('facts-' + botName).style.display = 'block';
+        // Update tabs
+        document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+    }
+</script>
+{% endblock %}

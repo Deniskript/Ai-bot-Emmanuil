@@ -1,0 +1,161 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Подписки{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid" style="animation-delay: 0.1s;">
+    <div class="stat-card">
+        <div class="stat-icon">💎</div>
+        <div class="stat-value">{{ stats.mini }}</div>
+        <div class="stat-label">Mini</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">👑</div>
+        <div class="stat-value">{{ stats.standard }}</div>
+        <div class="stat-label">Standard</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✨</div>
+        <div class="stat-value">{{ stats.premium }}</div>
+        <div class="stat-label">Premium</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value">{{ stats.mini + stats.standard + stats.premium }}</div>
+        <div class="stat-label">Всего</div>
+    </div>
+</div>
+
+<!-- Give Subscription Form -->
+<div class="card" style="animation-delay: 0.2s;">
+    <h3 class="card-title">⭐ Выдать подписку</h3>
+    
+    <form method="POST" action="/admin/subscriptions/give">
+        <input type="hidden" name="initData" value="{{ request.args.get('initData', '') }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">ID пользователя</label>
+                <input type="number" name="user_id" class="form-input" placeholder="123456789" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Тип подписки</label>
+                <select name="sub_type" class="form-select">
+                    <option value="mini">💎 Mini (4,000 ⭐)</option>
+                    <option value="standard">👑 Standard (9,000 ⭐)</option>
+                    <option value="premium">✨ Premium (20,000 ⭐)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Срок (дней)</label>
+            <div class="tabs">
+                <label class="tab">
+                    <input type="radio" name="days" value="7" style="display: none;">
+                    7 дней
+                </label>
+                <label class="tab active">
+                    <input type="radio" name="days" value="30" checked style="display: none;">
+                    30 дней
+                </label>
+                <label class="tab">
+                    <input type="radio" name="days" value="90" style="display: none;">
+                    90 дней
+                </label>
+                <label class="tab">
+                    <input type="radio" name="days" value="365" style="display: none;">
+                    1 год
+                </label>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block">✅ Выдать подписку</button>
+    </form>
+</div>
+
+<!-- Filter Tabs -->
+<div class="card" style="animation-delay: 0.3s;">
+    <h3 class="card-title">📋 Активные подписки</h3>
+    
+    <div class="tabs" style="margin-bottom: 20px;">
+        <a href="/admin/subscriptions?filter=all&initData={{ request.args.get('initData', '')|urlencode }}" 
+           class="tab {% if filter == 'all' %}active{% endif %}">Все</a>
+        <a href="/admin/subscriptions?filter=mini&initData={{ request.args.get('initData', '')|urlencode }}" 
+           class="tab {% if filter == 'mini' %}active{% endif %}">💎 Mini</a>
+        <a href="/admin/subscriptions?filter=standard&initData={{ request.args.get('initData', '')|urlencode }}" 
+           class="tab {% if filter == 'standard' %}active{% endif %}">👑 Standard</a>
+        <a href="/admin/subscriptions?filter=premium&initData={{ request.args.get('initData', '')|urlencode }}" 
+           class="tab {% if filter == 'premium' %}active{% endif %}">✨ Premium</a>
+    </div>
+    
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Юзер</th>
+                    <th>Тип</th>
+                    <th>Звёзды</th>
+                    <th>Истекает</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in subscriptions %}
+                <tr onclick="window.location='/admin/users?search={{ sub.user_id }}&initData={{ request.args.get('initData', '')|urlencode }}'" 
+                    style="cursor: pointer;">
+                    <td><code>{{ sub.user_id }}</code></td>
+                    <td>{{ sub.username or '—' }}</td>
+                    <td>
+                        <span class="badge badge-{{ sub.type }}">
+                            {% if sub.type == 'mini' %}💎{% elif sub.type == 'standard' %}👑{% else %}✨{% endif %}
+                            {{ sub.type|upper }}
+                        </span>
+                    </td>
+                    <td>
+                        {{ "{:,}".format(sub.stars_limit - sub.stars_used).replace(",", " ") }} / 
+                        {{ "{:,}".format(sub.stars_limit).replace(",", " ") }}
+                    </td>
+                    <td>
+                        {% if sub.expires_at %}
+                            {{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: #888;">Нет активных подписок</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, total_pages + 1) %}
+            <a href="/admin/subscriptions?page={{ p }}&filter={{ filter }}&initData={{ request.args.get('initData', '')|urlencode }}" 
+               class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tab selection
+    document.querySelectorAll('.tabs label.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const parent = this.parentElement;
+            parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+</script>
+{% endblock %}
