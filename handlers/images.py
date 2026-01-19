@@ -1,3 +1,16 @@
+"""
+Обработчик генерации изображений и видео
+Оптимизирован для 1000+ пользователей
+"""
+import asyncio
+import base64
+import io
+import json
+import logging
+import os
+import time
+from typing import Optional
+
 from aiogram import Router, F
 from aiogram.types import (
     Message,
@@ -12,19 +25,21 @@ from aiogram.types import (
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from keyboards.reply import photo_kb, bots_menu_kb
 import aiohttp
-import base64
-import os
-import json
-import asyncio
-import traceback
 from PIL import Image, ImageDraw, ImageFont
-import io
+
+# Core infrastructure
+from core import cleanup_manager
+from core.cache import LRUCache
+
+# Local imports
 from database import postgres_db as db
+from keyboards.reply import photo_kb, bots_menu_kb
 from utils.balance_guard import ensure_balance
 from utils.status_manager import show_status
 from loader import bot
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -34,20 +49,30 @@ VSEGPT_VIDEO_BASE_URL = os.getenv("VSEGPT_VIDEO_BASE_URL", "https://api.vsegpt.r
 VSEGPT_BASE_URL = os.getenv("VSEGPT_BASE_URL", "https://api.vsegpt.ru/v1")
 VSEGPT_IMAGES_URL = f"{VSEGPT_BASE_URL}/images/generations"
 
-# ========== СИСТЕМА ФЛАГОВ ОТМЕНЫ ВИДЕО ==========
-cancelled_video_requests: set[int] = set()
+# ========== КЭШИ С АВТООЧИСТКОЙ ==========
+cancelled_video_cache = LRUCache(max_size=500, default_ttl=3600)      # 1 час
+meme_template_cache = LRUCache(max_size=50, default_ttl=86400)        # 24 часа
+user_settings_cache = LRUCache(max_size=1000, default_ttl=60)         # 1 минута
 
-def cancel_video_request(user_id: int):
+# Регистрация очистки при старте
+cleanup_manager.register(cancelled_video_cache.cleanup)
+cleanup_manager.register(meme_template_cache.cleanup)
+cleanup_manager.register(user_settings_cache.cleanup)
+
+
+async def cancel_video_request(user_id: int) -> None:
     """Отменить генерацию видео — прервать ожидание"""
-    cancelled_video_requests.add(user_id)
+    await cancelled_video_cache.set(user_id, True)
 
-def is_video_cancelled(user_id: int) -> bool:
+
+async def is_video_cancelled(user_id: int) -> bool:
     """Проверить отменена ли генерация видео"""
-    return user_id in cancelled_video_requests
+    return await cancelled_video_cache.get(user_id) is not None
 
-def clear_video_cancel(user_id: int):
+
+async def clear_video_cancel(user_id: int) -> None:
     """Очистить флаг отмены видео"""
-    cancelled_video_requests.discard(user_id)
+    await cancelled_video_cache.delete(user_id)
 
 # Дефолтные модели (используются если у пользователя нет настроек)
 DEFAULT_MODELS = {
@@ -79,8 +104,8 @@ LEGACY_MODEL_MAP = {
     },
 }
 
-def _convert_to_jpeg(image_bytes: bytes) -> bytes:
-    """VseGPT img2img обычно принимает data:image/jpeg;base64,..."""
+def _convert_to_jpeg_sync(image_bytes: bytes) -> bytes:
+    """Синхронная конвертация в JPEG — НЕ вызывать напрямую в async!"""
     image = Image.open(io.BytesIO(image_bytes))
     if image.mode not in ("RGB",):
         image = image.convert("RGB")
@@ -90,8 +115,13 @@ def _convert_to_jpeg(image_bytes: bytes) -> bytes:
     return out.read()
 
 
-def _resize_to_exact(image_bytes: bytes, size: str) -> bytes:
-    """Center-crop to aspect ratio, then resize to exact WxH."""
+async def _convert_to_jpeg(image_bytes: bytes) -> bytes:
+    """Асинхронная конвертация в JPEG."""
+    return await asyncio.to_thread(_convert_to_jpeg_sync, image_bytes)
+
+
+def _resize_to_exact_sync(image_bytes: bytes, size: str) -> bytes:
+    """Синхронный center-crop и resize — НЕ вызывать напрямую в async!"""
     try:
         w, h = size.lower().split("x")
         target_w, target_h = int(w), int(h)
@@ -119,6 +149,11 @@ def _resize_to_exact(image_bytes: bytes, size: str) -> bytes:
     img.save(out, format="PNG")
     out.seek(0)
     return out.read()
+
+
+async def _resize_to_exact(image_bytes: bytes, size: str) -> bytes:
+    """Асинхронный center-crop и resize."""
+    return await asyncio.to_thread(_resize_to_exact_sync, image_bytes, size)
 
 
 def _resolve_blogger_model(model_key: str) -> str | None:
@@ -230,7 +265,7 @@ def _overlay_meme_text(image_bytes: bytes, top: str, bottom: str) -> bytes:
     return out.read()
 
 
-# --- Meme templates (local-by-URL with caching) ---
+# --- Meme templates (local-by-URL with caching via LRUCache) ---
 _MEME_TEMPLATE_URLS: dict[str, str] = {
     # imgflip stable CDN-ish links
     "doge": "https://i.imgflip.com/4t0m5.jpg",
@@ -238,7 +273,6 @@ _MEME_TEMPLATE_URLS: dict[str, str] = {
     "hide_pain": "https://i.imgflip.com/gk5el.jpg",
     "think": "https://i.imgflip.com/1otk96.jpg",
 }
-_MEME_TEMPLATE_CACHE: dict[str, bytes] = {}
 
 
 async def _fetch_bytes(url: str) -> bytes:
@@ -249,19 +283,31 @@ async def _fetch_bytes(url: str) -> bytes:
             return await resp.read()
 
 
-async def _get_meme_template_image(template_key: str) -> bytes:
-    key = (template_key or "doge").strip().lower()
-    if key in _MEME_TEMPLATE_CACHE:
-        return _MEME_TEMPLATE_CACHE[key]
-    url = _MEME_TEMPLATE_URLS.get(key) or _MEME_TEMPLATE_URLS["doge"]
-    b = await _fetch_bytes(url)
-    # normalize to PNG
-    img = Image.open(io.BytesIO(b)).convert("RGB")
+def _normalize_to_png_sync(image_bytes: bytes) -> bytes:
+    """Синхронная нормализация в PNG — НЕ вызывать напрямую в async!"""
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     out = io.BytesIO()
     img.save(out, format="PNG")
     out.seek(0)
-    res = out.read()
-    _MEME_TEMPLATE_CACHE[key] = res
+    return out.read()
+
+
+async def _get_meme_template_image(template_key: str) -> bytes:
+    """Получить шаблон мема с кэшированием через LRUCache."""
+    key = (template_key or "doge").strip().lower()
+    
+    # Проверить кэш
+    cached = await meme_template_cache.get(key)
+    if cached is not None:
+        return cached
+    
+    # Загрузить и обработать
+    url = _MEME_TEMPLATE_URLS.get(key) or _MEME_TEMPLATE_URLS["doge"]
+    b = await _fetch_bytes(url)
+    res = await asyncio.to_thread(_normalize_to_png_sync, b)
+    
+    # Сохранить в кэш
+    await meme_template_cache.set(key, res)
     return res
 
 
@@ -435,7 +481,7 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
             )
             img_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=None)
         if top or bottom:
-            img_bytes = _overlay_meme_text(img_bytes, top, bottom)
+            img_bytes = await asyncio.to_thread(_overlay_meme_text, img_bytes, top, bottom)
 
         if price > 0:
             await db.use_stars_smart(user_id, price, bot_name="images")
@@ -498,7 +544,7 @@ async def creative_process_photo(message: Message, state: FSMContext):
     file = await bot.get_file(photo.file_id)
     bio = io.BytesIO()
     await bot.download_file(file.file_path, bio)
-    jpeg_bytes = _convert_to_jpeg(bio.getvalue())
+    jpeg_bytes = await _convert_to_jpeg(bio.getvalue())
 
     status = await show_status(bot, message.chat.id, "generate")
     try:
@@ -774,9 +820,19 @@ async def blogger_start(message: Message, state: FSMContext, user_id: int | None
 
 
 async def get_user_model_settings(user_id: int, action: str) -> dict:
-    """Получить настройки модели пользователя для конкретного действия"""
+    """
+    Получить настройки модели пользователя для конкретного действия.
+    Результат кэшируется на 60 секунд.
+    """
     from database.postgres_db import get_image_settings
     
+    # Проверить кэш
+    cache_key = f"img:{user_id}:{action}"
+    cached = await user_settings_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    # Получить из БД
     settings = await get_image_settings(user_id)
     
     model_key = settings.get(f"{action}_model", DEFAULT_MODELS[action]["model"])
@@ -784,13 +840,17 @@ async def get_user_model_settings(user_id: int, action: str) -> dict:
     model_id = LEGACY_MODEL_MAP.get(action, {}).get(model_key, model_key)
     price = settings.get(f"{action}_price", DEFAULT_MODELS[action]["price"])
     
-    return {
+    result = {
         "model": model_id,  # VseGPT model_id
         "price": price,
         "name": DEFAULT_MODELS[action]["name"],
         "time": DEFAULT_MODELS[action]["time"],
         "model_key": model_key
     }
+    
+    # Сохранить в кэш
+    await user_settings_cache.set(cache_key, result)
+    return result
 
 class ImageStates(StatesGroup):
     waiting_create_prompt = State()
@@ -866,11 +926,11 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
 
         img_bytes = await _vsegpt_images_generate(model_id=model_id, prompt=prompt, image_bytes=None)
         if final_size:
-            img_bytes = _resize_to_exact(img_bytes, final_size)
+            img_bytes = await _resize_to_exact(img_bytes, final_size)
         if subtype == "cover" and allow_text:
-            img_bytes = _overlay_text_on_image(img_bytes, prompt_ru, layout="cover")
+            img_bytes = await asyncio.to_thread(_overlay_text_on_image, img_bytes, prompt_ru, layout="cover")
         if subtype == "presentation" and allow_text:
-            img_bytes = _overlay_text_on_image(img_bytes, prompt_ru, layout="presentation")
+            img_bytes = await asyncio.to_thread(_overlay_text_on_image, img_bytes, prompt_ru, layout="presentation")
 
         if price > 0:
             await db.use_stars_smart(user_id, price, bot_name="images")
@@ -1282,12 +1342,11 @@ async def _vsegpt_generate_video_and_wait(
             raise Exception(f"VseGPT: не получили request_id. Ответ: {text[:300]}")
 
         # Poll статус
-        import time
         start = time.time()
         while time.time() - start < timeout_seconds:
             # Проверка отмены пользователем
-            if is_video_cancelled(user_id):
-                clear_video_cancel(user_id)
+            if await is_video_cancelled(user_id):
+                await clear_video_cancel(user_id)
                 raise Exception("❌ Генерация видео отменена пользователем")
             
             # По докам встречается и Bearer, и Key — пробуем оба
@@ -1495,7 +1554,7 @@ async def process_video_text(message: Message, state: FSMContext):
         return
 
     # Сбрасываем флаг отмены перед началом
-    clear_video_cancel(user_id)
+    await clear_video_cancel(user_id)
     
     status = await show_status(bot, message.chat.id, "generate")
     try:
@@ -1534,7 +1593,7 @@ async def process_video_text(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Video text-to-video error")
         await message.answer(f"❌ Ошибка видео:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
         if status:
@@ -1558,7 +1617,7 @@ async def process_video_photo(message: Message, state: FSMContext):
         user_caption = ""
 
     # Сбрасываем флаг отмены перед началом
-    clear_video_cancel(user_id)
+    await clear_video_cancel(user_id)
     
     status = await show_status(bot, message.chat.id, "generate")
     try:
@@ -1602,7 +1661,7 @@ async def process_video_photo(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Video photo-to-video error")
         await message.answer(f"❌ Ошибка видео:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
         if status:
@@ -1773,7 +1832,7 @@ async def process_process_photo(message: Message, state: FSMContext):
         file = await bot.get_file(photo.file_id)
         photo_data = await bot.download_file(file.file_path)
         image_bytes_raw = photo_data.read()
-        jpeg_bytes = _convert_to_jpeg(image_bytes_raw)
+        jpeg_bytes = await _convert_to_jpeg(image_bytes_raw)
 
         user_text = caption
         user_en = await _to_english(user_text) if user_text else ""
@@ -1830,7 +1889,7 @@ async def cancel_operation(message: Message, state: FSMContext):
     user_id = message.from_user.id
     
     # Устанавливаем флаг отмены видео (если идёт генерация)
-    cancel_video_request(user_id)
+    await cancel_video_request(user_id)
     
     await state.clear()
     await message.answer("❌ Операция отменена", reply_markup=photo_kb(user_id))
@@ -1993,7 +2052,7 @@ async def process_upscale(message: Message, state: FSMContext):
         photo_data = await bot.download_file(file.file_path)
         image_bytes_raw = photo_data.read()
 
-        jpeg_bytes = _convert_to_jpeg(image_bytes_raw)
+        jpeg_bytes = await _convert_to_jpeg(image_bytes_raw)
 
         data = await state.get_data()
         size_key = (data.get("upscale_size") or "auto").strip()
@@ -2039,10 +2098,8 @@ async def process_upscale(message: Message, state: FSMContext):
         )
         
     except Exception as e:
-        error_msg = str(e)[:300]
-        print(f"❌ [Upscale Error] {error_msg}")
-        traceback.print_exc()
-        await message.answer(f"❌ Ошибка улучшения фото:\n<code>{error_msg}</code>", parse_mode="HTML")
+        logger.exception("Upscale error")
+        await message.answer(f"❌ Ошибка улучшения фото:\n<code>{str(e)[:300]}</code>", parse_mode="HTML")
     finally:
         if status:
             await status.stop()
@@ -2105,11 +2162,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
         )
         return
     
-    print(f"=" * 60)
-    print(f"📝 РЕДАКТОР: Фото с подписью")
-    print(f"📝 User: {user_id}")
-    print(f"📝 Команда: {edit_command}")
-    print(f"=" * 60)
+    logger.debug(f"Editor: user={user_id}, command={edit_command[:50]}...")
     
     # Получаем настройки модели
     model = await get_user_model_settings(user_id, 'edit')
@@ -2126,7 +2179,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
         photo_data = await bot.download_file(file.file_path)
         image_bytes_raw = photo_data.read()
 
-        jpeg_bytes = _convert_to_jpeg(image_bytes_raw)
+        jpeg_bytes = await _convert_to_jpeg(image_bytes_raw)
 
         # Переводим запрос пользователя на EN (лучше управляемость/стабильность)
         cmd_en = await _to_english(edit_command)
@@ -2166,8 +2219,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
         )
                     
     except Exception as e:
-        print(f"❌ ОШИБКА: {e}")
-        traceback.print_exc()
+        logger.exception("Editor error")
         await message.answer(
             f"❌ <b>Ошибка редактирования</b>\n\n<code>{str(e)[:150]}</code>",
             parse_mode="HTML"
