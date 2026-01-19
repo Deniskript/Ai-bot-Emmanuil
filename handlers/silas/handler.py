@@ -1,42 +1,184 @@
 """
 Обработчик Silas (Психолог) - 100% автономный модуль
+Оптимизирован для 1000+ одновременных пользователей
 """
-from aiogram import Router, F
+import asyncio
+import logging
+import os
 import re
-from aiogram.types import Message, CallbackQuery
+import time
+from collections import OrderedDict
+from datetime import datetime
+from typing import Any, Optional
+
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database.postgres_db import set_silas_settings, get_silas_settings
+from aiogram.types import CallbackQuery, FSInputFile, Message
+
+from config import MIN_STARS
 from database import postgres_db as db, redis_db
-from keyboards import reply as global_reply  # для bots_menu_kb()
+from database.postgres_db import get_silas_settings, set_silas_settings
+from keyboards import reply as global_reply
+from loader import bot
+from utils.antiflood import ai_flood
+from utils.balance_guard import ensure_balance
+from utils.conversations import (
+    clean_response,
+    get_chat_button,
+    save_message,
+    should_show_preview,
+)
+from utils.memory import update_memory
 from utils.openrouter import ask
 from utils.stars import calculate_stars
-from utils.memory import update_memory
-from utils.voice import download_voice, transcribe_voice, text_to_speech
-from aiogram.types import FSInputFile
-import os
-from utils.antiflood import ai_flood
-from utils.telegraph import create_telegraph_page
-from utils.conversations import save_message, clean_response, should_show_preview, get_chat_button
 from utils.status_manager import show_status
 from utils.streaming import stream_response
-from utils.balance_guard import ensure_balance
-from config import MIN_STARS
-from loader import bot
-from datetime import datetime
-import asyncio
-import base64
+from utils.telegraph import create_telegraph_page
+from utils.voice import download_voice, text_to_speech, transcribe_voice
 
 from . import keyboards as kb
 from . import texts
-from .prompts import SILAS_SYSTEM, SILAS_VOICE_RULES
 from .memory import build_memory_context
+from .prompts import SILAS_SYSTEM, SILAS_VOICE_RULES
+
+# Настройка логгера
+logger = logging.getLogger(__name__)
 
 router = Router()
 
-def md_to_html(text):
+
+# ═══════════════════════════════════════
+# КОНФИГУРАЦИЯ ДЛЯ ВЫСОКОЙ НАГРУЗКИ
+# ═══════════════════════════════════════
+
+# Лимиты кэшей
+MAX_CACHE_SIZE = 1000
+MAX_ACTIVE_REQUESTS = 500
+
+# Rate Limiting
+RATE_LIMIT_REQUESTS = 10  # Максимум запросов
+RATE_LIMIT_WINDOW = 60    # За секунд
+
+# API Semaphore - максимум одновременных запросов к AI
+API_SEMAPHORE = asyncio.Semaphore(50)
+
+
+# ═══════════════════════════════════════
+# LRU КЭШИ С АВТООЧИСТКОЙ
+# ═══════════════════════════════════════
+
+class LRUCache:
+    """LRU кэш с автоочисткой для предотвращения утечек памяти"""
+    
+    def __init__(self, max_size: int = MAX_CACHE_SIZE):
+        self.cache: OrderedDict[Any, Any] = OrderedDict()
+        self.max_size = max_size
+        self._lock = asyncio.Lock()
+    
+    async def get(self, key: Any) -> Optional[Any]:
+        async with self._lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+                return self.cache[key]
+            return None
+    
+    async def set(self, key: Any, value: Any) -> None:
+        async with self._lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+            self.cache[key] = value
+            while len(self.cache) > self.max_size:
+                self.cache.popitem(last=False)
+    
+    async def delete(self, key: Any) -> None:
+        async with self._lock:
+            self.cache.pop(key, None)
+    
+    def __len__(self) -> int:
+        return len(self.cache)
+
+
+class UserRateLimiter:
+    """Rate limiter на пользователя"""
+    
+    def __init__(self, max_requests: int = RATE_LIMIT_REQUESTS, window_seconds: int = RATE_LIMIT_WINDOW):
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self.requests: dict[int, list[float]] = {}
+        self._lock = asyncio.Lock()
+    
+    async def is_allowed(self, user_id: int) -> tuple[bool, int]:
+        """
+        Проверить разрешён ли запрос.
+        Returns: (allowed, seconds_until_reset)
+        """
+        async with self._lock:
+            now = time.time()
+            
+            # Очистка старых запросов
+            if user_id in self.requests:
+                self.requests[user_id] = [
+                    t for t in self.requests[user_id]
+                    if now - t < self.window
+                ]
+            else:
+                self.requests[user_id] = []
+            
+            if len(self.requests[user_id]) >= self.max_requests:
+                oldest = min(self.requests[user_id])
+                wait_time = int(self.window - (now - oldest))
+                return False, max(0, wait_time)
+            
+            self.requests[user_id].append(now)
+            return True, 0
+    
+    async def cleanup(self) -> None:
+        """Периодическая очистка старых записей"""
+        async with self._lock:
+            now = time.time()
+            to_delete = []
+            for user_id, timestamps in self.requests.items():
+                if all(now - t >= self.window for t in timestamps):
+                    to_delete.append(user_id)
+            for user_id in to_delete:
+                del self.requests[user_id]
+
+
+# Глобальные экземпляры
+active_requests: LRUCache = LRUCache(MAX_ACTIVE_REQUESTS)
+last_messages: LRUCache = LRUCache(MAX_CACHE_SIZE)
+rate_limiter = UserRateLimiter()
+
+
+# ═══════════════════════════════════════
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ═══════════════════════════════════════
+
+def md_to_html(text: str) -> str:
     """Конвертирует **bold** в <b>bold</b>"""
     return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+
+
+async def safe_background_task(coro, task_name: str = "background") -> None:
+    """Безопасный запуск фоновой задачи"""
+    try:
+        await coro
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.error(f"[{task_name}] Error: {e}")
+
+
+async def call_api_with_limit(coro):
+    """Вызов API с ограничением на количество одновременных запросов"""
+    async with API_SEMAPHORE:
+        return await coro
+
+
+# ═══════════════════════════════════════
+# СОСТОЯНИЯ FSM
+# ═══════════════════════════════════════
 
 class SilasSt(StatesGroup):
     menu = State()
@@ -45,25 +187,23 @@ class SilasSt(StatesGroup):
     duration = State()
     session = State()
 
-active_requests = {}
-last_messages = {}
 
-# Максимальное количество записей в кэше (для предотвращения утечек памяти)
-MAX_CACHE_SIZE = 1000
+# ═══════════════════════════════════════
+# ОСНОВНЫЕ ОБРАБОТЧИКИ
+# ═══════════════════════════════════════
 
-def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
-    """Очистка кэша при превышении лимита"""
-    if len(cache_dict) > max_size:
-        keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
-        for key in keys_to_remove:
-            cache_dict.pop(key, None)
-
-# ========== МЕНЮ ==========
-
-async def _start_session_with_settings(msg: Message, state: FSMContext, duration: int, mood: str = '', voice_enabled: bool = False):
+async def _start_session_with_settings(
+    msg: Message, 
+    state: FSMContext, 
+    duration: int, 
+    mood: str = '', 
+    voice_enabled: bool = False
+) -> None:
     """Вспомогательная функция для запуска сессии с заданными настройками"""
+    user_id = msg.from_user.id
+    
     try:
-        print(f"🔵 [Silas] _start_session_with_settings: duration={duration}, mood={mood}, voice={voice_enabled}")
+        logger.info(f"[Silas] Starting session: user={user_id}, duration={duration}, mood={mood}, voice={voice_enabled}")
         
         # Нормализуем настроение: 'hard' из Web App → 'pain' в БД
         if mood == 'hard':
@@ -71,163 +211,163 @@ async def _start_session_with_settings(msg: Message, state: FSMContext, duration
         
         # Сохраняем настроение в БД если указано
         if mood:
-            await db.set_mood(msg.from_user.id, mood)
+            await db.set_mood(user_id, mood)
         
-        # Сохраняем настройки в PostgreSQL для постоянного хранения
+        # Сохраняем настройки в PostgreSQL
         await set_silas_settings(
-            uid=msg.from_user.id,
+            uid=user_id,
             duration=duration,
             voice_enabled=voice_enabled
         )
-        print(f"🔵 [Silas] Настройки сохранены в PostgreSQL")
         
-        sid = await db.start_session(msg.from_user.id, duration)
-        print(f"🔵 [Silas] Сессия создана: session_id={sid}")
+        sid = await db.start_session(user_id, duration)
+        logger.info(f"[Silas] Session created: session_id={sid}")
         
         await state.set_state(SilasSt.session)
         await state.update_data(bot='silas', sid=sid, dur=duration, start=datetime.now().timestamp())
-        print(f"🔵 [Silas] Состояние установлено: SilasSt.session")
         
-        await db.clear_msgs(msg.from_user.id, 'silas')
-        await db.reset_msg_counter(msg.from_user.id, 'silas')
-        print(f"🔵 [Silas] История очищена, счётчик сброшен")
+        await db.clear_msgs(user_id, 'silas')
+        await db.reset_msg_counter(user_id, 'silas')
         
         await msg.answer(
             texts.START_SESSION.format(duration=duration),
             reply_markup=kb.psycho_chat_kb()
         )
-        print(f"✅ [Silas] Сеанс успешно запущен для user_id={msg.from_user.id} с настройками из Web App")
+        logger.info(f"[Silas] Session started successfully: user={user_id}")
+        
     except Exception as e:
-        print(f"❌ [Silas] ОШИБКА в _start_session_with_settings: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"[Silas] Error in _start_session_with_settings: {e}")
         raise
 
+
 @router.message(F.text.in_(["🛋️ Психолог"]))
-async def silas_enter(msg: Message, state: FSMContext):
+async def silas_enter(msg: Message, state: FSMContext) -> None:
     cfg = await db.get_bot_cfg('silas')
     if not cfg['enabled']:
         await msg.answer(texts.BOT_DISABLED)
         return
     await state.set_state(SilasSt.menu)
-    # Отправляем баннер вместо текста
     banner = FSInputFile("assets/banner_silas.png")
     await msg.answer_photo(
         photo=banner,
         reply_markup=kb.psycho_kb(msg.from_user.id)
     )
 
+
 @router.message(SilasSt.menu, F.text == "🛋️ Начать сессию")
-async def silas_start_session(msg: Message, state: FSMContext):
+async def silas_start_session(msg: Message, state: FSMContext) -> None:
+    user_id = msg.from_user.id
+    
     try:
-        print(f"🔵 [Silas] silas_start_session вызван: user_id={msg.from_user.id}")
-        
-        user_id = msg.from_user.id
+        logger.debug(f"[Silas] silas_start_session: user_id={user_id}")
         
         # Проверяем настройки из Web App
         cached_settings = redis_db.get_silas_settings_cache(user_id)
         
         if cached_settings and cached_settings.get('duration'):
-            # Настройки есть — запускаем сессию сразу БЕЗ клавиатуры
             duration = cached_settings['duration']
             mood = cached_settings.get('mood', '')
-            # Нормализация: 'hard' из Web App → 'pain' в БД
             if mood == 'hard':
                 mood = 'pain'
             voice_enabled = cached_settings.get('voice_enabled', False)
             
-            print(f"🔵 [Silas] Найдены настройки из Web App: duration={duration}, mood={mood}, voice={voice_enabled}")
-            
-            # Запустить сессию напрямую БЕЗ показа клавиатуры
+            logger.debug(f"[Silas] Using cached settings: duration={duration}, mood={mood}, voice={voice_enabled}")
             await _start_session_with_settings(msg, state, duration, mood, voice_enabled)
             return
         
         # Только если настроек НЕТ — показываем клавиатуру выбора
-        print(f"🔵 [Silas] Настройки не найдены, показываем меню выбора")
+        logger.debug(f"[Silas] No cached settings, showing duration menu")
         await state.set_state(SilasSt.duration)
         await msg.answer("Выбери длительность:", reply_markup=kb.psycho_dur_kb())
-        print(f"✅ [Silas] Меню выбора длительности отправлено")
+        
     except Exception as e:
-        print(f"❌ [Silas] ОШИБКА в silas_start_session: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"[Silas] Error in silas_start_session: {e}")
         raise
 
-# Обработчик "📔 Настроение" удалён - теперь используется Web App "🧘 Подготовка"
 
 @router.message(SilasSt.menu, F.text == "📖 Как это работает?")
-async def silas_help(msg: Message):
+async def silas_help(msg: Message) -> None:
     text = await db.get_text('help_psycho')
     if not text:
         text = "🛋️ <b>Психолог</b> — AI-помощник для поддержки и самопознания"
     await msg.answer(text)
 
+
 @router.message(SilasSt.menu, F.text == "◀️ Назад")
-async def silas_back(msg: Message, state: FSMContext):
+async def silas_back(msg: Message, state: FSMContext) -> None:
     await state.clear()
     await msg.answer("✨ Выберите помощника:", reply_markup=global_reply.bots_menu_kb())
 
+
 @router.message(SilasSt.duration, F.text.in_({"15 минут", "30 минут", "60 минут"}))
-async def silas_set_duration(msg: Message, state: FSMContext):
+async def silas_set_duration(msg: Message, state: FSMContext) -> None:
+    user_id = msg.from_user.id
+    
     try:
-        print(f"🔵 [Silas] silas_set_duration вызван: user_id={msg.from_user.id}, text='{msg.text}'")
+        logger.debug(f"[Silas] silas_set_duration: user_id={user_id}, text='{msg.text}'")
         dur_map = {"15 минут": 15, "30 минут": 30, "60 минут": 60}
         dur = dur_map.get(msg.text, 30)
-        print(f"🔵 [Silas] Длительность: {dur} мин")
         
-        sid = await db.start_session(msg.from_user.id, dur)
-        print(f"🔵 [Silas] Сессия создана: session_id={sid}")
+        sid = await db.start_session(user_id, dur)
+        logger.debug(f"[Silas] Session created: session_id={sid}")
         
         await state.set_state(SilasSt.session)
         await state.update_data(bot='silas', sid=sid, dur=dur, start=datetime.now().timestamp())
-        print(f"🔵 [Silas] Состояние установлено: SilasSt.session")
         
-        await db.clear_msgs(msg.from_user.id, 'silas')
-        await db.reset_msg_counter(msg.from_user.id, 'silas')
-        print(f"🔵 [Silas] История очищена, счётчик сброшен")
+        await db.clear_msgs(user_id, 'silas')
+        await db.reset_msg_counter(user_id, 'silas')
         
         await msg.answer(
             texts.START_SESSION.format(duration=dur),
             reply_markup=kb.psycho_chat_kb()
         )
-        print(f"✅ [Silas] Сеанс успешно запущен для user_id={msg.from_user.id}")
+        logger.info(f"[Silas] Session started: user={user_id}")
+        
     except Exception as e:
-        print(f"❌ [Silas] ОШИБКА в silas_set_duration: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"[Silas] Error in silas_set_duration: {e}")
         await msg.answer(f"❌ Ошибка при запуске сеанса: {str(e)[:200]}")
         raise
 
+
 @router.message(SilasSt.duration, F.text == "◀️ Назад к Психологу")
-async def dur_back(msg: Message, state: FSMContext):
+async def dur_back(msg: Message, state: FSMContext) -> None:
     await state.set_state(SilasSt.menu)
     await msg.answer(texts.MENU_TEXT, reply_markup=kb.psycho_kb(msg.from_user.id))
 
+
+# ═══════════════════════════════════════
+# ОБРАБОТЧИКИ НАСТРОЕНИЯ
+# ═══════════════════════════════════════
+
 @router.message(SilasSt.mood, F.text == "Хорошо")
-async def mood_good(msg: Message, state: FSMContext):
+async def mood_good(msg: Message, state: FSMContext) -> None:
     await db.set_mood(msg.from_user.id, 'good')
     await state.set_state(SilasSt.menu)
     await msg.answer(texts.MOOD_SAVED.format(mood="😊 Хорошо"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
+
 @router.message(SilasSt.mood, F.text == "Устал")
-async def mood_tired(msg: Message, state: FSMContext):
+async def mood_tired(msg: Message, state: FSMContext) -> None:
     await db.set_mood(msg.from_user.id, 'tired')
     await state.set_state(SilasSt.menu)
     await msg.answer(texts.MOOD_SAVED.format(mood="😔 Устал"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
+
 @router.message(SilasSt.mood, F.text == "Тяжело")
-async def mood_pain(msg: Message, state: FSMContext):
+async def mood_pain(msg: Message, state: FSMContext) -> None:
     await db.set_mood(msg.from_user.id, 'pain')
     await state.set_state(SilasSt.menu)
     await msg.answer(texts.MOOD_SAVED.format(mood="😰 Тяжело"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
+
 @router.message(SilasSt.mood, F.text == "✏️ Ваше настроение")
-async def mood_custom(msg: Message, state: FSMContext):
+async def mood_custom(msg: Message, state: FSMContext) -> None:
     await state.set_state(SilasSt.custom)
     await msg.answer(texts.CUSTOM_MOOD_INPUT)
 
+
 @router.message(SilasSt.mood, F.text == "Статистика")
-async def mood_stats(msg: Message):
+async def mood_stats(msg: Message) -> None:
     s = await db.get_mood_stats(msg.from_user.id)
     total = s['good'] + s['tired'] + s['pain']
     await msg.answer(
@@ -239,13 +379,15 @@ async def mood_stats(msg: Message):
         )
     )
 
+
 @router.message(SilasSt.mood, F.text == "◀️ Назад к Психологу")
-async def mood_back(msg: Message, state: FSMContext):
+async def mood_back(msg: Message, state: FSMContext) -> None:
     await state.set_state(SilasSt.menu)
     await msg.answer(texts.MENU_TEXT, reply_markup=kb.psycho_kb(msg.from_user.id))
 
+
 @router.message(SilasSt.custom)
-async def custom_mood_input(msg: Message, state: FSMContext):
+async def custom_mood_input(msg: Message, state: FSMContext) -> None:
     words = len(msg.text.split())
     if words > 2:
         await msg.answer(texts.CUSTOM_MOOD_ERROR)
@@ -254,8 +396,13 @@ async def custom_mood_input(msg: Message, state: FSMContext):
     await state.set_state(SilasSt.menu)
     await msg.answer(texts.MOOD_SAVED.format(mood=f"<b>{msg.text}</b>"), reply_markup=kb.psycho_kb(msg.from_user.id))
 
+
+# ═══════════════════════════════════════
+# ОБРАБОТЧИКИ СЕССИИ
+# ═══════════════════════════════════════
+
 @router.message(SilasSt.session, F.text == "🛑 Завершить")
-async def silas_stop(msg: Message, state: FSMContext):
+async def silas_stop(msg: Message, state: FSMContext) -> None:
     d = await state.get_data()
     await db.end_session(d.get('sid'))
     await state.set_state(SilasSt.menu)
@@ -264,46 +411,58 @@ async def silas_stop(msg: Message, state: FSMContext):
         reply_markup=kb.psycho_kb(msg.from_user.id)
     )
 
+
 @router.message(SilasSt.session, F.text == "🗑 Очистить")
-async def silas_clear(msg: Message):
+async def silas_clear(msg: Message) -> None:
     await db.clear_msgs(msg.from_user.id, 'silas')
     await msg.answer(texts.HISTORY_CLEARED)
 
+
 @router.message(SilasSt.session, F.text == "⌛️ Отменить запрос")
-async def silas_cancel(msg: Message):
+async def silas_cancel(msg: Message) -> None:
     user_id = msg.from_user.id
-    if user_id in active_requests and isinstance(active_requests[user_id], dict):
-        active_requests[user_id]['cancelled'] = True
+    request_state = await active_requests.get(user_id)
+    
+    if request_state and isinstance(request_state, dict):
+        request_state['cancelled'] = True
+        
         # Удаляем сообщения
-        try:
-            if active_requests[user_id].get('kb_msg'):
-                await active_requests[user_id]['kb_msg'].delete()
-        except:
-            pass
-        try:
-            if active_requests[user_id].get('status'):
-                await active_requests[user_id]['status'].stop()
-        except:
-            pass
+        if request_state.get('kb_msg'):
+            try:
+                await request_state['kb_msg'].delete()
+            except Exception as e:
+                logger.debug(f"Failed to delete kb_msg: {e}")
+        
+        if request_state.get('status'):
+            try:
+                await request_state['status'].stop()
+            except Exception as e:
+                logger.debug(f"Failed to stop status: {e}")
+        
         # Удаляем сообщение пользователя
         try:
             await msg.delete()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to delete user msg: {e}")
+        
         await msg.answer(texts.REQUEST_CANCELLED, reply_markup=kb.psycho_chat_kb())
     else:
         await msg.answer(texts.NO_ACTIVE_REQUEST, reply_markup=kb.psycho_chat_kb())
 
+
 @router.callback_query(F.data == "silas:tg")
-async def silas_telegraph(cb: CallbackQuery):
+async def silas_telegraph(cb: CallbackQuery) -> None:
     user_id = cb.from_user.id
-    if user_id not in last_messages:
+    data = await last_messages.get(user_id)
+    
+    if not data:
         await cb.answer(texts.NO_TEXT_FOR_TELEGRAPH, show_alert=True)
         return
+    
     await cb.answer(texts.TELEGRAPH_PUBLISHING)
-    data = last_messages[user_id]
     text = data['text']
     url = await create_telegraph_page("🛋️ Психолог — Сеанс", text)
+    
     if url:
         await cb.message.answer(
             texts.TELEGRAPH_PUBLISHED,
@@ -312,16 +471,37 @@ async def silas_telegraph(cb: CallbackQuery):
     else:
         await cb.message.answer(texts.TELEGRAPH_FAILED)
 
-async def process_silas_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
-    allowed, error_msg = await ai_flood.check(msg.from_user.id)
+
+# ═══════════════════════════════════════
+# ОСНОВНОЙ ОБРАБОТЧИК СООБЩЕНИЙ
+# ═══════════════════════════════════════
+
+async def process_silas_message(
+    msg: Message, 
+    state: FSMContext, 
+    text: str, 
+    image_b64: str = None
+) -> None:
+    """Основной обработчик сообщений с оптимизацией для нагрузки"""
+    user_id = msg.from_user.id
+    
+    # Rate limiting
+    allowed, wait_time = await rate_limiter.is_allowed(user_id)
+    if not allowed:
+        await msg.answer(f"⏳ Слишком много запросов. Подождите {wait_time} сек.")
+        return
+    
+    # Antiflood проверка
+    allowed, error_msg = await ai_flood.check(user_id)
     if not allowed:
         await msg.answer(error_msg)
         return
     
+    # Проверка баланса
     if not await ensure_balance(msg, required=MIN_STARS):
         return
     
-    model = await db.get_user_model(msg.from_user.id)
+    model = await db.get_user_model(user_id)
     
     d = await state.get_data()
     el = int((datetime.now().timestamp() - d['start']) / 60)
@@ -332,13 +512,12 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         await state.set_state(SilasSt.menu)
         await msg.answer(
             texts.SESSION_ENDED,
-            reply_markup=kb.psycho_kb(msg.from_user.id)
+            reply_markup=kb.psycho_kb(user_id)
         )
         return
     
-    user_id = msg.from_user.id
     request_state = {'cancelled': False, 'kb_msg': None, 'status': None}
-    active_requests[user_id] = request_state
+    await active_requests.set(user_id, request_state)
     
     status = None
     resp = None
@@ -347,18 +526,17 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         if request_state['cancelled']:
             return
         
-        s = await db.get_user_bot(msg.from_user.id, 'silas')
+        s = await db.get_user_bot(user_id, 'silas')
         
         # Получаем настроение из кэша Redis (приоритет) или из БД
-        cached_settings = redis_db.get_silas_settings_cache(msg.from_user.id)
+        cached_settings = redis_db.get_silas_settings_cache(user_id)
         voice_enabled = cached_settings.get('voice_enabled', False) if cached_settings else False
+        
         if cached_settings and cached_settings.get('mood'):
             mood = cached_settings.get('mood')
-            # Нормализация: 'hard' → 'pain'
             if mood == 'hard':
                 mood = 'pain'
         else:
-            # Получаем из БД
             mood = s.get('mood') or s.get('custom_mood') or 'не указано'
         
         # Преобразуем mood для промпта
@@ -371,11 +549,13 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         }
         mood_text = mood_descriptions.get(mood, 'не указано')
         
-        mem = await db.get_memory(msg.from_user.id, 'silas')
-        hist = await db.get_msgs(msg.from_user.id, 'silas')
-        cnt = await db.inc_msg_counter(msg.from_user.id, 'silas')
+        mem = await db.get_memory(user_id, 'silas')
+        hist = await db.get_msgs(user_id, 'silas')
+        cnt = await db.inc_msg_counter(user_id, 'silas')
+        
         sys = SILAS_SYSTEM.format(mood=mood_text, duration=d['dur'], elapsed=el, remaining=rem, msg_count=cnt)
         sys += build_memory_context(mem)
+        
         if voice_enabled:
             sys += "\n\n" + SILAS_VOICE_RULES
         
@@ -383,25 +563,28 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
             sys += "\n\nОсталось мало времени — начинайте завершение."
         if cnt >= 20:
             sys += "\n\nСвяжите с предыдущими беседами."
-            await db.reset_msg_counter(msg.from_user.id, 'silas')
+            await db.reset_msg_counter(user_id, 'silas')
         
         msgs = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
         
         if request_state['cancelled']:
             return
         
+        # Вызов API с ограничением
         if image_b64:
             status = await show_status(bot, msg.chat.id, "photo")
             request_state['status'] = status
-            resp, stars_used = await ask(msgs, model, image_b64)
+            resp, stars_used = await call_api_with_limit(ask(msgs, model, image_b64))
             sent_msg = None
         else:
-            resp, sent_msg = await stream_response(
-                bot=bot,
-                message=msg,
-                messages=msgs,
-                model=model,
-                status_type="text"
+            resp, sent_msg = await call_api_with_limit(
+                stream_response(
+                    bot=bot,
+                    message=msg,
+                    messages=msgs,
+                    model=model,
+                    status_type="text"
+                )
             )
             stars_used = calculate_stars(msgs, resp)
         
@@ -411,28 +594,33 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         # Очищаем ответ от служебных строк
         resp = clean_response(resp)
         
-        await db.use_stars_smart(msg.from_user.id, stars_used, 'silas')
-        await db.increment_requests(msg.from_user.id)
+        await db.use_stars_smart(user_id, stars_used, 'silas')
+        await db.increment_requests(user_id)
         
-        await db.add_msg(msg.from_user.id, 'silas', 'user', text)
-        await db.add_msg(msg.from_user.id, 'silas', 'assistant', resp)
+        await db.add_msg(user_id, 'silas', 'user', text)
+        await db.add_msg(user_id, 'silas', 'assistant', resp)
         
         # Сохраняем в систему диалогов
-        model = await db.get_user_model(msg.from_user.id)
-        await save_message(msg.from_user.id, 'user', text, 'silas', model)
-        conv_id = await save_message(msg.from_user.id, 'assistant', resp, 'silas', model)
+        model = await db.get_user_model(user_id)
+        await save_message(user_id, 'user', text, 'silas', model)
+        conv_id = await save_message(user_id, 'assistant', resp, 'silas', model)
         
         # Обновляем память каждые 15 сообщений (экономия звёзд)
         if cnt % 15 == 0 or cnt == 1:
-            asyncio.create_task(update_memory(msg.from_user.id, 'silas', text, resp))
+            asyncio.create_task(safe_background_task(
+                update_memory(user_id, 'silas', text, resp),
+                "memory_update"
+            ))
         
-        last_messages[user_id] = {"text": resp}
-        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
+        await last_messages.set(user_id, {"text": resp})
         
+    except Exception as e:
+        logger.exception(f"[Silas] Error in process_silas_message: {e}")
+        raise
     finally:
         if status:
             await status.stop()
-        active_requests.pop(user_id, None)
+        await active_requests.delete(user_id)
     
     if resp:
         resp_html = md_to_html(resp)
@@ -449,15 +637,13 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
         
         if voice_enabled:
             # === ГОЛОСОВОЙ ОТВЕТ ===
-            # Удаляем текстовое сообщение от стриминга
             if sent_msg:
                 try:
                     await sent_msg.delete()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to delete sent_msg: {e}")
             
-            # Используем мужской голос по умолчанию (как у Луки)
-            voice_tts = "onyx"  # Мужской голос OpenAI TTS
+            voice_tts = "onyx"
             
             # Очищаем текст от markdown для TTS
             resp_clean = resp.replace("**", "").replace("*", "").replace("#", "")
@@ -473,36 +659,35 @@ async def process_silas_message(msg: Message, state: FSMContext, text: str, imag
                     # Удаляем временный файл
                     try:
                         os.remove(audio_path)
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Failed to remove temp audio: {e}")
                 else:
-                    # Fallback на текст если TTS не сработал
                     await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
                     
             except Exception as e:
-                print(f"TTS error in Silas: {e}")
-                # Fallback на текст
+                logger.error(f"TTS error in Silas: {e}")
                 await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
         else:
             # === ТЕКСТОВЫЙ ОТВЕТ ===
-            # Редактируем существующее сообщение вместо отправки нового
             final_text = f"{display_text}{footer}"
             
             if sent_msg:
                 try:
                     await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
-                except Exception:
-                    # Если не удалось отредактировать - отправляем новое
+                except Exception as e:
+                    logger.debug(f"Failed to edit sent_msg: {e}")
                     await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
             else:
                 await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
 
+
 @router.message(SilasSt.session, F.text)
-async def silas_text(msg: Message, state: FSMContext):
+async def silas_text(msg: Message, state: FSMContext) -> None:
     await process_silas_message(msg, state, msg.text)
 
+
 @router.message(SilasSt.session, F.voice)
-async def silas_voice(msg: Message, state: FSMContext):
+async def silas_voice(msg: Message, state: FSMContext) -> None:
     status = await show_status(bot, msg.chat.id, "voice")
     try:
         fp = await download_voice(bot, msg.voice.file_id)
@@ -511,6 +696,7 @@ async def silas_voice(msg: Message, state: FSMContext):
             await msg.answer(texts.ERROR_NO_RECOGNITION)
             return
     except Exception as e:
+        logger.error(f"Voice processing error: {e}")
         await msg.answer(f"❌ {e}")
         return
     finally:
@@ -518,8 +704,11 @@ async def silas_voice(msg: Message, state: FSMContext):
             await status.stop()
     await process_silas_message(msg, state, text)
 
+
 @router.message(SilasSt.session, F.photo)
-async def silas_photo(msg: Message, state: FSMContext):
+async def silas_photo(msg: Message, state: FSMContext) -> None:
+    import base64
+    
     status = await show_status(bot, msg.chat.id, "photo")
     try:
         photo = msg.photo[-1]
@@ -527,6 +716,7 @@ async def silas_photo(msg: Message, state: FSMContext):
         data = await bot.download_file(file.file_path)
         b64 = base64.b64encode(data.read()).decode()
     except Exception as e:
+        logger.error(f"Photo processing error: {e}")
         await msg.answer(f"❌ {e}")
         return
     finally:

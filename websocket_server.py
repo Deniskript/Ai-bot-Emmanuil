@@ -1,21 +1,178 @@
 """
 WebSocket сервер для парных сессий Silas
+Оптимизирован для 1000+ одновременных пользователей
 Запуск: python websocket_server.py
 """
 
 import asyncio
-import websockets
 import json
+import logging
+import time
+from collections import OrderedDict
 from datetime import datetime
-from database import postgres_db as db, redis_db
-from database.postgres_db import init_pool, init_db, get_pair_session_with_names
-from utils.openrouter import ask
+from typing import Any, Optional
+
+import websockets
+
 import config
+from database import postgres_db as db, redis_db
+from database.postgres_db import get_pair_session_with_names, init_db, init_pool
+from utils.openrouter import ask
 
-# Активные подключения: {code: {user_id: websocket}}
-rooms = {}
+# Настройка логгера
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Системный промпт для парной сессии
+
+# ═══════════════════════════════════════
+# КОНФИГУРАЦИЯ ДЛЯ ВЫСОКОЙ НАГРУЗКИ
+# ═══════════════════════════════════════
+
+MAX_ROOMS = 200                    # Максимум активных комнат
+MAX_ROOM_AGE_MINUTES = 120         # Максимальный возраст комнаты без активности
+API_TIMEOUT = 60.0                 # Таймаут на API запросы
+API_SEMAPHORE = asyncio.Semaphore(30)  # Лимит одновременных API запросов
+CLEANUP_INTERVAL = 300             # Интервал очистки (секунды)
+
+
+# ═══════════════════════════════════════
+# МЕНЕДЖЕР КОМНАТ С ЛИМИТАМИ
+# ═══════════════════════════════════════
+
+class Room:
+    """Класс комнаты парной сессии"""
+    
+    def __init__(self, code: str, session_data: dict):
+        self.code = code
+        self.session_data = session_data
+        self.connections: dict[int, Any] = {}  # user_id -> websocket
+        self.user1_name: str = session_data.get('user1_name', 'Участник 1')
+        self.user2_name: str = session_data.get('user2_name', 'Участник 2')
+        self.created_at: float = time.time()
+        self.last_activity: float = time.time()
+    
+    def update_activity(self) -> None:
+        self.last_activity = time.time()
+    
+    def get_websocket_count(self) -> int:
+        return len(self.connections)
+    
+    def is_expired(self, max_age_minutes: int = MAX_ROOM_AGE_MINUTES) -> bool:
+        return (time.time() - self.last_activity) > (max_age_minutes * 60)
+
+
+class RoomManager:
+    """Менеджер комнат с лимитами и автоочисткой"""
+    
+    def __init__(self, max_rooms: int = MAX_ROOMS):
+        self.rooms: OrderedDict[str, Room] = OrderedDict()
+        self.max_rooms = max_rooms
+        self._lock = asyncio.Lock()
+    
+    async def get_or_create(self, code: str, session_data: dict) -> Optional[Room]:
+        """Получить или создать комнату"""
+        async with self._lock:
+            code = code.upper()
+            
+            if code in self.rooms:
+                self.rooms.move_to_end(code)
+                return self.rooms[code]
+            
+            if len(self.rooms) >= self.max_rooms:
+                await self._cleanup_inactive()
+            
+            if len(self.rooms) >= self.max_rooms:
+                logger.warning(f"[RoomManager] Max rooms limit reached ({self.max_rooms})")
+                return None
+            
+            room = Room(code, session_data)
+            self.rooms[code] = room
+            logger.info(f"[RoomManager] Room created: {code}, total rooms: {len(self.rooms)}")
+            return room
+    
+    async def get(self, code: str) -> Optional[Room]:
+        """Получить комнату по коду"""
+        async with self._lock:
+            code = code.upper()
+            if code in self.rooms:
+                self.rooms.move_to_end(code)
+                return self.rooms[code]
+            return None
+    
+    async def remove(self, code: str) -> None:
+        """Удалить комнату"""
+        async with self._lock:
+            code = code.upper()
+            if code in self.rooms:
+                del self.rooms[code]
+                logger.info(f"[RoomManager] Room removed: {code}, total rooms: {len(self.rooms)}")
+    
+    async def add_connection(self, code: str, user_id: int, websocket) -> bool:
+        """Добавить подключение в комнату"""
+        async with self._lock:
+            code = code.upper()
+            if code not in self.rooms:
+                return False
+            self.rooms[code].connections[user_id] = websocket
+            self.rooms[code].update_activity()
+            return True
+    
+    async def remove_connection(self, code: str, user_id: int) -> int:
+        """Удалить подключение из комнаты, вернуть количество оставшихся"""
+        async with self._lock:
+            code = code.upper()
+            if code not in self.rooms:
+                return 0
+            
+            self.rooms[code].connections.pop(user_id, None)
+            remaining = self.rooms[code].get_websocket_count()
+            
+            if remaining == 0:
+                del self.rooms[code]
+                logger.info(f"[RoomManager] Empty room removed: {code}")
+            
+            return remaining
+    
+    async def _cleanup_inactive(self) -> int:
+        """Очистить неактивные комнаты (внутренний метод, без лока)"""
+        now = time.time()
+        to_delete = [
+            code for code, room in self.rooms.items()
+            if room.is_expired()
+        ]
+        for code in to_delete:
+            del self.rooms[code]
+        
+        if to_delete:
+            logger.info(f"[RoomManager] Cleaned up {len(to_delete)} inactive rooms")
+        
+        return len(to_delete)
+    
+    async def cleanup_inactive_rooms(self) -> int:
+        """Публичный метод очистки неактивных комнат"""
+        async with self._lock:
+            return await self._cleanup_inactive()
+    
+    def get_stats(self) -> dict:
+        """Получить статистику комнат"""
+        return {
+            'total_rooms': len(self.rooms),
+            'max_rooms': self.max_rooms,
+            'total_connections': sum(room.get_websocket_count() for room in self.rooms.values())
+        }
+
+
+# Глобальный менеджер комнат
+room_manager = RoomManager()
+
+
+# ═══════════════════════════════════════
+# СИСТЕМНЫЙ ПРОМПТ ДЛЯ ПАРНОЙ СЕССИИ
+# ═══════════════════════════════════════
+
 PAIR_SYSTEM_PROMPT = """Ты Silas — тёплый семейный психолог-медиатор.
 Методы: Готтман, EFT, Имаго-терапия.
 
@@ -177,6 +334,20 @@ PAIR_SYSTEM_PROMPT = """Ты Silas — тёплый семейный психо�
 """
 
 
+# ═══════════════════════════════════════
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ═══════════════════════════════════════
+
+async def call_api_with_limit_and_timeout(coro, timeout: float = API_TIMEOUT):
+    """Вызов API с лимитом и таймаутом"""
+    async with API_SEMAPHORE:
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning(f"[API] Timeout after {timeout}s")
+            return None
+
+
 async def get_ai_response(messages: list, session_data: dict) -> str:
     """Получить ответ от AI для парной сессии"""
     topic_names = {
@@ -187,7 +358,6 @@ async def get_ai_response(messages: list, session_data: dict) -> str:
         'other': 'Другое'
     }
     
-    # Получаем имена из session_data (должны быть получены через get_pair_session_with_names)
     name1 = session_data.get('user1_name') or 'Участник 1'
     name2 = session_data.get('user2_name') or 'Участник 2'
     
@@ -200,38 +370,54 @@ async def get_ai_response(messages: list, session_data: dict) -> str:
     full_messages = [{"role": "system", "content": system}] + messages
     
     try:
-        response, stars_used = await ask(full_messages, config.MODEL)
+        result = await call_api_with_limit_and_timeout(
+            ask(full_messages, config.MODEL)
+        )
+        
+        if result is None:
+            return "Произошла ошибка таймаута. Пожалуйста, повторите сообщение."
+        
+        response, stars_used = result
         return response
     except Exception as e:
-        print(f"AI Error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"[AI] Error: {e}")
         return "Произошла ошибка. Пожалуйста, повторите сообщение."
 
 
-async def broadcast_to_room(code: str, message: dict, exclude_user: int = None):
+async def broadcast_to_room(room: Room, message: dict, exclude_user: int = None) -> None:
     """Отправить сообщение всем в комнате"""
-    if code not in rooms:
-        return
-    
-    for user_id, ws in rooms[code].items():
-        # Пропускаем строки (имена участников) и другие не-websocket объекты
-        if not hasattr(ws, 'send') or isinstance(ws, str):
-            continue
+    for user_id, ws in room.connections.items():
         if exclude_user and user_id == exclude_user:
             continue
         try:
             await ws.send(json.dumps(message))
         except Exception as e:
-            print(f"Broadcast error to {user_id}: {e}")
+            logger.debug(f"[Broadcast] Error to {user_id}: {e}")
 
 
-async def handle_connection(websocket):
+async def periodic_cleanup() -> None:
+    """Периодическая очистка неактивных комнат"""
+    while True:
+        try:
+            await asyncio.sleep(CLEANUP_INTERVAL)
+            cleaned = await room_manager.cleanup_inactive_rooms()
+            stats = room_manager.get_stats()
+            logger.info(f"[Cleanup] Cleaned {cleaned} rooms. Stats: {stats}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"[Cleanup] Error: {e}")
+
+
+# ═══════════════════════════════════════
+# ОБРАБОТКА WEBSOCKET ПОДКЛЮЧЕНИЙ
+# ═══════════════════════════════════════
+
+async def handle_connection(websocket) -> None:
     """Обработка WebSocket подключения"""
-    # В websockets 16.0 path не нужен, так как мы получаем данные через сообщения
-    # path больше не используется в новой версии
     user_id = None
     code = None
+    room = None
     participant_num = 0
     
     try:
@@ -257,12 +443,10 @@ async def handle_connection(websocket):
         try:
             session = await get_pair_session_with_names(code)
         except Exception as e:
-            print(f"Error getting session with names: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning(f"[WS] Error getting session with names: {type(e).__name__}: {e}")
             session = None
         
-        # Fallback на старый метод если функция с именами не работает
+        # Fallback на старый метод
         if not session:
             session = redis_db.get_pair_session_cache(code)
             if not session:
@@ -270,20 +454,15 @@ async def handle_connection(websocket):
                     session = await db.get_pair_session(code)
                     if session:
                         redis_db.set_pair_session_cache(code, session)
-                        # Добавляем дефолтные имена если их нет
                         session['user1_name'] = 'Участник 1'
                         session['user2_name'] = 'Участник 2' if session.get('user2_id') else None
                 except Exception as e2:
-                    print(f"Fallback error: {e2}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.warning(f"[WS] Fallback error: {e2}")
                     session = None
         
         if not session:
-            # Ещё одна попытка через Redis кэш
             session = redis_db.get_pair_session_cache(code)
             if session:
-                # Добавляем дефолтные имена если их нет
                 if 'user1_name' not in session:
                     session['user1_name'] = 'Участник 1'
                 if 'user2_name' not in session and session.get('user2_id'):
@@ -306,23 +485,24 @@ async def handle_connection(websocket):
             await websocket.close(1008, "Not a participant")
             return
         
-        # Добавляем в комнату
-        if code not in rooms:
-            rooms[code] = {}
-        rooms[code][user_id] = websocket
+        # Получаем или создаём комнату
+        room = await room_manager.get_or_create(code, session)
+        if not room:
+            await websocket.send(json.dumps({
+                'type': 'error',
+                'message': 'Сервер перегружен. Попробуйте позже.'
+            }))
+            await websocket.close(1013, "Server overloaded")
+            return
+        
+        # Добавляем подключение
+        await room_manager.add_connection(code, user_id, websocket)
         
         # Определяем номер участника
         participant_num = 1 if user_id == session.get('user1_id') else 2
         
-        # Сохраняем имена в структуре комнаты (если их ещё нет)
-        if 'user1_name' not in rooms[code] and session.get('user1_name'):
-            rooms[code]['user1_name'] = session['user1_name']
-        if 'user2_name' not in rooms[code] and session.get('user2_id') and session.get('user2_name'):
-            rooms[code]['user2_name'] = session['user2_name']
-        
         # Подтверждаем подключение
-        # Считаем только websocket соединения (не строки)
-        websocket_count = sum(1 for k, v in rooms[code].items() if hasattr(v, 'send') and not isinstance(v, str))
+        websocket_count = room.get_websocket_count()
         await websocket.send(json.dumps({
             'type': 'connected',
             'participant': participant_num,
@@ -330,33 +510,27 @@ async def handle_connection(websocket):
         }))
         
         # Уведомляем других о подключении
-        websocket_count = sum(1 for k, v in rooms[code].items() if hasattr(v, 'send') and not isinstance(v, str))
-        await broadcast_to_room(code, {
+        await broadcast_to_room(room, {
             'type': 'participant_joined',
             'participant': participant_num,
             'participants_online': websocket_count
         }, exclude_user=user_id)
         
         # Если оба подключены — запускаем сессию
-        # Считаем только websocket соединения (не строки)
-        websocket_count = sum(1 for k, v in rooms[code].items() if hasattr(v, 'send') and not isinstance(v, str))
         if websocket_count == 2:
-            # Загружаем историю или начинаем новую сессию
             history = redis_db.get_pair_chat_history(code)
             
             if not history:
                 # Первый запуск — AI приветствует
                 ai_response = await get_ai_response([], session)
                 
-                # Сохраняем в историю
                 redis_db.add_pair_chat_message(code, {
                     'role': 'assistant',
                     'content': ai_response,
                     'timestamp': datetime.now().isoformat()
                 })
                 
-                # Отправляем всем
-                await broadcast_to_room(code, {
+                await broadcast_to_room(room, {
                     'type': 'message',
                     'from': 'soul',
                     'content': ai_response,
@@ -373,6 +547,7 @@ async def handle_connection(websocket):
         async for message in websocket:
             try:
                 data = json.loads(message)
+                room.update_activity()
                 
                 if data.get('type') == 'message':
                     content = data.get('content', '').strip()
@@ -389,7 +564,7 @@ async def handle_connection(websocket):
                     redis_db.add_pair_chat_message(code, user_message)
                     
                     # Отправляем всем участникам
-                    await broadcast_to_room(code, {
+                    await broadcast_to_room(room, {
                         'type': 'message',
                         'from': f'participant_{participant_num}',
                         'participant': participant_num,
@@ -409,14 +584,13 @@ async def handle_connection(websocket):
                                 'content': msg['content']
                             })
                         else:
-                            # Определяем имя по номеру участника
-                            participant_num = msg.get('participant')
-                            if participant_num == 1:
-                                sender_name = session.get('user1_name') or 'Участник 1'
-                            elif participant_num == 2:
-                                sender_name = session.get('user2_name') or 'Участник 2'
+                            p_num = msg.get('participant')
+                            if p_num == 1:
+                                sender_name = room.user1_name
+                            elif p_num == 2:
+                                sender_name = room.user2_name
                             else:
-                                sender_name = f'Участник {participant_num}'
+                                sender_name = f'Участник {p_num}'
                             
                             ai_messages.append({
                                 'role': 'user',
@@ -424,7 +598,7 @@ async def handle_connection(websocket):
                             })
                     
                     # Показываем что Soul печатает
-                    await broadcast_to_room(code, {
+                    await broadcast_to_room(room, {
                         'type': 'typing',
                         'from': 'soul'
                     })
@@ -439,7 +613,7 @@ async def handle_connection(websocket):
                     })
                     
                     # Отправляем всем
-                    await broadcast_to_room(code, {
+                    await broadcast_to_room(room, {
                         'type': 'message',
                         'from': 'soul',
                         'content': ai_response,
@@ -452,68 +626,70 @@ async def handle_connection(websocket):
             except json.JSONDecodeError:
                 continue
             except Exception as e:
-                print(f"Message handling error: {e}")
+                logger.error(f"[WS] Message handling error: {e}")
                 continue
     
     except asyncio.TimeoutError:
-        print(f"Connection timeout for user {user_id}")
+        logger.info(f"[WS] Connection timeout for user {user_id}")
     except websockets.exceptions.ConnectionClosed:
-        print(f"Connection closed for user {user_id}")
+        logger.debug(f"[WS] Connection closed for user {user_id}")
     except Exception as e:
-        print(f"Connection error: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"[WS] Connection error: {type(e).__name__}: {e}")
     finally:
         # Удаляем из комнаты
-        if code and user_id and code in rooms:
-            rooms[code].pop(user_id, None)
+        if code and user_id:
+            remaining = await room_manager.remove_connection(code, user_id)
             
-            # Уведомляем оставшихся только если participant_num был определён
-            if 'participant_num' in locals():
-                # Считаем только websocket соединения
-                websocket_count = sum(1 for k, v in rooms[code].items() if hasattr(v, 'send') and not isinstance(v, str))
-                if websocket_count > 0:
+            # Уведомляем оставшихся
+            if remaining > 0 and participant_num > 0:
+                room = await room_manager.get(code)
+                if room:
                     try:
-                        await broadcast_to_room(code, {
+                        await broadcast_to_room(room, {
                             'type': 'participant_left',
                             'participant': participant_num,
-                            'participants_online': websocket_count
+                            'participants_online': remaining
                         })
                     except Exception as e:
-                        print(f"Error broadcasting participant_left: {e}")
-                else:
-                    # Комната пуста — удаляем
-                    del rooms[code]
-            else:
-                # Если participant_num не определён, просто удаляем комнату если пуста
-                websocket_count = sum(1 for k, v in rooms[code].items() if hasattr(v, 'send') and not isinstance(v, str))
-                if websocket_count == 0:
-                    del rooms[code]
+                        logger.debug(f"[WS] Error broadcasting participant_left: {e}")
 
 
-async def main():
+# ═══════════════════════════════════════
+# ТОЧКА ВХОДА
+# ═══════════════════════════════════════
+
+async def main() -> None:
     """Запуск WebSocket сервера"""
     # Инициализация PostgreSQL pool
     try:
         await init_pool()
         await init_db()
-        print("✅ PostgreSQL initialized in WebSocket server")
+        logger.info("✅ PostgreSQL initialized in WebSocket server")
     except Exception as e:
-        print(f"⚠️ PostgreSQL initialization error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"⚠️ PostgreSQL initialization error: {e}")
     
-    print("🚀 Starting WebSocket server on ws://0.0.0.0:8765")
+    # Запускаем периодическую очистку
+    cleanup_task = asyncio.create_task(periodic_cleanup())
     
-    async with websockets.serve(
-        handle_connection,
-        "0.0.0.0",
-        8765,
-        ping_interval=30,
-        ping_timeout=10
-    ):
-        print("✅ WebSocket server running")
-        await asyncio.Future()  # Работает вечно
+    logger.info("🚀 Starting WebSocket server on ws://0.0.0.0:8765")
+    
+    try:
+        async with websockets.serve(
+            handle_connection,
+            "0.0.0.0",
+            8765,
+            ping_interval=30,
+            ping_timeout=10,
+            max_size=1024 * 1024  # 1MB max message size
+        ):
+            logger.info("✅ WebSocket server running")
+            await asyncio.Future()
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
