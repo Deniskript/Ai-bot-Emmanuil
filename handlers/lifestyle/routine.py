@@ -1,14 +1,18 @@
 """
 Хендлеры для раздела Режим дня
+Оптимизирован с logging
 """
+import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import date
 
-from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
+from database import postgres_db as db
 from keyboards import reply, inline
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -54,9 +58,7 @@ async def routine_menu(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in routine_menu: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in routine_menu: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
@@ -87,9 +89,7 @@ async def morning_checklist(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in morning_checklist: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in morning_checklist: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
@@ -118,7 +118,7 @@ async def check_morning_item(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in check_morning_item: {e}")
+        logger.exception(f"Error in check_morning_item: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -154,9 +154,7 @@ async def save_morning(callback: CallbackQuery, state: FSMContext):
         await state.set_state(RoutineStates.menu)
         
     except Exception as e:
-        print(f"[ERROR] Error in save_morning: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in save_morning: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -186,9 +184,7 @@ async def evening_reflection(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in evening_reflection: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in evening_reflection: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
@@ -216,7 +212,7 @@ async def check_evening_item(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in check_evening_item: {e}")
+        logger.exception(f"Error in check_evening_item: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -238,7 +234,7 @@ async def save_evening(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in save_evening: {e}")
+        logger.exception(f"Error in save_evening: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -259,7 +255,7 @@ async def reflection_entered(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in reflection_entered: {e}")
+        logger.exception(f"Error in reflection_entered: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
@@ -299,9 +295,7 @@ async def mood_selected(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Сохранено!")
         
     except Exception as e:
-        print(f"[ERROR] Error in mood_selected: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in mood_selected: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -342,7 +336,7 @@ async def setup_routine_type(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in setup_routine_type: {e}")
+        logger.exception(f"Error in setup_routine_type: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -372,9 +366,7 @@ async def custom_items_entered(msg: Message, state: FSMContext):
         await state.set_state(RoutineStates.menu)
         
     except Exception as e:
-        print(f"[ERROR] Error in custom_items_entered: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in custom_items_entered: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
@@ -410,9 +402,7 @@ async def productivity_stats(msg: Message):
         await msg.answer(text, parse_mode="HTML")
         
     except Exception as e:
-        print(f"[ERROR] Error in productivity_stats: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in productivity_stats: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 

@@ -1,13 +1,17 @@
 """
 Обработчик Lifestyle - объединяет все модули лайфстайла
 100% автономный модуль
+Оптимизирован с logging
 """
+import logging
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from keyboards import reply
 from database import postgres_db as db
 from utils.calories import format_calories_summary
+
+logger = logging.getLogger(__name__)
 
 # Локальные импорты модуля
 from . import config as lifestyle_config

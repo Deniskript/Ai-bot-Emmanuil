@@ -1,11 +1,15 @@
 """
 Обработчик Магия - автономный подмодуль Lifestyle
+Оптимизирован с logging
 """
+import logging
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from keyboards import reply
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 

@@ -1,10 +1,19 @@
 """
 Хендлеры для раздела Здоровье
+Оптимизирован с logging
 """
+import base64
+import logging
+import os
+import tempfile
+from datetime import datetime, date
+
+import aiohttp
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+
 from database import postgres_db as db
 from keyboards import reply, inline
 from utils.openrouter import ask
@@ -15,11 +24,8 @@ from utils.calories import (
 from utils.markdown import md_to_html
 from utils.status_manager import show_status
 from config import OPENAI_API_KEY as PROXYAPI_KEY
-import base64
-import aiohttp
-import os
-import tempfile
-from datetime import datetime, date
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -265,7 +271,7 @@ async def save_to_journal(callback: CallbackQuery, state: FSMContext):
         
         if not food_data:
             await callback.answer("❌ Нет данных для сохранения")
-            print(f"[ERROR] No food_data in state for user {callback.from_user.id}")
+            logger.error(f"No food_data in state for user {callback.from_user.id}")
             return
         
         # Логируем для отладки
@@ -296,9 +302,7 @@ async def save_to_journal(callback: CallbackQuery, state: FSMContext):
         await state.set_state(HealthStates.menu)
         
     except Exception as e:
-        print(f"[ERROR] Error saving calories: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error saving calories: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -380,9 +384,7 @@ async def show_today(msg: Message, state: FSMContext):
         await msg.answer(text, parse_mode="HTML")
         
     except Exception as e:
-        print(f"[ERROR] Error in show_today: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in show_today: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}", parse_mode="HTML")
 
 
@@ -567,9 +569,7 @@ async def what_to_eat(msg: Message, state: FSMContext):
         await msg.answer(md_to_html(response), parse_mode="HTML")
         
     except Exception as e:
-        print(f"[ERROR] Error in what_to_eat: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in what_to_eat: {e}")
         await msg.answer(f"❌ Ошибка:\n<code>{str(e)[:200]}</code>", parse_mode="HTML")
     finally:
         if status:

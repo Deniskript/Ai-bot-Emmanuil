@@ -1,17 +1,21 @@
 """
 Хендлеры для раздела Ментальное здоровье
+Оптимизирован с logging
 """
+import logging
+import random
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-import random
 
-from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
+from database import postgres_db as db
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.markdown import md_to_html
 from utils.status_manager import show_status
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -54,9 +58,7 @@ async def mental_menu(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in mental_menu: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in mental_menu: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
@@ -92,7 +94,7 @@ async def meditation_type_selected(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in meditation_type_selected: {e}")
+        logger.exception(f"Error in meditation_type_selected: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -147,9 +149,7 @@ async def meditation_duration_selected(callback: CallbackQuery, state: FSMContex
         await state.set_state(MentalStates.menu)
         
     except Exception as e:
-        print(f"[ERROR] Error in meditation_duration_selected: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in meditation_duration_selected: {e}")
         await callback.message.edit_text(f"❌ Ошибка: {str(e)[:200]}")
     finally:
         if status:
@@ -189,7 +189,7 @@ async def mood_selected(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in mood_selected: {e}")
+        logger.exception(f"Error in mood_selected: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -210,7 +210,7 @@ async def energy_selected(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in energy_selected: {e}")
+        logger.exception(f"Error in energy_selected: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -237,7 +237,7 @@ async def tag_toggled(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         
     except Exception as e:
-        print(f"[ERROR] Error in tag_toggled: {e}")
+        logger.exception(f"Error in tag_toggled: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -275,9 +275,7 @@ async def save_mood(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Сохранено!")
         
     except Exception as e:
-        print(f"[ERROR] Error in save_mood: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in save_mood: {e}")
         await callback.answer(f"❌ Ошибка: {str(e)[:100]}")
 
 
@@ -301,7 +299,7 @@ async def get_mood_tip(user_id: int, mood: int, tags: list) -> str:
         
         return response.strip()
     except Exception as e:
-        print(f"[ERROR] Error in get_mood_tip: {e}")
+        logger.exception(f"Error in get_mood_tip: {e}")
         return "Это пройдёт. Ты не один 💜"
 
 
@@ -378,9 +376,7 @@ async def anxiety_help(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in anxiety_help: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in anxiety_help: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
     finally:
         if status:
@@ -429,9 +425,7 @@ async def daily_affirmation(msg: Message, state: FSMContext):
         )
         
     except Exception as e:
-        print(f"[ERROR] Error in daily_affirmation: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in daily_affirmation: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
     finally:
         if status:
@@ -476,9 +470,7 @@ async def mood_chart(msg: Message, state: FSMContext):
         await msg.answer(text, parse_mode="HTML")
         
     except Exception as e:
-        print(f"[ERROR] Error in mood_chart: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in mood_chart: {e}")
         await msg.answer(f"❌ Ошибка: {str(e)[:200]}")
 
 
