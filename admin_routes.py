@@ -1013,9 +1013,15 @@ def give_stars_to_user(user_id):
 @admin_required
 def give_subscription_to_user(user_id):
     """Give subscription to user"""
-    sub_type = request.form.get('sub_type', 'mini')
-    days = request.form.get('days', 30, type=int)
-    init_data = get_init_data()
+    if request.is_json:
+        data = request.get_json() or {}
+        sub_type = data.get('sub_type', 'mini')
+        days = int(data.get('days', 30))
+        init_data = None
+    else:
+        sub_type = request.form.get('sub_type', 'mini')
+        days = request.form.get('days', 30, type=int)
+        init_data = get_init_data()
     
     stars_limits = {'mini': 4000, 'standard': 9000, 'premium': 20000}
     stars = stars_limits.get(sub_type, 4000)
@@ -1023,6 +1029,8 @@ def give_subscription_to_user(user_id):
     run_async(db.create_subscription(user_id, sub_type, stars, days))
     run_async(notify_user_subscription(user_id, sub_type, days))
     
+    if request.is_json:
+        return jsonify({'success': True, 'message': f'Выдана подписка {sub_type}'})
     return redirect(url_for('admin.users', search=user_id, message=f'Выдана подписка {sub_type}', initData=init_data))
 
 
@@ -1030,10 +1038,17 @@ def give_subscription_to_user(user_id):
 @admin_required
 def give_subscription():
     """Give subscription to user"""
-    user_id = request.form.get('user_id', 0, type=int)
-    sub_type = request.form.get('sub_type', 'mini')
-    days = request.form.get('days', 30, type=int)
-    init_data = get_init_data()
+    if request.is_json:
+        data = request.get_json() or {}
+        user_id = int(data.get('user_id', 0))
+        sub_type = data.get('sub_type', 'mini')
+        days = int(data.get('days', 30))
+        init_data = None
+    else:
+        user_id = request.form.get('user_id', 0, type=int)
+        sub_type = request.form.get('sub_type', 'mini')
+        days = request.form.get('days', 30, type=int)
+        init_data = get_init_data()
     
     if user_id:
         stars_limits = {'mini': 4000, 'standard': 9000, 'premium': 20000}
@@ -1042,8 +1057,12 @@ def give_subscription():
         run_async(db.create_subscription(user_id, sub_type, stars, days))
         run_async(notify_user_subscription(user_id, sub_type, days))
         
+        if request.is_json:
+            return jsonify({'success': True, 'message': 'Подписка выдана'})
         return redirect(url_for('admin.subscriptions', message=f'Подписка выдана', initData=init_data))
     
+    if request.is_json:
+        return jsonify({'success': False, 'message': 'Ошибка'}), 400
     return redirect(url_for('admin.subscriptions', message='Ошибка', message_type='error', initData=init_data))
 
 

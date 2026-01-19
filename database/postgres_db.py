@@ -42,7 +42,9 @@ async def init_pool():
         database_url,
         min_size=2,
         max_size=10,
-        command_timeout=60
+        command_timeout=60,
+        max_queries=50000,
+        max_inactive_connection_lifetime=300
     )
     print("✅ PostgreSQL pool создан")
 
@@ -52,14 +54,29 @@ async def close_pool():
     global _pool
     if _pool:
         await _pool.close()
+        _pool = None
         print("✅ PostgreSQL pool закрыт")
+
+
+async def ensure_pool():
+    """Проверить и переинициализировать пул при необходимости"""
+    global _pool
+    if _pool is None or getattr(_pool, "_closed", False):
+        await init_pool()
 
 
 @asynccontextmanager
 async def get_connection():
     """Контекстный менеджер для получения соединения из пула"""
-    async with _pool.acquire() as conn:
-        yield conn
+    await ensure_pool()
+    try:
+        async with _pool.acquire() as conn:
+            yield conn
+    except (asyncpg.exceptions.ConnectionDoesNotExistError, asyncpg.InterfaceError):
+        # Соединение разорвано во время операции — пересоздаём пул
+        await close_pool()
+        await init_pool()
+        raise
 
 
 async def _init_db_schema():
