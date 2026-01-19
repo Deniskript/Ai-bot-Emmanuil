@@ -7,16 +7,13 @@ Redis модуль для real-time данных
 
 import redis
 import json
+import os
 from typing import Optional, List
 
 # Инициализация подключения
 try:
-    redis_client = redis.Redis(
-        host='localhost',
-        port=6379,
-        db=0,
-        decode_responses=True
-    )
+    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    redis_client = redis.from_url(redis_url, decode_responses=True)
     redis_client.ping()
     print("✅ Redis connected (redis_db module)")
 except Exception as e:
