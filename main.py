@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sys
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
+from core import cleanup_manager, metrics, rate_limiter
 from loader import bot, dp
 from database import postgres_db  # PostgreSQL database
 from handlers import start, admin, subscription, images, health, socials
@@ -13,6 +14,7 @@ from utils.magic_notifications import run_magic_horoscope_notifier
 from config import ADMIN_IDS
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logger = logging.getLogger(__name__)
 
 
 async def set_bot_commands():
@@ -41,13 +43,18 @@ async def set_bot_commands():
 async def main():
     try:
         # Инициализация PostgreSQL
-        print("🔵 Инициализация PostgreSQL...")
+        logger.info("🔵 Инициализация PostgreSQL...")
         await postgres_db.init_pool()
         await postgres_db.init_db()
-        print("✅ PostgreSQL инициализирован")
+        logger.info("✅ PostgreSQL инициализирован")
         
         # Установка команд бота
         await set_bot_commands()
+
+        # Запуск автоочистки core
+        cleanup_manager.register(rate_limiter.cleanup)
+        await cleanup_manager.start()
+        logger.info(f"Bot started. {metrics.summary()}")
         
         # Подключение роутеров
         dp.include_router(images.router)  # Moved up for state priority
@@ -65,22 +72,24 @@ async def main():
         asyncio.create_task(run_magic_horoscope_notifier(bot))
         
         await bot.delete_webhook(drop_pending_updates=True)
-        print("🤖 Soul AI запущен с PostgreSQL!")
+        logger.info("🤖 Soul AI запущен с PostgreSQL!")
         await dp.start_polling(bot)
     except KeyboardInterrupt:
-        print("\n⚠️ Получен сигнал остановки...")
+        logger.warning("⚠️ Получен сигнал остановки...")
     except Exception as e:
-        print(f"❌ Критическая ошибка: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"❌ Критическая ошибка: {e}")
     finally:
         # Graceful shutdown
-        print("🔄 Закрытие соединений...")
+        logger.info("🔄 Закрытие соединений...")
         from utils.openrouter import close_client
+        try:
+            await cleanup_manager.stop()
+        except Exception as e:
+            logger.warning(f"Не удалось остановить cleanup_manager: {e}")
         await close_client()
         await postgres_db.close_pool()  # Закрываем PostgreSQL pool
         await bot.session.close()
-        print("✅ Бот остановлен")
+        logger.info("✅ Бот остановлен")
 
 
 if __name__ == "__main__":

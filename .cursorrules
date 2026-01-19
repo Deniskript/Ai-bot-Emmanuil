@@ -67,6 +67,18 @@ utils/
 └── magic_notifications.py — Уведомления магии
 ```
 
+### Core (единое ядро):
+```
+core/
+├── config.py        — Централизованные лимиты и сообщения
+├── rate_limiter.py  — User rate limiting
+├── cache.py         — LRU cache с TTL
+├── queue.py         — Очередь API запросов + таймауты
+├── cleanup.py       — Cleanup manager
+├── metrics.py       — Метрики и мониторинг
+└── __init__.py      — Экспорты core
+```
+
 ### Database (базы данных):
 ```
 database/
@@ -173,6 +185,14 @@ migrations/
 ---
 
 ## ⚙️ ВАЖНЫЕ СИСТЕМЫ
+
+### 0. Core (core/):
+```python
+from core import cleanup_manager, rate_limiter
+
+cleanup_manager.register(rate_limiter.cleanup)
+await cleanup_manager.start()
+```
 
 ### 1. Стриминг (utils/streaming.py):
 ```python
