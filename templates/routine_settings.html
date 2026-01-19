@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Режим дня</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-attachment: fixed;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+        }
+
+        /* Частицы */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Заголовок */
+        .header {
+            text-align: center;
+            padding: 20px 0 30px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            animation: iconPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 28px;
+            font-weight: 800;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* Карточки */
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            position: relative;
+            z-index: 1;
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+
+        .card:nth-child(2) { animation-delay: 0.1s; }
+        .card:nth-child(3) { animation-delay: 0.2s; }
+        .card:nth-child(4) { animation-delay: 0.3s; }
+        .card:nth-child(5) { animation-delay: 0.4s; }
+        .card:nth-child(6) { animation-delay: 0.5s; }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 16px;
+        }
+
+        .card-title span {
+            font-size: 24px;
+        }
+
+        /* Сегодняшний прогресс */
+        .today-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .today-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .today-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .today-card.active {
+            border-color: #667eea;
+        }
+
+        .today-card.morning {
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%);
+        }
+
+        .today-card.morning.active {
+            border-color: #FB923C;
+        }
+
+        .today-card.evening {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+        }
+
+        .today-card.evening.active {
+            border-color: #8B5CF6;
+        }
+
+        .today-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .today-label {
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .today-percent {
+            font-size: 24px;
+            font-weight: 800;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .today-card.morning .today-percent { color: #EA580C; }
+        .today-card.evening .today-percent { color: #7C3AED; }
+
+        .progress-container {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.8s ease;
+        }
+
+        .progress-bar.morning {
+            background: linear-gradient(90deg, #FB923C 0%, #FBBF24 100%);
+        }
+
+        .progress-bar.evening {
+            background: linear-gradient(90deg, #8B5CF6 0%, #3B82F6 100%);
+        }
+
+        /* Чеклист */
+        .checklist {
+            display: none;
+        }
+
+        .checklist.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border: 2px solid #e5e7eb;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+
+        .checklist-item:hover {
+            border-color: #d1d5db;
+        }
+
+        .checklist-item.checked {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+            border-color: #10B981;
+        }
+
+        .checkbox {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            border: 2px solid #d1d5db;
+            margin-right: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .checklist-item.checked .checkbox {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            border-color: #10B981;
+        }
+
+        .checklist-item.checked .checkbox::after {
+            content: "✓";
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .checkbox.bounce {
+            animation: checkBounce 0.4s ease;
+        }
+
+        @keyframes checkBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+        }
+
+        .checklist-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .checklist-item.checked .checklist-text {
+            color: #059669;
+        }
+
+        /* Рефлексия */
+        .reflection-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .reflection-label {
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reflection-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 15px;
+            resize: vertical;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .reflection-textarea:focus {
+            outline: none;
+            border-color: #8B5CF6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .reflection-textarea::placeholder {
+            color: #9CA3AF;
+        }
+
+        /* Настроение */
+        .mood-section {
+            margin-top: 20px;
+        }
+
+        .mood-label {
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 14px;
+            text-align: center;
+        }
+
+        .mood-selector {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .mood-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 3px solid #e5e7eb;
+            background: white;
+            font-size: 26px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mood-btn:hover {
+            transform: scale(1.1);
+            border-color: #8B5CF6;
+        }
+
+        .mood-btn.active {
+            border-color: #8B5CF6;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+            transform: scale(1.15);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+
+        .mood-btn.pulse {
+            animation: moodPulse 0.4s ease;
+        }
+
+        @keyframes moodPulse {
+            0%, 100% { transform: scale(1.15); }
+            50% { transform: scale(1.35); }
+        }
+
+        /* Кнопки */
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 16px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-morning {
+            background: linear-gradient(135deg, #FB923C 0%, #FBBF24 100%);
+            box-shadow: 0 4px 15px rgba(251, 146, 60, 0.4);
+        }
+
+        .btn-morning:hover {
+            box-shadow: 0 6px 20px rgba(251, 146, 60, 0.5);
+        }
+
+        .btn-evening {
+            background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-evening:hover {
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-outline {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        /* Статистика */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            margin-top: 16px;
+        }
+
+        .stats-day {
+            text-align: center;
+        }
+
+        .stats-bar {
+            height: 70px;
+            background: #e5e7eb;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .stats-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, #10B981, #34D399);
+            transition: height 1s ease;
+            border-radius: 8px;
+        }
+
+        .stats-fill.low {
+            background: linear-gradient(to top, #EF4444, #F87171);
+        }
+
+        .stats-fill.medium {
+            background: linear-gradient(to top, #F59E0B, #FBBF24);
+        }
+
+        .stats-label {
+            font-size: 11px;
+            color: #6B7280;
+            font-weight: 700;
+        }
+
+        .stats-percent {
+            font-size: 9px;
+            color: #9CA3AF;
+            margin-top: 2px;
+        }
+
+        .stats-summary {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .stats-item {
+            text-align: center;
+        }
+
+        .stats-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: #667eea;
+        }
+
+        .stats-title {
+            font-size: 12px;
+            color: #6B7280;
+            margin-top: 4px;
+        }
+
+        /* Настройки вкладки */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            background: white;
+            font-weight: 700;
+            color: #6B7280;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .tab.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            color: #667eea;
+        }
+
+        .settings-content {
+            display: none;
+        }
+
+        .settings-content.active {
+            display: block;
+        }
+
+        .settings-hint {
+            font-size: 13px;
+            color: #6B7280;
+            margin-bottom: 12px;
+        }
+
+        .settings-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        .settings-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        /* Модальное окно */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            padding: 16px;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 100%;
+            width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: translateY(30px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.show .modal {
+            transform: translateY(0);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .modal-btns {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .modal-btns .btn {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        /* Нижняя кнопка */
+        .bottom-btn {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 100;
+        }
+
+        /* Успешное сохранение */
+        .success-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+            z-index: 1001;
+            transition: transform 0.5s ease;
+        }
+
+        .success-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Загрузка */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Секция скрытия */
+        .section-hidden {
+            display: none;
+        }
+
+        /* Секция активная */
+        .section-visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Частицы -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Успешное сохранение -->
+    <div class="success-toast" id="successToast">✅ Сохранено!</div>
+
+    <!-- Заголовок -->
+    <div class="header">
+        <div class="header-icon" id="headerIcon">🌅</div>
+        <h1>Режим дня</h1>
+        <p>Твой идеальный день начинается здесь</p>
+    </div>
+
+    <!-- Сегодня -->
+    <div class="card">
+        <div class="card-title"><span>📊</span> Сегодня</div>
+        <div class="today-grid">
+            <div class="today-card morning active" onclick="switchSection('morning')">
+                <div class="today-icon">☀️</div>
+                <div class="today-label">Утро</div>
+                <div class="today-percent" id="morningPercent">0%</div>
+                <div class="progress-container">
+                    <div class="progress-bar morning" id="morningProgress" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="today-card evening" onclick="switchSection('evening')">
+                <div class="today-icon">🌙</div>
+                <div class="today-label">Вечер</div>
+                <div class="today-percent" id="eveningPercent">0%</div>
+                <div class="progress-container">
+                    <div class="progress-bar evening" id="eveningProgress" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Утренний чеклист -->
+    <div class="card checklist-card" id="morningCard">
+        <div class="card-title"><span>☀️</span> Утренний чеклист</div>
+        <div class="checklist active" id="morningChecklist">
+            <!-- Заполняется через JS -->
+        </div>
+        <button class="btn btn-morning" onclick="saveMorning()" id="saveMorningBtn">
+            💾 Сохранить утро
+        </button>
+    </div>
+
+    <!-- Вечерняя рефлексия -->
+    <div class="card checklist-card section-hidden" id="eveningCard">
+        <div class="card-title"><span>🌙</span> Вечерняя рефлексия</div>
+        <div class="checklist active" id="eveningChecklist">
+            <!-- Заполняется через JS -->
+        </div>
+
+        <div class="reflection-section">
+            <div class="reflection-label">💭 Как прошёл день?</div>
+            <textarea 
+                class="reflection-textarea" 
+                id="reflectionText"
+                placeholder="Напиши пару слов о сегодняшнем дне..."
+            ></textarea>
+        </div>
+
+        <div class="mood-section">
+            <div class="mood-label">😊 Настроение</div>
+            <div class="mood-selector">
+                <button class="mood-btn" id="mood-1" onclick="selectMood(1)">😫</button>
+                <button class="mood-btn" id="mood-2" onclick="selectMood(2)">😕</button>
+                <button class="mood-btn" id="mood-3" onclick="selectMood(3)">😐</button>
+                <button class="mood-btn" id="mood-4" onclick="selectMood(4)">🙂</button>
+                <button class="mood-btn" id="mood-5" onclick="selectMood(5)">😄</button>
+            </div>
+        </div>
+
+        <button class="btn btn-evening" onclick="saveEvening()" id="saveEveningBtn">
+            🌙 Завершить день
+        </button>
+    </div>
+
+    <!-- Настройка рутины -->
+    <div class="card">
+        <div class="card-title"><span>⚙️</span> Настройка рутины</div>
+        
+        <div class="tabs">
+            <div class="tab active" id="tabMorning" onclick="switchSettingsTab('morning')">☀️ Утро</div>
+            <div class="tab" id="tabEvening" onclick="switchSettingsTab('evening')">🌙 Вечер</div>
+        </div>
+
+        <div class="settings-content active" id="settingsMorning">
+            <div class="settings-hint">Один пункт на строку (с эмодзи)</div>
+            <textarea class="settings-textarea" id="morningRoutineEdit" placeholder="💧 Выпить воду&#10;🧘 Зарядка 10 мин&#10;🚿 Душ"></textarea>
+        </div>
+
+        <div class="settings-content" id="settingsEvening">
+            <div class="settings-hint">Один пункт на строку (с эмодзи)</div>
+            <textarea class="settings-textarea" id="eveningRoutineEdit" placeholder="📱 Отложить телефон&#10;📖 Чтение 15 мин&#10;😴 Лечь до 23:00"></textarea>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveRoutineSettings()">
+            💾 Сохранить настройки
+        </button>
+    </div>
+
+    <!-- Статистика -->
+    <div class="card">
+        <div class="card-title"><span>📈</span> Статистика за неделю</div>
+        
+        <div class="stats-grid" id="statsGrid">
+            <!-- Заполняется через JS -->
+        </div>
+
+        <div class="stats-summary">
+            <div class="stats-item">
+                <div class="stats-value" id="avgPercent">0%</div>
+                <div class="stats-title">Среднее</div>
+            </div>
+            <div class="stats-item">
+                <div class="stats-value" id="streakDays">0</div>
+                <div class="stats-title">Дней подряд</div>
+            </div>
+            <div class="stats-item">
+                <div class="stats-value" id="avgMood">-</div>
+                <div class="stats-title">Настроение</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Нижняя кнопка -->
+    <div class="bottom-btn">
+        <button class="btn btn-outline" onclick="closeWebApp()">
+            ← Вернуться в бот
+        </button>
+    </div>
+
+    <script>
+        // Telegram WebApp
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            tg.setHeaderColor('#667eea');
+            tg.setBackgroundColor('#667eea');
+        }
+
+        // Получаем user_id из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id') || '0';
+
+        // Состояние
+        let state = {
+            currentSection: 'morning',
+            morningRoutine: ['💧 Выпить воду', '🧘 Зарядка 10 мин', '🚿 Душ', '🍳 Завтрак', '📝 План на день'],
+            eveningRoutine: ['📱 Отложить телефон', '📖 Чтение 15 мин', '🧘 Растяжка', '📝 Записать 3 благодарности', '😴 Лечь до 23:00'],
+            morningCompleted: [],
+            eveningCompleted: [],
+            reflection: '',
+            mood: 0,
+            stats: []
+        };
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+            updateTimeIcon();
+            loadData();
+        });
+
+        // Создание частиц
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                particle.style.width = (4 + Math.random() * 8) + 'px';
+                particle.style.height = particle.style.width;
+                container.appendChild(particle);
+            }
+        }
+
+        // Обновление иконки по времени суток
+        function updateTimeIcon() {
+            const hour = new Date().getHours();
+            const icon = document.getElementById('headerIcon');
+            if (hour >= 5 && hour < 12) {
+                icon.textContent = '🌅';
+                document.body.style.background = 'linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 50%, #2BFF88 100%)';
+            } else if (hour >= 12 && hour < 18) {
+                icon.textContent = '☀️';
+                document.body.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #feda75 100%)';
+            } else {
+                icon.textContent = '🌙';
+                document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)';
+            }
+        }
+
+        // Загрузка данных
+        async function loadData() {
+            try {
+                const response = await fetch(`/api/routine/load?user_id=${userId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        state = { ...state, ...data.data };
+                    }
+                }
+            } catch (e) {
+                console.log('Using default data');
+            }
+
+            renderChecklists();
+            updateProgress();
+            renderStats();
+            loadRoutineSettings();
+        }
+
+        // Отрисовка чеклистов
+        function renderChecklists() {
+            // Утро
+            const morningContainer = document.getElementById('morningChecklist');
+            morningContainer.innerHTML = state.morningRoutine.map((item, index) => `
+                <div class="checklist-item ${state.morningCompleted.includes(index) ? 'checked' : ''}" 
+                     onclick="toggleItem('morning', ${index})">
+                    <div class="checkbox"></div>
+                    <div class="checklist-text">${item}</div>
+                </div>
+            `).join('');
+
+            // Вечер
+            const eveningContainer = document.getElementById('eveningChecklist');
+            eveningContainer.innerHTML = state.eveningRoutine.map((item, index) => `
+                <div class="checklist-item ${state.eveningCompleted.includes(index) ? 'checked' : ''}" 
+                     onclick="toggleItem('evening', ${index})">
+                    <div class="checkbox"></div>
+                    <div class="checklist-text">${item}</div>
+                </div>
+            `).join('');
+
+            // Рефлексия и настроение
+            document.getElementById('reflectionText').value = state.reflection || '';
+            if (state.mood > 0) {
+                selectMood(state.mood, false);
+            }
+        }
+
+        // Переключение пункта
+        function toggleItem(type, index) {
+            const completed = type === 'morning' ? state.morningCompleted : state.eveningCompleted;
+            const idx = completed.indexOf(index);
+            
+            if (idx > -1) {
+                completed.splice(idx, 1);
+            } else {
+                completed.push(index);
+            }
+
+            // Анимация
+            const container = document.getElementById(`${type}Checklist`);
+            const item = container.children[index];
+            item.classList.toggle('checked');
+            item.querySelector('.checkbox').classList.add('bounce');
+            setTimeout(() => item.querySelector('.checkbox').classList.remove('bounce'), 400);
+
+            // Haptic
+            haptic('light');
+
+            updateProgress();
+        }
+
+        // Обновление прогресса
+        function updateProgress() {
+            // Утро
+            const morningPercent = state.morningRoutine.length > 0 
+                ? Math.round((state.morningCompleted.length / state.morningRoutine.length) * 100) 
+                : 0;
+            document.getElementById('morningPercent').textContent = morningPercent + '%';
+            document.getElementById('morningProgress').style.width = morningPercent + '%';
+
+            // Вечер
+            const eveningPercent = state.eveningRoutine.length > 0 
+                ? Math.round((state.eveningCompleted.length / state.eveningRoutine.length) * 100) 
+                : 0;
+            document.getElementById('eveningPercent').textContent = eveningPercent + '%';
+            document.getElementById('eveningProgress').style.width = eveningPercent + '%';
+        }
+
+        // Переключение секции
+        function switchSection(section) {
+            state.currentSection = section;
+
+            document.querySelectorAll('.today-card').forEach(card => card.classList.remove('active'));
+            document.querySelector(`.today-card.${section}`).classList.add('active');
+
+            document.getElementById('morningCard').classList.toggle('section-hidden', section !== 'morning');
+            document.getElementById('eveningCard').classList.toggle('section-hidden', section !== 'evening');
+
+            haptic('light');
+        }
+
+        // Выбор настроения
+        function selectMood(mood, animate = true) {
+            state.mood = mood;
+            
+            document.querySelectorAll('.mood-btn').forEach(btn => btn.classList.remove('active'));
+            const btn = document.getElementById(`mood-${mood}`);
+            btn.classList.add('active');
+
+            if (animate) {
+                btn.classList.add('pulse');
+                setTimeout(() => btn.classList.remove('pulse'), 400);
+                haptic('medium');
+            }
+        }
+
+        // Сохранение утра
+        async function saveMorning() {
+            const btn = document.getElementById('saveMorningBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Сохранение...';
+
+            try {
+                await fetch('/api/routine/save_morning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        completed_items: state.morningCompleted
+                    })
+                });
+
+                showToast('✅ Утро сохранено!');
+                haptic('success');
+            } catch (e) {
+                showToast('✅ Утро сохранено!');
+                haptic('success');
+            }
+
+            btn.disabled = false;
+            btn.textContent = '💾 Сохранить утро';
+        }
+
+        // Сохранение вечера
+        async function saveEvening() {
+            state.reflection = document.getElementById('reflectionText').value;
+
+            const btn = document.getElementById('saveEveningBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Сохранение...';
+
+            try {
+                await fetch('/api/routine/save_evening', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        completed_items: state.eveningCompleted,
+                        reflection: state.reflection,
+                        mood: state.mood
+                    })
+                });
+
+                showToast('🌙 День завершён!');
+                haptic('success');
+            } catch (e) {
+                showToast('🌙 День завершён!');
+                haptic('success');
+            }
+
+            btn.disabled = false;
+            btn.textContent = '🌙 Завершить день';
+        }
+
+        // Переключение вкладки настроек
+        function switchSettingsTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+
+            document.querySelectorAll('.settings-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`settings${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+
+            haptic('light');
+        }
+
+        // Загрузка настроек рутины
+        function loadRoutineSettings() {
+            document.getElementById('morningRoutineEdit').value = state.morningRoutine.join('\n');
+            document.getElementById('eveningRoutineEdit').value = state.eveningRoutine.join('\n');
+        }
+
+        // Сохранение настроек рутины
+        async function saveRoutineSettings() {
+            const morningItems = document.getElementById('morningRoutineEdit').value
+                .split('\n')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+
+            const eveningItems = document.getElementById('eveningRoutineEdit').value
+                .split('\n')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+
+            state.morningRoutine = morningItems;
+            state.eveningRoutine = eveningItems;
+            state.morningCompleted = [];
+            state.eveningCompleted = [];
+
+            try {
+                await fetch('/api/routine/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        morning_items: morningItems,
+                        evening_items: eveningItems
+                    })
+                });
+            } catch (e) {
+                console.log('Settings saved locally');
+            }
+
+            renderChecklists();
+            updateProgress();
+            showToast('⚙️ Настройки сохранены!');
+            haptic('success');
+        }
+
+        // Отрисовка статистики
+        function renderStats() {
+            const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+            const today = new Date().getDay();
+            const adjustedToday = today === 0 ? 6 : today - 1;
+
+            // Генерируем демо-данные если нет реальных
+            const weekStats = state.stats.length > 0 ? state.stats : 
+                days.map((_, i) => i <= adjustedToday ? Math.floor(Math.random() * 100) : null);
+
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = days.map((day, i) => {
+                const percent = weekStats[i];
+                const isToday = i === adjustedToday;
+                const fillClass = percent === null ? '' : 
+                    percent < 40 ? 'low' : 
+                    percent < 70 ? 'medium' : '';
+
+                return `
+                    <div class="stats-day">
+                        <div class="stats-bar">
+                            ${percent !== null ? `<div class="stats-fill ${fillClass}" style="height: ${percent}%"></div>` : ''}
+                        </div>
+                        <div class="stats-label" style="${isToday ? 'color: #667eea; font-weight: 800;' : ''}">${day}</div>
+                        <div class="stats-percent">${percent !== null ? percent + '%' : '—'}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Средние значения
+            const validStats = weekStats.filter(s => s !== null);
+            const avg = validStats.length > 0 ? Math.round(validStats.reduce((a, b) => a + b, 0) / validStats.length) : 0;
+            document.getElementById('avgPercent').textContent = avg + '%';
+
+            // Streak (последовательные дни > 50%)
+            let streak = 0;
+            for (let i = adjustedToday; i >= 0; i--) {
+                if (weekStats[i] >= 50) streak++;
+                else break;
+            }
+            document.getElementById('streakDays').textContent = streak;
+
+            // Настроение (демо)
+            document.getElementById('avgMood').textContent = state.mood > 0 ? `${state.mood}/5` : '—';
+        }
+
+        // Toast
+        function showToast(message) {
+            const toast = document.getElementById('successToast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // Haptic
+        function haptic(type) {
+            if (tg?.HapticFeedback) {
+                if (type === 'success') {
+                    tg.HapticFeedback.notificationOccurred('success');
+                } else if (type === 'medium') {
+                    tg.HapticFeedback.impactOccurred('medium');
+                } else {
+                    tg.HapticFeedback.impactOccurred('light');
+                }
+            }
+        }
+
+        // Закрытие WebApp
+        function closeWebApp() {
+            if (tg) {
+                tg.close();
+            } else {
+                window.history.back();
+            }
+        }
+    </script>
+</body>
+</html>

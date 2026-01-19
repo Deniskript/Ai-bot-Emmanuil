@@ -139,7 +139,8 @@ def nutrition_menu_kb():
 def lifestyle_kb(user_id: int):
     """Меню раздела Лайфстайл"""
     return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🗓 Режим дня"), KeyboardButton(text="🍎 Здоровье")],
+        [KeyboardButton(text="🗓 Режим дня", web_app=WebAppInfo(url=f"https://soul-bot.ru/routine/settings?user_id={user_id}")),
+         KeyboardButton(text="🍎 Здоровье")],
         [KeyboardButton(text="🧘 Ментальное"), KeyboardButton(text="🔮 Эзотерика")],
         [KeyboardButton(text=HOW_IT_WORKS_TEXT, web_app=WebAppInfo(url=f"https://soul-bot.ru/how-it-works/lifestyle?user_id={user_id}"))],
         [KeyboardButton(text="◀️ Назад")]

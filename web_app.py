@@ -589,6 +589,125 @@ def silas_settings_load():
 # Удалено: API загрузки настроек голоса Titus
 
 
+# ========== ROUTINE WEBAPP ==========
+
+@app.route('/routine/settings')
+def routine_settings():
+    """Telegram Mini App - Режим дня"""
+    user_id = request.args.get('user_id', '')
+    return render_template('routine_settings.html', user_id=user_id)
+
+
+@app.route('/api/routine/load', methods=['GET'])
+def routine_load():
+    """API для загрузки данных режима дня"""
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Получаем рутину пользователя из Redis кэша
+        cached = redis_db.get_cache(f"routine:{user_id}")
+        if cached:
+            return jsonify({'success': True, 'data': cached})
+        
+        # Дефолтные данные
+        default_data = {
+            'morningRoutine': ['💧 Выпить воду', '🧘 Зарядка 10 мин', '🚿 Душ', '🍳 Завтрак', '📝 План на день'],
+            'eveningRoutine': ['📱 Отложить телефон', '📖 Чтение 15 мин', '🧘 Растяжка', '📝 Записать 3 благодарности', '😴 Лечь до 23:00'],
+            'morningCompleted': [],
+            'eveningCompleted': [],
+            'reflection': '',
+            'mood': 0,
+            'stats': []
+        }
+        
+        return jsonify({'success': True, 'data': default_data})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/routine/save_morning', methods=['POST'])
+def routine_save_morning():
+    """API для сохранения утреннего чеклиста"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        completed_items = data.get('completed_items', [])
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Получаем текущие данные
+        cached = redis_db.get_cache(f"routine:{user_id}") or {}
+        cached['morningCompleted'] = completed_items
+        
+        # Сохраняем обратно
+        redis_db.set_cache(f"routine:{user_id}", cached, ttl=86400)  # 24 часа
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/routine/save_evening', methods=['POST'])
+def routine_save_evening():
+    """API для сохранения вечерней рефлексии"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        completed_items = data.get('completed_items', [])
+        reflection = data.get('reflection', '')
+        mood = data.get('mood', 0)
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Получаем текущие данные
+        cached = redis_db.get_cache(f"routine:{user_id}") or {}
+        cached['eveningCompleted'] = completed_items
+        cached['reflection'] = reflection
+        cached['mood'] = mood
+        
+        # Сохраняем обратно
+        redis_db.set_cache(f"routine:{user_id}", cached, ttl=86400)
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/routine/update', methods=['POST'])
+def routine_update():
+    """API для обновления настроек рутины"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        morning_items = data.get('morning_items', [])
+        evening_items = data.get('evening_items', [])
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Получаем текущие данные
+        cached = redis_db.get_cache(f"routine:{user_id}") or {}
+        cached['morningRoutine'] = morning_items
+        cached['eveningRoutine'] = evening_items
+        cached['morningCompleted'] = []
+        cached['eveningCompleted'] = []
+        
+        # Сохраняем
+        redis_db.set_cache(f"routine:{user_id}", cached, ttl=86400 * 30)  # 30 дней для настроек
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ========== MAGIC WEBAPP ==========
 
 @app.route('/magic/horoscope')
