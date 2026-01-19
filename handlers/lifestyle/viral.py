@@ -1,11 +1,21 @@
+"""
+Обработчик вирусного разбора
+Оптимизирован с core/ интеграцией
+"""
+import asyncio
+import base64
+import logging
+import os
+import aiohttp
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database import postgres_db as db  # Использует PostgreSQL через database/__init__.py
+
+from database import postgres_db as db
 from keyboards import reply, inline
 from utils.stars import calculate_stars
-from utils.antiflood import ai_flood
 from utils.video_downloader import download_video_from_url, extract_key_frames, cleanup_temp_files
 from utils.markdown import md_to_html
 from utils.conversations import save_message, clean_response, get_chat_button
@@ -15,11 +25,13 @@ from utils.streaming import stream_response
 from prompts.viral_expert import VIRAL_EXPERT_PROMPT, VIRAL_TEXT_ADVICE_PROMPT
 from config import MIN_STARS, OPENROUTER_API_KEY
 from loader import bot
-import asyncio
-import base64
-import os
-import aiohttp
-import time
+
+# Core infrastructure
+from core import rate_limiter, cleanup_manager
+from core.cache import LRUCache
+from core.config import MSG_RATE_LIMITED
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -169,8 +181,11 @@ async def exit_viral(msg: Message, state: FSMContext):
 
 # ========== ТЕКСТОВЫЙ СОВЕТ ==========
 
-# Активные запросы для отмены
-active_requests = {}
+# Кэш активных запросов с автоочисткой (вместо dict)
+active_requests_cache = LRUCache(max_size=500, default_ttl=3600)
+
+# Регистрация очистки
+cleanup_manager.register(active_requests_cache.cleanup)
 
 @router.message(ViralAnalysisSt.text_advice)
 async def process_text_advice(msg: Message, state: FSMContext):
@@ -181,10 +196,10 @@ async def process_text_advice(msg: Message, state: FSMContext):
     user_id = msg.from_user.id
     text = msg.text
     
-    # Антифлуд
-    allowed, error_msg = await ai_flood.check(user_id)
+    # Rate limiting через core
+    allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
-        await msg.answer(error_msg)
+        await msg.answer(MSG_RATE_LIMITED.format(seconds=wait_time))
         return
     
     # Проверка звёзд
@@ -192,9 +207,9 @@ async def process_text_advice(msg: Message, state: FSMContext):
         await state.clear()
         return
     
-    # Инициализируем состояние запроса
+    # Инициализируем состояние запроса через кэш
     request_state = {'cancelled': False}
-    active_requests[user_id] = request_state
+    await active_requests_cache.set(user_id, request_state)
     
     # Кнопка отмены
     cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -227,7 +242,7 @@ async def process_text_advice(msg: Message, state: FSMContext):
         
         if not resp:
             await msg.answer("❌ Пустой ответ от AI")
-            active_requests.pop(user_id, None)
+            await active_requests_cache.delete(user_id)
             await state.clear()
             return
         
@@ -237,9 +252,11 @@ async def process_text_advice(msg: Message, state: FSMContext):
         # Точный подсчёт звёзд
         stars_used = calculate_stars(messages, resp)
         
-        # Списываем звёзды
-        await db.use_stars_smart(user_id, stars_used, 'titus')
-        await db.increment_requests(user_id)
+        # Списываем звёзды параллельно
+        await asyncio.gather(
+            db.use_stars_smart(user_id, stars_used, 'titus'),
+            db.increment_requests(user_id)
+        )
         
         # Сохраняем в диалог
         conv_id = await save_message(user_id, 'user', text, 'viral', model)
@@ -272,16 +289,14 @@ async def process_text_advice(msg: Message, state: FSMContext):
             )
         
     except Exception as e:
-        print(f"Viral text advice error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Viral text advice error: {e}")
         if cancel_msg:
             try:
                 await cancel_msg.delete()
             except:
                 pass
     
-    active_requests.pop(user_id, None)
+    await active_requests_cache.delete(user_id)
     await state.clear()
 
 
@@ -294,9 +309,11 @@ async def cancel_viral_text_request(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Это не ваш запрос")
         return
     
-    # Устанавливаем флаг отмены
-    if user_id in active_requests:
-        active_requests[user_id]['cancelled'] = True
+    # Устанавливаем флаг отмены через кэш
+    request_state = await active_requests_cache.get(user_id)
+    if request_state:
+        request_state['cancelled'] = True
+        await active_requests_cache.set(user_id, request_state)
     
     await callback.message.edit_text("⏹ Запрос отменён", reply_markup=None)
     await callback.answer("✅ Запрос отменён")
@@ -434,12 +451,14 @@ async def process_video(msg: Message, state: FSMContext):
             await state.clear()
             return
         
-        # Списываем звёзды
-        await db.use_stars_smart(user_id, PRICES['video_analysis'], 'titus')
-        await db.increment_requests(user_id)
+        # Списываем звёзды и получаем модель параллельно
+        model = await db.get_user_model(user_id)
+        await asyncio.gather(
+            db.use_stars_smart(user_id, PRICES['video_analysis'], 'titus'),
+            db.increment_requests(user_id)
+        )
         
         # Сохраняем в диалог
-        model = await db.get_user_model(user_id)
         conv_id = await save_message(user_id, 'user', '📤 Загрузил видео для анализа', 'viral', model)
         await save_message(user_id, 'assistant', analysis, 'viral', model)
         
@@ -607,12 +626,14 @@ async def process_link(msg: Message, state: FSMContext):
             await state.clear()
             return
         
-        # Списываем звёзды
-        await db.use_stars_smart(user_id, PRICES['link_analysis'], 'titus')
-        await db.increment_requests(user_id)
+        # Списываем звёзды и получаем модель параллельно
+        model = await db.get_user_model(user_id)
+        await asyncio.gather(
+            db.use_stars_smart(user_id, PRICES['link_analysis'], 'titus'),
+            db.increment_requests(user_id)
+        )
         
         # Сохраняем в диалог
-        model = await db.get_user_model(user_id)
         conv_id = await save_message(user_id, 'user', f'🔗 Отправил ссылку: {url}', 'viral', model)
         await save_message(user_id, 'assistant', analysis, 'viral', model)
         
@@ -704,9 +725,13 @@ async def analyze_video_frames(frames: list) -> str:
         }
     ]
     
+    # Читаем файлы асинхронно чтобы не блокировать event loop
+    def read_frame_sync(path: str) -> str:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    
     for i, frame_path in enumerate(frames, 1):
-        with open(frame_path, "rb") as f:
-            img_base64 = base64.b64encode(f.read()).decode()
+        img_base64 = await asyncio.to_thread(read_frame_sync, frame_path)
         content.append({
             "type": "image_url",
             "image_url": {

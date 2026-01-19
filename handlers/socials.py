@@ -1,11 +1,15 @@
 """
 Обработчик раздела Соцсети
+Оптимизирован с logging
 """
+import logging
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from keyboards import reply
 from handlers.lifestyle import viral
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -31,3 +35,13 @@ async def socials_video_analysis(message: Message, state: FSMContext):
     """Старт анализа видео (логика Titus)."""
     from handlers.titus.handler import video_analysis_start
     await video_analysis_start(message, state)
+
+
+@router.message(F.text == "◀️ Назад")
+async def socials_back_to_main(msg: Message, state: FSMContext):
+    """Возврат из Соцсетей в главное меню"""
+    await state.clear()
+    await msg.answer(
+        "🏠 Главное меню",
+        reply_markup=reply.main_kb(msg.from_user.id)
+    )
