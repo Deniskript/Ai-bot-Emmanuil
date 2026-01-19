@@ -1,15 +1,14 @@
 """
 Обработчик Silas (Психолог) - 100% автономный модуль
 Оптимизирован для 1000+ одновременных пользователей
+Использует централизованное ядро core/
 """
 import asyncio
 import logging
 import os
 import re
-import time
-from collections import OrderedDict
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -17,6 +16,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, Message
 
 from config import MIN_STARS
+from core import api_queue, rate_limiter
+from core.cache import LRUCache
+from core.config import MSG_RATE_LIMITED
 from database import postgres_db as db, redis_db
 from database.postgres_db import get_silas_settings, set_silas_settings
 from keyboards import reply as global_reply
@@ -49,106 +51,14 @@ router = Router()
 
 
 # ═══════════════════════════════════════
-# КОНФИГУРАЦИЯ ДЛЯ ВЫСОКОЙ НАГРУЗКИ
+# ЛОКАЛЬНЫЕ КЭШИ (используют core.LRUCache)
 # ═══════════════════════════════════════
 
-# Лимиты кэшей
-MAX_CACHE_SIZE = 1000
-MAX_ACTIVE_REQUESTS = 500
+# Кэш активных запросов
+active_requests: LRUCache = LRUCache(max_size=500, default_ttl=300)
 
-# Rate Limiting
-RATE_LIMIT_REQUESTS = 10  # Максимум запросов
-RATE_LIMIT_WINDOW = 60    # За секунд
-
-# API Semaphore - максимум одновременных запросов к AI
-API_SEMAPHORE = asyncio.Semaphore(50)
-
-
-# ═══════════════════════════════════════
-# LRU КЭШИ С АВТООЧИСТКОЙ
-# ═══════════════════════════════════════
-
-class LRUCache:
-    """LRU кэш с автоочисткой для предотвращения утечек памяти"""
-    
-    def __init__(self, max_size: int = MAX_CACHE_SIZE):
-        self.cache: OrderedDict[Any, Any] = OrderedDict()
-        self.max_size = max_size
-        self._lock = asyncio.Lock()
-    
-    async def get(self, key: Any) -> Optional[Any]:
-        async with self._lock:
-            if key in self.cache:
-                self.cache.move_to_end(key)
-                return self.cache[key]
-            return None
-    
-    async def set(self, key: Any, value: Any) -> None:
-        async with self._lock:
-            if key in self.cache:
-                self.cache.move_to_end(key)
-            self.cache[key] = value
-            while len(self.cache) > self.max_size:
-                self.cache.popitem(last=False)
-    
-    async def delete(self, key: Any) -> None:
-        async with self._lock:
-            self.cache.pop(key, None)
-    
-    def __len__(self) -> int:
-        return len(self.cache)
-
-
-class UserRateLimiter:
-    """Rate limiter на пользователя"""
-    
-    def __init__(self, max_requests: int = RATE_LIMIT_REQUESTS, window_seconds: int = RATE_LIMIT_WINDOW):
-        self.max_requests = max_requests
-        self.window = window_seconds
-        self.requests: dict[int, list[float]] = {}
-        self._lock = asyncio.Lock()
-    
-    async def is_allowed(self, user_id: int) -> tuple[bool, int]:
-        """
-        Проверить разрешён ли запрос.
-        Returns: (allowed, seconds_until_reset)
-        """
-        async with self._lock:
-            now = time.time()
-            
-            # Очистка старых запросов
-            if user_id in self.requests:
-                self.requests[user_id] = [
-                    t for t in self.requests[user_id]
-                    if now - t < self.window
-                ]
-            else:
-                self.requests[user_id] = []
-            
-            if len(self.requests[user_id]) >= self.max_requests:
-                oldest = min(self.requests[user_id])
-                wait_time = int(self.window - (now - oldest))
-                return False, max(0, wait_time)
-            
-            self.requests[user_id].append(now)
-            return True, 0
-    
-    async def cleanup(self) -> None:
-        """Периодическая очистка старых записей"""
-        async with self._lock:
-            now = time.time()
-            to_delete = []
-            for user_id, timestamps in self.requests.items():
-                if all(now - t >= self.window for t in timestamps):
-                    to_delete.append(user_id)
-            for user_id in to_delete:
-                del self.requests[user_id]
-
-
-# Глобальные экземпляры
-active_requests: LRUCache = LRUCache(MAX_ACTIVE_REQUESTS)
-last_messages: LRUCache = LRUCache(MAX_CACHE_SIZE)
-rate_limiter = UserRateLimiter()
+# Кэш последних сообщений для Telegraph
+last_messages: LRUCache = LRUCache(max_size=1000, default_ttl=3600)
 
 
 # ═══════════════════════════════════════
@@ -168,12 +78,6 @@ async def safe_background_task(coro, task_name: str = "background") -> None:
         pass
     except Exception as e:
         logger.error(f"[{task_name}] Error: {e}")
-
-
-async def call_api_with_limit(coro):
-    """Вызов API с ограничением на количество одновременных запросов"""
-    async with API_SEMAPHORE:
-        return await coro
 
 
 # ═══════════════════════════════════════
@@ -480,15 +384,15 @@ async def process_silas_message(
     msg: Message, 
     state: FSMContext, 
     text: str, 
-    image_b64: str = None
+    image_b64: Optional[str] = None
 ) -> None:
     """Основной обработчик сообщений с оптимизацией для нагрузки"""
     user_id = msg.from_user.id
     
-    # Rate limiting
-    allowed, wait_time = await rate_limiter.is_allowed(user_id)
+    # Rate limiting через core.rate_limiter
+    allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
-        await msg.answer(f"⏳ Слишком много запросов. Подождите {wait_time} сек.")
+        await msg.answer(MSG_RATE_LIMITED.format(seconds=wait_time))
         return
     
     # Antiflood проверка
@@ -570,22 +474,29 @@ async def process_silas_message(
         if request_state['cancelled']:
             return
         
-        # Вызов API с ограничением
+        # Вызов API через core.api_queue
         if image_b64:
             status = await show_status(bot, msg.chat.id, "photo")
             request_state['status'] = status
-            resp, stars_used = await call_api_with_limit(ask(msgs, model, image_b64))
+            result = await api_queue.execute(ask, msgs, model, image_b64)
+            if result is None:
+                await msg.answer("⚠️ Запрос занял слишком много времени. Попробуй ещё раз.")
+                return
+            resp, stars_used = result
             sent_msg = None
         else:
-            resp, sent_msg = await call_api_with_limit(
-                stream_response(
-                    bot=bot,
-                    message=msg,
-                    messages=msgs,
-                    model=model,
-                    status_type="text"
-                )
+            result = await api_queue.execute(
+                stream_response,
+                bot=bot,
+                message=msg,
+                messages=msgs,
+                model=model,
+                status_type="text"
             )
+            if result is None:
+                await msg.answer("⚠️ Запрос занял слишком много времени. Попробуй ещё раз.")
+                return
+            resp, sent_msg = result
             stars_used = calculate_stars(msgs, resp)
         
         if request_state['cancelled']:
