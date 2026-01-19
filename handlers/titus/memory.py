@@ -1,15 +1,20 @@
 """
 Titus Memory - система долгосрочной памяти для курсов
+Оптимизирован для 1000+ пользователей
 """
 import json
+import logging
+
 from utils.openrouter import ask
 from database import postgres_db as db
 import config
 
+logger = logging.getLogger(__name__)
+
 
 async def save_step_progress(course_id: int, step: int, bot_message: str, user_response: str):
     """Сохраняет краткую суть пройденного шага"""
-    print(f"[MEMORY] save_step_progress called: course_id={course_id}, step={step}")
+    logger.debug(f"save_step_progress: course_id={course_id}, step={step}")
     try:
         prompt = f"""Извлеки ключевую информацию из этого шага обучения.
 
@@ -30,7 +35,7 @@ async def save_step_progress(course_id: int, step: int, bot_message: str, user_r
                 clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
             data = json.loads(clean)
         except Exception as e:
-            print(f"[MEMORY] save_step_progress PARSE ERROR: {e}")
+            logger.warning(f"save_step_progress parse error: {e}")
             return
         
         topic = data.get('topic', f'Шаг {step}')
@@ -41,41 +46,46 @@ async def save_step_progress(course_id: int, step: int, bot_message: str, user_r
             await add_completed_topic(course_id, step, topic, [key_point], difficulty)
         else:
             await add_problem_zone(course_id, step, topic, key_point)
-        print("[MEMORY] save_step_progress SUCCESS")
+        logger.debug("save_step_progress: SUCCESS")
             
     except Exception as e:
-        print(f"[MEMORY] save_step_progress ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"save_step_progress error: {e}", exc_info=True)
 
 
 async def add_completed_topic(course_id: int, step: int, topic: str, key_points: list, difficulty: str = "medium"):
-    """Прокси-обёртка для логирования add_completed_topic"""
-    print(f"[MEMORY] add_completed_topic called: course_id={course_id}, step={step}, topic={topic}")
+    """Добавляет пройденную тему в память курса"""
+    logger.debug(f"add_completed_topic: course_id={course_id}, step={step}, topic={topic}")
     try:
         await db.add_completed_topic(course_id, step, topic, key_points, difficulty)
-        print("[MEMORY] add_completed_topic SUCCESS")
+        logger.debug("add_completed_topic: SUCCESS")
     except Exception as e:
-        print(f"[MEMORY] add_completed_topic ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"add_completed_topic error: {e}", exc_info=True)
 
 
 async def add_problem_zone(course_id: int, step: int, topic: str, question: str):
-    """Прокси-обёртка для логирования add_problem_zone"""
-    print(f"[MEMORY] add_problem_zone called: course_id={course_id}, step={step}, topic={topic}")
+    """Добавляет проблемную зону в память курса"""
+    logger.debug(f"add_problem_zone: course_id={course_id}, step={step}, topic={topic}")
     try:
         await db.add_problem_zone(course_id, step, topic, question)
-        print("[MEMORY] add_problem_zone SUCCESS")
+        logger.debug("add_problem_zone: SUCCESS")
     except Exception as e:
-        print(f"[MEMORY] add_problem_zone ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"add_problem_zone error: {e}", exc_info=True)
 
 
 def build_smart_context(course_mem: dict, current_step: int, student_name: str = None) -> str:
-    """Строит умный контекст с персонализацией и связями между шагами"""
-    print(f"[MEMORY] build_smart_context called: step={current_step}, has_mem={bool(course_mem)}")
+    """
+    Строит умный контекст с персонализацией и связями между шагами.
+    
+    Args:
+        course_mem: Данные памяти курса из БД
+        current_step: Текущий шаг курса
+        student_name: Имя студента для персонализации
+        
+    Returns:
+        Строка контекста для системного промпта
+    """
+    logger.debug(f"build_smart_context: step={current_step}, has_mem={bool(course_mem)}")
+    
     if not course_mem:
         parts = []
         if student_name:
@@ -102,7 +112,7 @@ def build_smart_context(course_mem: dict, current_step: int, student_name: str =
             problems = []
     
     if problems:
-        print(f"[MEMORY] build_smart_context problem_zones: {len(problems)}")
+        logger.debug(f"build_smart_context: {len(problems)} problem zones")
         parts.append("")
         parts.append("⚠️ ПРОБЛЕМНЫЕ ТЕМЫ (где были трудности):")
         for p in problems[-7:]:
@@ -123,7 +133,7 @@ def build_smart_context(course_mem: dict, current_step: int, student_name: str =
             topics = []
     
     if topics:
-        print(f"[MEMORY] build_smart_context completed_topics: {len(topics)}")
+        logger.debug(f"build_smart_context: {len(topics)} completed topics")
         parts.append("")
         parts.append("✅ ПРОЙДЕННЫЕ ТЕМЫ (ссылайся на них!):")
         

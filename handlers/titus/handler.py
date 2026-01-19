@@ -1,23 +1,33 @@
 """
-Обработчик Titus (Обучение) - 100% автономный модуль
+Обработчик Titus (Обучение) - оптимизирован для 1000+ пользователей
+Использует централизованное ядро core/
 """
-import re
-import time
-import json
-import base64
 import asyncio
-import os
+import base64
+import json
+import logging
+import re
+
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo, FSInputFile
+from aiogram.types import (
+    Message, CallbackQuery, ReplyKeyboardMarkup, 
+    KeyboardButton, WebAppInfo, FSInputFile
+)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+
+# Core — централизованное ядро
+from core import rate_limiter, cleanup_manager
+from core.cache import LRUCache
+from core.config import MSG_RATE_LIMITED
+
+# Database
 from database import postgres_db as db
-from database import redis_db
+
+# Utils
 from keyboards import reply, inline
 from utils.openrouter import ask
 from utils.stars import calculate_stars
-from utils.voice import download_voice, transcribe_voice, text_to_speech
-from utils.antiflood import ai_flood
 from utils.conversations import save_message, clean_response, should_show_preview, get_titus_keyboard
 from utils.streaming import stream_response
 from utils.status_manager import show_status
@@ -25,38 +35,38 @@ from utils.markdown import md_to_html
 from utils.balance_guard import ensure_balance
 from loader import bot
 
-# Локальные импорты модуля (всё внутри handlers/titus/)
+# Локальные импорты модуля
 from . import config as titus_config
 from . import texts
 from .memory import save_step_progress, build_smart_context
 from .prompts import TITUS_BASE, TITUS_CLARIFY
 
-router = Router()
+# Logging
+logger = logging.getLogger(__name__)
 
-# Использование настроек из локального config
+# ═══════════════════════════════════════
+# ИНИЦИАЛИЗАЦИЯ
+# ═══════════════════════════════════════
+
+router = Router()  # ТОЛЬКО ОДИН РАЗ!
+
+# Константы из локального config
 MIN_STARS = titus_config.MIN_STARS
-MAX_CACHE_SIZE = titus_config.MAX_CACHE_SIZE
 VIDEO_ANALYSIS_MODEL = titus_config.VIDEO_ANALYSIS_MODEL
 MAX_TRANSCRIPT_LENGTH = titus_config.MAX_TRANSCRIPT_LENGTH
 
-last_messages = {}
-active_requests = {}
+# Кэши с автоочисткой через core (вместо утекающих dict)
+last_messages_cache = LRUCache(max_size=500, default_ttl=3600)
+active_requests_cache = LRUCache(max_size=200, default_ttl=300)
+
+# Регистрация очистки в core
+cleanup_manager.register(last_messages_cache.cleanup)
+cleanup_manager.register(active_requests_cache.cleanup)
 
 
-def cleanup_cache(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
-    """Очистка кэша при превышении лимита"""
-    if len(cache_dict) > max_size:
-        keys_to_remove = list(cache_dict.keys())[:len(cache_dict) - max_size + 100]
-        for key in keys_to_remove:
-            cache_dict.pop(key, None)
-
-
-def build_course_context(course_mem, current_step=1, student_name=None):
-    return build_smart_context(course_mem, current_step, student_name)
-
-
-router = Router()
-
+# ═══════════════════════════════════════
+# СОСТОЯНИЯ FSM
+# ═══════════════════════════════════════
 
 class TitusSt(StatesGroup):
     menu = State()
@@ -69,8 +79,46 @@ class TitusSt(StatesGroup):
     video_analysis = State()
 
 
-active_requests = {}
+# ═══════════════════════════════════════
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ═══════════════════════════════════════
 
+def is_clarification_question(text: str) -> bool:
+    """Определяет, является ли сообщение уточняющим вопросом по теме"""
+    text_lower = text.lower().strip()
+    
+    clarify_markers = [
+        "не понял", "не понимаю", "непонятно",
+        "объясни", "поясни", "расскажи подробнее",
+        "почему", "зачем", "как это", "что значит",
+        "можешь объяснить", "ещё раз", "еще раз",
+        "а если", "а как", "а что",
+        "не ясно", "неясно", "уточни",
+        "в смысле", "то есть", "имеется в виду"
+    ]
+    
+    for marker in clarify_markers:
+        if marker in text_lower:
+            return True
+    
+    if "?" in text and len(text) < 100:
+        return True
+    
+    return False
+
+
+async def batch_db_operations(user_id: int, stars_used: int, bot_name: str = 'titus'):
+    """Батчинг операций с БД"""
+    await asyncio.gather(
+        db.use_stars_smart(user_id, stars_used, bot_name),
+        db.increment_requests(user_id),
+        return_exceptions=True
+    )
+
+
+# ═══════════════════════════════════════
+# ОБРАБОТЧИКИ МЕНЮ
+# ═══════════════════════════════════════
 
 @router.message(F.text.in_(["📓 Обучение", "📚 Обучение"]))
 async def titus_enter(msg: Message, state: FSMContext):
@@ -80,7 +128,6 @@ async def titus_enter(msg: Message, state: FSMContext):
         return
     await state.set_state(TitusSt.menu)
     
-    # Отправляем баннер вместо текста
     banner = FSInputFile("assets/banner_titus.png")
     await msg.answer_photo(
         photo=banner,
@@ -123,18 +170,18 @@ async def create_course(msg: Message, state: FSMContext):
     if not await ensure_balance(msg, required=MIN_STARS):
         return
     
-    model = await db.get_user_model(msg.from_user.id)
+    user_id = msg.from_user.id
+    model = await db.get_user_model(user_id)
     
     steps_map = {"🚀 10 шагов": 10, "📘 40 шагов": 40, "📖 80 шагов": 80}
     steps = steps_map[msg.text]
     data = await state.get_data()
     cname = data['cname']
-    cid = await db.create_course(msg.from_user.id, cname, steps)
+    cid = await db.create_course(user_id, cname, steps)
     await state.set_state(TitusSt.chat)
     await state.update_data(cid=cid, cname=cname, current_step=1, total_steps=steps)
-    await db.clear_msgs(msg.from_user.id, 'titus')
+    await db.clear_msgs(user_id, 'titus')
     
-    # Показываем создание курса с информацией о шаге
     await msg.answer(
         f"✅ <b>Курс «{cname}» создан!</b>\n\n"
         f"📚 Количество шагов: {steps}\n"
@@ -142,9 +189,7 @@ async def create_course(msg: Message, state: FSMContext):
         reply_markup=reply.study_chat_kb()
     )
     
-    # Используем текстовый промпт (голосовой режим удалён)
     base_prompt = TITUS_BASE
-    
     sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: 1 из {steps}\n\n⚠️ НЕ представляйся! Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": "Начни шаг 1"}]
     
@@ -158,35 +203,28 @@ async def create_course(msg: Message, state: FSMContext):
         )
         stars_used = calculate_stars(msgs, resp)
     except Exception as e:
-        print(f"Stream error in create_course: {e}")
+        logger.error(f"Stream error in create_course: {e}")
         raise
     
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
-    footer = f"\n\n<i>📓 Обучение • Шаг 1/{steps}</i>"
-    resp_with_footer = f"{resp_clean}{footer}"
-    resp_html = md_to_html(resp_clean)
     
-    await db.use_stars_smart(msg.from_user.id, stars_used, 'titus')
-    await db.increment_requests(msg.from_user.id)
+    # Батчинг операций БД
+    await batch_db_operations(user_id, stars_used, 'titus')
     
-    # Сохраняем в систему диалогов
-    conv_id = await save_message(msg.from_user.id, 'assistant', resp_clean, 'titus')
+    conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
     
-    last_messages[msg.from_user.id] = {"text": resp_clean, "course": cname, "step": 1}
-    cleanup_cache(last_messages)  # Предотвращаем утечку памяти
+    # Сохраняем в кэш (с автоочисткой)
+    last_messages_cache.set(user_id, {"text": resp_clean, "course": cname, "step": 1})
     
-    # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
-    keyboard = get_titus_keyboard(conv_id, len(resp_clean), msg.from_user.id)
+    keyboard = get_titus_keyboard(conv_id, len(resp_clean), user_id)
     
-    # === ТЕКСТОВЫЙ ОТВЕТ (голосовой режим удалён) ===
     final_text = f"<i>📓 Обучение • Шаг 1/{steps}</i>"
     
     if sent_msg:
         try:
             await sent_msg.edit_reply_markup(reply_markup=keyboard)
         except Exception:
-            # Если не удалось добавить кнопки - отправляем отдельное сообщение
             await msg.answer(final_text, reply_markup=keyboard)
     else:
         await msg.answer(final_text, reply_markup=keyboard)
@@ -256,10 +294,20 @@ async def continue_select(msg: Message, state: FSMContext):
             await state.update_data(cid=cid, cname=cname, current_step=current_step, total_steps=total_steps)
             await db.clear_msgs(msg.from_user.id, 'titus')
             
-            user = await db.get_user(msg.from_user.id)
+            # Батчинг запросов к БД
+            user, course_mem = await asyncio.gather(
+                db.get_user(msg.from_user.id),
+                db.get_course_memory(cid),
+                return_exceptions=True
+            )
+            
+            if isinstance(user, Exception):
+                user = None
+            if isinstance(course_mem, Exception):
+                course_mem = None
+            
             name = user.get('first_name', 'друг') if user else 'друг'
             
-            course_mem = await db.get_course_memory(cid)
             difficult_topics = []
             if course_mem and course_mem.get('weak_topics'):
                 weak = course_mem['weak_topics']
@@ -290,7 +338,7 @@ async def continue_select(msg: Message, state: FSMContext):
             )
             return
     except Exception as e:
-        print(f"Error in continue_select: {e}")
+        logger.error(f"Error in continue_select: {e}")
     await msg.answer(texts.ERROR_SELECT_COURSE)
 
 
@@ -317,6 +365,10 @@ async def delete_select(msg: Message, state: FSMContext):
     await msg.answer(texts.ERROR_SELECT_COURSE)
 
 
+# ═══════════════════════════════════════
+# АНАЛИЗ ВИДЕО (с asyncio.to_thread для YouTube API)
+# ═══════════════════════════════════════
+
 @router.message(TitusSt.menu, F.text.in_(["📚 Анализ видео", "📹 Анализ видео"]))
 async def video_analysis_start(msg: Message, state: FSMContext):
     await state.set_state(TitusSt.video_analysis)
@@ -342,20 +394,14 @@ async def video_analysis_back(msg: Message, state: FSMContext):
 @router.message(TitusSt.video_analysis, F.text)
 async def video_analysis_process(msg: Message, state: FSMContext):
     from youtube_transcript_api import YouTubeTranscriptApi
-    import re as regex
-    import time
     
     user_id = msg.from_user.id
-    start_time = time.time()
-    print(f"[VIDEO] Начало анализа для пользователя {user_id}")
+    logger.info(f"Video analysis started for user {user_id}")
     
-    # Проверка звёзд
     if not await ensure_balance(msg, required=MIN_STARS):
         return
     
-    print(f"[VIDEO] Звёзды проверены: {time.time() - start_time:.2f}с")
-    
-    # Извлечение video_id из ссылки
+    # Извлечение video_id
     video_id = None
     patterns = [
         r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})',
@@ -364,7 +410,7 @@ async def video_analysis_process(msg: Message, state: FSMContext):
     ]
     
     for pattern in patterns:
-        match = regex.search(pattern, msg.text)
+        match = re.search(pattern, msg.text)
         if match:
             video_id = match.group(1)
             break
@@ -373,42 +419,40 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         await msg.answer(texts.VIDEO_ANALYSIS_INVALID_LINK, reply_markup=reply.back_kb())
         return
     
-    print(f"[VIDEO] Video ID извлечён: {video_id}, время: {time.time() - start_time:.2f}с")
+    logger.debug(f"Video ID extracted: {video_id}")
     
     status = await show_status(bot, msg.chat.id, "text")
     
     try:
-        # Получаем субтитры
-        print(f"[VIDEO] Начало загрузки субтитров: {time.time() - start_time:.2f}с")
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        print(f"[VIDEO] Субтитры получены: {time.time() - start_time:.2f}с")
+        # ✅ Асинхронный вызов YouTube API (не блокирует event loop!)
+        transcript_list = await asyncio.to_thread(
+            YouTubeTranscriptApi.list_transcripts, 
+            video_id
+        )
         
-        # Пытаемся получить русские или английские субтитры
         transcript = None
         try:
-            transcript = transcript_list.find_transcript(['ru', 'en'])
-            print(f"[VIDEO] Найдены субтитры: {time.time() - start_time:.2f}с")
+            transcript = await asyncio.to_thread(
+                transcript_list.find_transcript, 
+                ['ru', 'en']
+            )
         except:
-            transcript = transcript_list.find_generated_transcript(['ru', 'en'])
-            print(f"[VIDEO] Найдены автосубтитры: {time.time() - start_time:.2f}с")
+            transcript = await asyncio.to_thread(
+                transcript_list.find_generated_transcript, 
+                ['ru', 'en']
+            )
         
         if not transcript:
-            print(f"[VIDEO] Субтитры не найдены: {time.time() - start_time:.2f}с")
             await msg.answer("❌ У этого видео нет субтитров")
             return
         
-        # Получаем текст
-        print(f"[VIDEO] Начало загрузки текста субтитров: {time.time() - start_time:.2f}с")
-        captions = transcript.fetch()
+        captions = await asyncio.to_thread(transcript.fetch)
         full_text = " ".join([entry['text'] for entry in captions])
-        print(f"[VIDEO] Текст получен ({len(full_text)} символов): {time.time() - start_time:.2f}с")
+        logger.debug(f"Transcript fetched: {len(full_text)} chars")
         
-        # Ограничиваем длину (макс 50к символов)
-        if len(full_text) > 50000:
-            full_text = full_text[:50000] + "..."
+        if len(full_text) > MAX_TRANSCRIPT_LENGTH:
+            full_text = full_text[:MAX_TRANSCRIPT_LENGTH] + "..."
         
-        # Анализ через Gemini Flash (дешёвая модель)
-        print(f"[VIDEO] Начало AI анализа: {time.time() - start_time:.2f}с")
         analysis_prompt = f"""Проанализируй это видео по субтитрам и составь структурированный конспект:
 
 {full_text}
@@ -422,44 +466,32 @@ async def video_analysis_process(msg: Message, state: FSMContext):
 Формат: структурированно, с эмодзи, понятно."""
         
         resp, stars_used = await ask([{"role": "user", "content": analysis_prompt}], VIDEO_ANALYSIS_MODEL)
-        print(f"[VIDEO] AI анализ завершён: {time.time() - start_time:.2f}с")
         
         if status:
             await status.stop()
         
         resp_clean = clean_response(resp)
-        resp_html = md_to_html(resp_clean)
         
-        # Списываем звёзды
-        print(f"[VIDEO] Списание звёзд: {time.time() - start_time:.2f}с")
-        await db.use_stars_smart(user_id, stars_used, 'titus')
-        await db.increment_requests(user_id)
+        # Батчинг операций БД
+        await batch_db_operations(user_id, stars_used, 'titus')
         
-        # Сохраняем в систему диалогов
-        print(f"[VIDEO] Сохранение в диалоги: {time.time() - start_time:.2f}с")
         conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
 
-        # Сохраняем конспект в PostgreSQL (для WebApp "Мои конспекты")
+        # Сохраняем конспект в PostgreSQL
         try:
-            print(f"[VIDEO] Сохранение в PostgreSQL: {time.time() - start_time:.2f}с")
             from database.postgres_db import add_video_note
             url = f"https://www.youtube.com/watch?v={video_id}"
             title = f"YouTube {video_id}"
             await add_video_note(user_id, title=title, url=url, text=resp_clean, source="YouTube")
         except Exception as e:
-            print(f"[VIDEO] Ошибка сохранения в PostgreSQL: {e}")
+            logger.error(f"Error saving video note: {e}")
         
-        # Сохраняем в last_messages
-        last_messages[user_id] = {"text": resp_clean, "course": "Анализ видео", "step": 1}
-        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
+        # Сохраняем в кэш
+        last_messages_cache.set(user_id, {"text": resp_clean, "course": "Анализ видео", "step": 1})
         
-        # Проверяем, нужно ли превью
         needs_preview, display_text = should_show_preview(resp_clean, max_length=3000)
-        
-        # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
         keyboard = get_titus_keyboard(conv_id, len(resp_clean), user_id)
         
-        print(f"[VIDEO] Отправка результата пользователю: {time.time() - start_time:.2f}с")
         await msg.answer(
             f"📹 <b>Анализ видео</b>\n\n{display_text}",
             reply_markup=keyboard
@@ -469,11 +501,11 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         from keyboards.reply import socials_menu_kb
         await msg.answer(texts.VIDEO_ANALYSIS_COMPLETED, reply_markup=socials_menu_kb(user_id))
         
-        print(f"[VIDEO] ✅ ГОТОВО! Общее время: {time.time() - start_time:.2f}с")
+        logger.info(f"Video analysis completed for user {user_id}")
         
     except Exception as e:
         error_msg = str(e)
-        print(f"[VIDEO] ❌ ОШИБКА на {time.time() - start_time:.2f}с: {error_msg}")
+        logger.error(f"Video analysis error: {error_msg}")
         if "Subtitles are disabled" in error_msg or "transcript" in error_msg.lower():
             await msg.answer(texts.VIDEO_ANALYSIS_NO_SUBTITLES)
         else:
@@ -482,6 +514,10 @@ async def video_analysis_process(msg: Message, state: FSMContext):
         if status:
             await status.stop()
 
+
+# ═══════════════════════════════════════
+# МЕНЮ И УПРАВЛЕНИЕ ЧАТОМ
+# ═══════════════════════════════════════
 
 @router.message(TitusSt.menu, F.text == "🔍 Помощь")
 async def titus_help(msg: Message):
@@ -512,16 +548,18 @@ async def titus_clear(msg: Message):
 @router.message(TitusSt.chat, F.text == "⌛️ Отменить запрос")
 async def titus_cancel(msg: Message):
     user_id = msg.from_user.id
-    if user_id in active_requests and isinstance(active_requests[user_id], dict):
-        active_requests[user_id]['cancelled'] = True
+    request_data = active_requests_cache.get(user_id)
+    
+    if request_data and isinstance(request_data, dict):
+        request_data['cancelled'] = True
         try:
-            if active_requests[user_id].get('kb_msg'):
-                await active_requests[user_id]['kb_msg'].delete()
+            if request_data.get('kb_msg'):
+                await request_data['kb_msg'].delete()
         except:
             pass
         try:
-            if active_requests[user_id].get('status'):
-                await active_requests[user_id]['status'].stop()
+            if request_data.get('status'):
+                await request_data['status'].stop()
         except:
             pass
         try:
@@ -536,7 +574,9 @@ async def titus_cancel(msg: Message):
 @router.callback_query(F.data.startswith("titus:summary:"))
 async def titus_make_summary(cb: CallbackQuery):
     user_id = cb.from_user.id
-    if user_id not in last_messages:
+    cached = last_messages_cache.get(user_id)
+    
+    if not cached:
         await cb.answer(texts.NO_TEXT_FOR_SUMMARY, show_alert=True)
         return
     
@@ -546,117 +586,103 @@ async def titus_make_summary(cb: CallbackQuery):
     await cb.answer(texts.SUMMARY_CREATING)
     
     model = await db.get_user_model(user_id)
-    data = last_messages[user_id]
     
     summary_prompt = f"""Сделай краткий конспект из этого текста:
 
-{data['text']}
+{cached['text']}
 
 Требования: структурированно, по пунктам, только важное."""
 
     try:
         resp, stars_used = await ask([{"role": "user", "content": summary_prompt}], model)
         resp = clean_response(resp)
-        await db.use_stars_smart(user_id, stars_used, 'titus')
-        await db.increment_requests(user_id)
+        await batch_db_operations(user_id, stars_used, 'titus')
         await cb.message.answer(
-            f"📝 <b>Конспект | {data.get('course', 'Курс')} | Шаг {data.get('step', 1)}</b>\n\n{resp}",
+            f"📝 <b>Конспект | {cached.get('course', 'Курс')} | Шаг {cached.get('step', 1)}</b>\n\n{resp}",
             reply_markup=reply.study_chat_kb()
         )
     except Exception as e:
         await cb.message.answer(f"❌ Ошибка: {e}", reply_markup=reply.study_chat_kb())
 
 
-# ЗАКОММЕНТИРОВАНО: Старая логика не работала, AI не добавлял маркер
-# def check_step_transition(resp: str) -> bool:
-#     return "---NEXT---" in resp
-
-
-def is_clarification_question(text: str) -> bool:
-    """Определяет, является ли сообщение уточняющим вопросом по теме"""
-    text_lower = text.lower().strip()
-    
-    # Явные маркеры уточнения
-    clarify_markers = [
-        "не понял", "не понимаю", "непонятно",
-        "объясни", "поясни", "расскажи подробнее",
-        "почему", "зачем", "как это", "что значит",
-        "можешь объяснить", "ещё раз", "еще раз",
-        "а если", "а как", "а что",
-        "не ясно", "неясно", "уточни",
-        "в смысле", "то есть", "имеется в виду"
-    ]
-    
-    for marker in clarify_markers:
-        if marker in text_lower:
-            return True
-    
-    # Если есть "?" и текст короткий (до 100 символов) — скорее всего вопрос
-    if "?" in text and len(text) < 100:
-        return True
-    
-    return False
-
+# ═══════════════════════════════════════
+# ОСНОВНАЯ ОБРАБОТКА СООБЩЕНИЙ
+# ═══════════════════════════════════════
 
 async def process_titus_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
-    allowed, error_msg = await ai_flood.check(msg.from_user.id)
+    user_id = msg.from_user.id
+    
+    # Rate limiting через core
+    allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
-        await msg.answer(error_msg, reply_markup=reply.study_chat_kb())
+        await msg.answer(MSG_RATE_LIMITED.format(seconds=wait_time), reply_markup=reply.study_chat_kb())
         return
     
     if not await ensure_balance(msg, required=MIN_STARS):
         return
     
-    model = await db.get_user_model(msg.from_user.id)
-    # Голосовой режим удалён
+    model = await db.get_user_model(user_id)
     
     data = await state.get_data()
     cid = data.get('cid')
     cname = data.get('cname', 'Курс')
-    user_id = msg.from_user.id
     request_state = {'cancelled': False, 'kb_msg': None, 'status': None}
-    active_requests[user_id] = request_state
-    
-    request_state['status'] = None
+    active_requests_cache.set(user_id, request_state)
     
     current_step = data.get('current_step', 1)
     total_steps = data.get('total_steps', 10)
     resp = None
     stars_used = 0
+    conv_id = None
+    
     try:
         if request_state['cancelled']:
             return
+        
+        # Батчинг запросов к БД
+        if cid:
+            course, hist, course_mem, user = await asyncio.gather(
+                db.get_course(cid),
+                db.get_msgs(user_id, 'titus'),
+                db.get_course_memory(cid),
+                db.get_user(user_id),
+                return_exceptions=True
+            )
             
-        hist = await db.get_msgs(msg.from_user.id, 'titus')
+            # Обработка ошибок
+            if isinstance(course, Exception):
+                course = None
+            if isinstance(hist, Exception):
+                hist = []
+            if isinstance(course_mem, Exception):
+                course_mem = None
+            if isinstance(user, Exception):
+                user = None
+        else:
+            hist = await db.get_msgs(user_id, 'titus')
+            course = None
+            course_mem = None
+            user = None
+        
         course_info = ""
         
-        if cid:
-            course = await db.get_course(cid)
-            if course:
-                current_step = course['current']
-                total_steps = course['total']
-                await state.update_data(current_step=current_step, total_steps=total_steps)
-                
-                user = await db.get_user(msg.from_user.id)
-                student_name = user.get('first_name') if user else None
-                
-                course_mem = await db.get_course_memory(cid)
-                memory_context = build_course_context(course_mem, current_step, student_name)
-                print(f"[DEBUG] Titus memory_context (cid={cid}, step={current_step}): {memory_context}")
-                course_info = f"\n\nКУРС: {course['name']}\nШАГ: {current_step} из {total_steps}\nПРОГРЕСС: {int(current_step/total_steps*100)}%"
-                if memory_context:
-                    course_info += f"\n\n{memory_context}"
+        if course:
+            current_step = course['current']
+            total_steps = course['total']
+            await state.update_data(current_step=current_step, total_steps=total_steps)
+            
+            student_name = user.get('first_name') if user else None
+            memory_context = build_smart_context(course_mem, current_step, student_name)
+            logger.debug(f"Memory context for course {cid}: {len(memory_context)} chars")
+            
+            course_info = f"\n\nКУРС: {course['name']}\nШАГ: {current_step} из {total_steps}\nПРОГРЕСС: {int(current_step/total_steps*100)}%"
+            if memory_context:
+                course_info += f"\n\n{memory_context}"
         
-        # Определяем тип сообщения: уточнение или ответ на шаг
-        if is_clarification_question(text):
-            # Уточняющий вопрос — короткий ответ
-            base_prompt = TITUS_CLARIFY
-        else:
-            # Обычный ответ на шаг курса — полная структура
-            base_prompt = TITUS_BASE
+        # Определяем тип промпта
+        base_prompt = TITUS_CLARIFY if is_clarification_question(text) else TITUS_BASE
         
         sys = base_prompt + course_info
-        print(f"[DEBUG] SYSTEM PROMPT (first 500): {sys[:500]}")
         msgs_to_send = [{"role": "system", "content": sys}] + hist + [{"role": "user", "content": text}]
         
         if request_state['cancelled']:
@@ -678,89 +704,64 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         if request_state['cancelled']:
             return
         
-        print(f"[DEBUG] BEFORE step logic: cid={cid}, current_step={current_step}")
-        
-        # Определяем тип сообщения пользователя
+        # Определяем переход на следующий шаг
         user_lower = text.lower().strip()
         
-        # Слова-вопросы (НЕ переходим на следующий шаг)
         question_markers = [
             '?', 'не понял', 'непонял', 'не понимаю', 'объясни', 'поясни', 'почему', 'зачем',
             'как это', 'что значит', 'что такое', 'можешь объяснить', 'расскажи подробнее',
             'затрудняюсь', 'сложно', 'не знаю', 'трудно'
         ]
         
-        # Слова-пропуска (переходим на следующий шаг)
         skip_markers = [
             'понял', 'ясно', 'дальше', 'давай', 'следующий', 'продолжай', 'го', 'далее',
             'окей', 'ок', 'хорошо', 'ладно', 'да', 'угу', 'ага'
         ]
         
-        # Это вопрос? → НЕ переходим
         is_question = any(q in user_lower for q in question_markers)
-        
-        # Это пропуск/согласие? → Переходим
         is_skip = any(s in user_lower for s in skip_markers) and not is_question
-        
-        # Это ответ на вопрос курса? (длинное сообщение без вопросительных слов)
         is_answer = len(text) > 15 and not is_question and not is_skip
-        
-        # ИТОГО: переходим если пропуск ИЛИ ответ
         should_advance = (is_skip or is_answer) and cid is not None
         
-        print(f"[DEBUG] user_lower={user_lower[:30]}")
-        print(f"[DEBUG] is_question={is_question}, is_skip={is_skip}, is_answer={is_answer}")
-        print(f"[DEBUG] should_advance={should_advance}")
         resp_clean = resp.replace("---NEXT---", "").strip()
         resp_clean = clean_response(resp_clean)
         
-        # Списываем звёзды и увеличиваем счётчик
-        await db.use_stars_smart(user_id, stars_used, 'titus')
-        await db.increment_requests(user_id)
+        # Батчинг операций БД
+        await batch_db_operations(user_id, stars_used, 'titus')
         
-        # Сохраняем в систему диалогов
+        # Сохраняем сообщения
         await save_message(user_id, 'user', text, 'titus')
         conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
         
-        # Логика переход на следующий шаг курса
-        print(f"[DEBUG] STEP CHECK: cid={cid}, should_advance={should_advance}, current_step={current_step}")
-        if cid and should_advance:
-            print(f"[DEBUG] Entering step advance block")
-            course = await db.get_course(cid)
-            if course:
-                print(f"[DEBUG] Course found: current={course['current']}, total={course['total']}")
-                last_bot_msg = hist[-1]['content'] if hist and hist[-1]['role'] == 'assistant' else ""
-                asyncio.create_task(save_step_progress(cid, current_step, last_bot_msg, text))
-                
-                new_step = course['current'] + 1
-                if new_step > course['total']:
-                    await db.complete_course(cid)
-                    await state.set_state(TitusSt.menu)
-                    await msg.answer(
-                        f"{resp_clean}\n\n{texts.COURSE_COMPLETED}",
-                        reply_markup=reply.study_kb(msg.from_user.id)
-                    )
-                    return
-                else:
-                    await db.update_course_step(cid, new_step)
-                    current_step = new_step
-                    await state.update_data(current_step=new_step)
+        # Логика перехода на следующий шаг
+        if cid and should_advance and course:
+            last_bot_msg = hist[-1]['content'] if hist and hist[-1]['role'] == 'assistant' else ""
+            asyncio.create_task(save_step_progress(cid, current_step, last_bot_msg, text))
+            
+            new_step = course['current'] + 1
+            if new_step > course['total']:
+                await db.complete_course(cid)
+                await state.set_state(TitusSt.menu)
+                await msg.answer(
+                    f"{resp_clean}\n\n{texts.COURSE_COMPLETED}",
+                    reply_markup=reply.study_kb(user_id)
+                )
+                return
+            else:
+                await db.update_course_step(cid, new_step)
+                current_step = new_step
+                await state.update_data(current_step=new_step)
         
-        # Обновляем кэш последнего сообщения
-        last_messages[user_id] = {"text": resp_clean, "course": cname, "step": current_step}
-        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
+        # Сохраняем в кэш
+        last_messages_cache.set(user_id, {"text": resp_clean, "course": cname, "step": current_step})
         resp = resp_clean
                         
     finally:
-        active_requests.pop(user_id, None)
+        active_requests_cache.delete(user_id)
     
     if resp:
         step_info = f" • Шаг {current_step}/{total_steps}" if cid else ""
-        
-        # Проверяем, нужно ли превью
         needs_preview, display_text = should_show_preview(resp, max_length=3000)
-        
-        # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
         keyboard = get_titus_keyboard(conv_id, len(resp), user_id)
 
         temp_msg = None
@@ -770,14 +771,12 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
             pass
 
         try:
-            # === ТЕКСТОВЫЙ ОТВЕТ (голосовой режим удалён) ===
             final_text = f"{display_text}\n\n<i>📓 Обучение{step_info}</i>"
             
             if sent_msg:
                 try:
                     await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
                 except Exception:
-                    # Если не удалось отредактировать - отправляем новое
                     await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
             else:
                 await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
@@ -793,8 +792,6 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
 async def titus_text(msg: Message, state: FSMContext):
     await process_titus_message(msg, state, msg.text)
 
-
-# УДАЛЕНО: Голосовой ввод больше не поддерживается в Titus
 
 @router.message(TitusSt.chat, F.photo)
 async def titus_photo(msg: Message, state: FSMContext):
@@ -813,12 +810,17 @@ async def titus_photo(msg: Message, state: FSMContext):
     await process_titus_message(msg, state, msg.caption or "Что на изображении?", b64)
 
 
+# ═══════════════════════════════════════
+# CALLBACK HANDLERS
+# ═══════════════════════════════════════
+
 @router.callback_query(F.data.startswith("course:continue:"))
 async def course_continue_step(cb: CallbackQuery, state: FSMContext):
-    print(f"[DEBUG] course_continue_step CALLED, data={cb.data}")
+    logger.debug(f"course_continue_step called, data={cb.data}")
     parts = cb.data.split(":")
     cid = int(parts[2])
     current_step = int(parts[3])
+    user_id = cb.from_user.id
     
     await cb.answer()
     temp_msg = None
@@ -834,11 +836,9 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     if not await ensure_balance(cb, required=MIN_STARS):
         return
     
-    model = await db.get_user_model(cb.from_user.id)
+    model = await db.get_user_model(user_id)
     
-    # Используем текстовый промпт (голосовой режим удалён)
     base_prompt = TITUS_BASE
-    
     sys = base_prompt + f"\n\nКУРС: {cname}\nШАГ: {current_step} из {total_steps}\n\n⚠️ Продолжи обучение с шага {current_step}. Сразу начни с 📌 Тема:"
     msgs = [{"role": "system", "content": sys}, {"role": "user", "content": f"Продолжи с шага {current_step}"}]
     
@@ -852,7 +852,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
         )
         stars_used = calculate_stars(msgs, resp)
     except Exception as e:
-        print(f"Stream error in course_continue: {e}")
+        logger.error(f"Stream error in course_continue: {e}")
         raise
     finally:
         if temp_msg:
@@ -863,25 +863,15 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
 
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
-    
-    # Добавляем футер с номером шага
     footer = f"\n\n<i>📓 Обучение • Шаг {current_step}/{total_steps}</i>"
     resp_with_footer = f"{resp_clean}{footer}"
-    resp_html = md_to_html(resp_with_footer)
 
-    await db.use_stars_smart(cb.from_user.id, stars_used, 'titus')
-    await db.increment_requests(cb.from_user.id)
+    await batch_db_operations(user_id, stars_used, 'titus')
+    conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
+    
+    last_messages_cache.set(user_id, {"text": resp_clean, "course": cname, "step": current_step})
+    keyboard = get_titus_keyboard(conv_id, len(resp_clean), user_id)
 
-    # Сохраняем в систему диалогов
-    conv_id = await save_message(cb.from_user.id, 'assistant', resp_clean, 'titus')
-
-    last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
-    cleanup_cache(last_messages)  # Предотвращаем утечку памяти
-
-    # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
-    keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
-
-    # === ТЕКСТОВЫЙ ОТВЕТ (голосовой режим удалён) ===
     if sent_msg:
         try:
             await sent_msg.edit_text(resp_with_footer, parse_mode="HTML", reply_markup=keyboard)
@@ -894,6 +884,7 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("course:repeat:"))
 async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     cid = int(cb.data.split(":")[2])
+    user_id = cb.from_user.id
     
     await cb.answer()
     temp_msg = None
@@ -910,7 +901,7 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     if not await ensure_balance(cb, required=MIN_STARS):
         return
     
-    model = await db.get_user_model(cb.from_user.id)
+    model = await db.get_user_model(user_id)
     
     course_mem = await db.get_course_memory(cid)
     weak_topics = []
@@ -925,7 +916,6 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     
     topics_text = ", ".join([t.get('topic', str(t)) if isinstance(t, dict) else str(t) for t in weak_topics])
     
-    # Используем текстовый промпт (голосовой режим удалён)
     base_prompt = TITUS_CLARIFY
     course_context = f"Курс: {cname}\nШаг: {current_step} из {total_steps}"
     
@@ -944,24 +934,16 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
         
         resp_clean = clean_response(resp)
         
-        await db.use_stars_smart(cb.from_user.id, stars_used, 'titus')
-        await db.increment_requests(cb.from_user.id)
+        await batch_db_operations(user_id, stars_used, 'titus')
+        conv_id = await save_message(user_id, 'assistant', resp_clean, 'titus')
         
-        # Сохраняем в систему диалогов
-        conv_id = await save_message(cb.from_user.id, 'assistant', resp_clean, 'titus')
+        last_messages_cache.set(user_id, {"text": resp_clean, "course": cname, "step": current_step})
+        keyboard = get_titus_keyboard(conv_id, len(resp_clean), user_id)
         
-        last_messages[cb.from_user.id] = {"text": resp_clean, "course": cname, "step": current_step}
-        cleanup_cache(last_messages)  # Предотвращаем утечку памяти
-        
-        # Получаем клавиатуру с Конспектом и Посмотреть весь диалог
-        keyboard = get_titus_keyboard(conv_id, len(resp_clean), cb.from_user.id)
-        
-        # === ТЕКСТОВЫЙ ОТВЕТ (голосовой режим удалён) ===
         if sent_msg:
             try:
                 await sent_msg.edit_reply_markup(reply_markup=keyboard)
             except Exception:
-                # Если не удалось - отправляем отдельное сообщение
                 await cb.message.answer(
                     f"<i>📓 Обучение • Повторение сложных тем</i>",
                     reply_markup=keyboard
