@@ -298,3 +298,26 @@ def clear_pair_chat_history(code: str):
             redis_client.delete(f"silas:pair:{code.upper()}:chat")
     except Exception as e:
         print(f"Redis error in clear_pair_chat_history: {e}")
+
+
+# ========== УНИВЕРСАЛЬНЫЙ КЭШ ==========
+
+def get_cache(key: str) -> Optional[dict]:
+    """Получить данные из кэша по ключу"""
+    try:
+        if redis_client:
+            data = redis_client.get(f"cache:{key}")
+            if data:
+                return json.loads(data)
+    except Exception as e:
+        print(f"Redis error in get_cache: {e}")
+    return None
+
+
+def set_cache(key: str, data: dict, ttl: int = 3600):
+    """Сохранить данные в кэш"""
+    try:
+        if redis_client:
+            redis_client.setex(f"cache:{key}", ttl, json.dumps(data, ensure_ascii=False))
+    except Exception as e:
+        print(f"Redis error in set_cache: {e}")
