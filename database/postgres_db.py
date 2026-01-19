@@ -1997,6 +1997,116 @@ async def get_daily_nutrition(uid: int, date_str: str = None) -> Dict:
         }
 
 
+async def get_today_calories(uid: int) -> Dict:
+    """Получить статистику калорий за сегодня"""
+    async with get_connection() as conn:
+        today = datetime.now().date()
+        
+        row = await conn.fetchrow(
+            """
+            SELECT 
+                COALESCE(SUM(calories), 0) as calories,
+                COALESCE(SUM(protein), 0) as protein,
+                COALESCE(SUM(fat), 0) as fat,
+                COALESCE(SUM(carbs), 0) as carbs
+            FROM calories_log
+            WHERE user_id = $1 AND date = $2
+            """,
+            uid, today
+        )
+        
+        if row:
+            return dict(row)
+        return {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
+
+
+async def save_calories_log(uid: int, food_name: str, portion: str, 
+                            calories: int, protein: float, fat: float, carbs: float):
+    """Сохранить запись о еде в журнал"""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO calories_log (user_id, food_name, portion, calories, protein, fat, carbs)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """,
+            uid, food_name, portion, calories, protein, fat, carbs
+        )
+
+
+async def get_calories_logs(uid: int, days: int = 0) -> List[Dict]:
+    """Получить логи за указанный день (0=сегодня, 1=вчера)"""
+    async with get_connection() as conn:
+        from datetime import timedelta
+        target_date = datetime.now().date() - timedelta(days=days)
+        
+        rows = await conn.fetch(
+            "SELECT * FROM calories_log WHERE user_id = $1 AND date = $2 ORDER BY time DESC",
+            uid, target_date
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_weekly_calories(uid: int) -> List[Dict]:
+    """Получить статистику за неделю"""
+    async with get_connection() as conn:
+        from datetime import timedelta
+        week_ago = datetime.now().date() - timedelta(days=7)
+        
+        rows = await conn.fetch(
+            """
+            SELECT 
+                date,
+                SUM(calories) as calories,
+                SUM(protein) as protein,
+                SUM(fat) as fat,
+                SUM(carbs) as carbs
+            FROM calories_log
+            WHERE user_id = $1 AND date >= $2
+            GROUP BY date
+            ORDER BY date DESC
+            """,
+            uid, week_ago
+        )
+        return [dict(row) for row in rows]
+
+
+async def get_monthly_calories(uid: int) -> List[Dict]:
+    """Получить статистику за месяц"""
+    async with get_connection() as conn:
+        from datetime import timedelta
+        month_ago = datetime.now().date() - timedelta(days=30)
+        
+        rows = await conn.fetch(
+            """
+            SELECT 
+                date,
+                SUM(calories) as calories,
+                SUM(protein) as protein,
+                SUM(fat) as fat,
+                SUM(carbs) as carbs
+            FROM calories_log
+            WHERE user_id = $1 AND date >= $2
+            GROUP BY date
+            ORDER BY date DESC
+            """,
+            uid, month_ago
+        )
+        return [dict(row) for row in rows]
+
+
+async def save_nutrition_goal(uid: int, goal: str, daily_calories: int,
+                              daily_protein: int, daily_fat: int, daily_carbs: int,
+                              weight: float, height: int, age: int, gender: str, activity: str):
+    """Сохранить цель питания пользователя (алиас для save_nutrition_goals)"""
+    await save_nutrition_goals(uid, goal, daily_calories, daily_protein, daily_fat, daily_carbs,
+                               weight, height, age, gender, activity)
+
+
+async def get_nutrition_goal(uid: int) -> Optional[Dict]:
+    """Получить цель питания пользователя"""
+    return await get_nutrition_goals(uid)
+
+
 async def save_nutrition_goals(uid: int, goal: str, daily_calories: int, daily_protein: int,
                                daily_fat: int, daily_carbs: int, weight: float = None,
                                height: int = None, age: int = None, gender: str = None, activity: str = None):
