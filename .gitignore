@@ -46,3 +46,7 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Бэкапы (только локально)
+backups/
+frozen_versions/
