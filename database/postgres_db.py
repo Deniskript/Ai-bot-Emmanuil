@@ -2020,7 +2020,7 @@ async def get_today_calories(uid: int) -> Dict:
         return {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
 
 
-async def save_calories_log(uid: int, food_name: str, portion: str, 
+async def save_calories_log(user_id: int, food_name: str, portion: str, 
                             calories: int, protein: float, fat: float, carbs: float):
     """Сохранить запись о еде в журнал"""
     async with get_connection() as conn:
@@ -2029,7 +2029,7 @@ async def save_calories_log(uid: int, food_name: str, portion: str,
             INSERT INTO calories_log (user_id, food_name, portion, calories, protein, fat, carbs)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             """,
-            uid, food_name, portion, calories, protein, fat, carbs
+            user_id, food_name, portion, calories, protein, fat, carbs
         )
 
 
