@@ -79,10 +79,32 @@ def ensure_pool_initialized():
 
 
 def run_async(coro):
-    """Run async function in sync context"""
-    ensure_pool_initialized()
-    loop = get_admin_loop()
-    return loop.run_until_complete(coro)
+    """Run async function in sync context with automatic reconnection"""
+    try:
+        ensure_pool_initialized()
+        loop = get_admin_loop()
+        return loop.run_until_complete(coro)
+    except (RuntimeError, Exception) as e:
+        error_str = str(e)
+        # Проверяем различные типы ошибок подключения
+        if any(x in error_str for x in ["different loop", "attached to a different loop", "connection was closed", "ConnectionDoesNotExistError"]):
+            # Pool привязан к другому loop или соединение закрыто - пересоздаём
+            logger.warning(f"Admin connection/loop error detected, reinitializing: {e}")
+            global _pool_initialized, _admin_loop
+            _pool_initialized = False
+            
+            # Пересоздаём loop и pool
+            if _admin_loop and not _admin_loop.is_closed():
+                try:
+                    _admin_loop.close()
+                except:
+                    pass
+            _admin_loop = None
+            
+            ensure_pool_initialized()
+            loop = get_admin_loop()
+            return loop.run_until_complete(coro)
+        raise
 
 
 # ============================================================================
