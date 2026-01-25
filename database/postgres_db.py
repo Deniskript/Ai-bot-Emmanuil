@@ -992,6 +992,31 @@ async def save_memory(uid: int, bot: str, facts: List):
         )
 
 
+async def delete_memory_fact(uid: int, bot: str, fact_index: int) -> bool:
+    """Удалить один факт из памяти бота по индексу"""
+    facts = await get_memory(uid, bot)
+    if not facts or fact_index < 0 or fact_index >= len(facts):
+        return False
+    facts.pop(fact_index)
+    await save_memory(uid, bot, facts)
+    return True
+
+
+async def clear_user_memory(uid: int, bot: str = None):
+    """Очистить память пользователя (для одного бота или всех)"""
+    async with get_connection() as conn:
+        if bot:
+            await conn.execute(
+                "DELETE FROM bot_memory WHERE user_id = $1 AND bot = $2",
+                uid, bot
+            )
+        else:
+            await conn.execute(
+                "DELETE FROM bot_memory WHERE user_id = $1",
+                uid
+            )
+
+
 # ============================================================================
 # CONVERSATIONS & MESSAGES - Диалоги и сообщения
 # ============================================================================
@@ -1293,6 +1318,19 @@ async def get_referral_stats(uid: int) -> Dict:
         )
         
         return {"count": count, "total_stars": total_stars}
+
+
+async def get_referral_reward(referrer_id: int, referred_id: int) -> Optional[Dict]:
+    """Получить информацию о реферальном вознаграждении"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT * FROM referrals 
+            WHERE referrer_id = $1 AND referred_id = $2
+            """,
+            referrer_id, referred_id
+        )
+        return dict(row) if row else None
 
 
 async def add_referral_stars(referrer_id: int, referred_id: int, stars: int, sub_type: str = None):

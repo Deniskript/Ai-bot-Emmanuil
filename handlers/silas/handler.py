@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Optional
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, Message
@@ -389,6 +390,16 @@ async def process_silas_message(
     """Основной обработчик сообщений с оптимизацией для нагрузки"""
     user_id = msg.from_user.id
     
+    # Удаляем предыдущий смайлик клавиатуры (если был)
+    d = await state.get_data()
+    prev_kb_msg_id = d.get('kb_msg_id')
+    if prev_kb_msg_id:
+        try:
+            await bot.delete_message(msg.chat.id, prev_kb_msg_id)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
+        await state.update_data(kb_msg_id=None)
+    
     # Rate limiting через core.rate_limiter
     allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
@@ -578,6 +589,10 @@ async def process_silas_message(
             except Exception as e:
                 logger.error(f"TTS error in Silas: {e}")
                 await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+            
+            # Восстанавливаем reply-клавиатуру (невидимое сообщение)
+            kb_msg = await msg.answer("ㅤ", reply_markup=kb.psycho_chat_kb())
+            await state.update_data(kb_msg_id=kb_msg.message_id)
         else:
             # === ТЕКСТОВЫЙ ОТВЕТ ===
             final_text = f"{display_text}{footer}"
@@ -590,6 +605,10 @@ async def process_silas_message(
                     await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
             else:
                 await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+            
+            # Восстанавливаем reply-клавиатуру (невидимое сообщение)
+            kb_msg = await msg.answer("ㅤ", reply_markup=kb.psycho_chat_kb())
+            await state.update_data(kb_msg_id=kb_msg.message_id)
 
 
 @router.message(SilasSt.session, F.text)

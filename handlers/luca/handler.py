@@ -396,6 +396,16 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     user_id = msg.from_user.id
     sent_msg = None
     
+    # Удаляем предыдущий смайлик клавиатуры (если был)
+    data = await state.get_data()
+    prev_kb_msg_id = data.get('kb_msg_id')
+    if prev_kb_msg_id:
+        try:
+            await bot.delete_message(msg.chat.id, prev_kb_msg_id)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
+        await state.update_data(kb_msg_id=None)
+    
     # Rate limiting через core.rate_limiter
     allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
@@ -463,26 +473,23 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
     try:
         # Вызов API через core.api_queue
         if image_b64:
+            # Удаляем смайлик ожидания ДО запроса
+            if waiting_msg:
+                try:
+                    await waiting_msg.delete()
+                except (TelegramBadRequest, TelegramForbiddenError):
+                    pass
+            
             status = await show_status(bot, msg.chat.id, "photo")
             request_state['status'] = status
             try:
                 result = await api_queue.execute(ask, messages, model, image_b64)
                 if result is None:
-                    if waiting_msg:
-                        try:
-                            await waiting_msg.delete()
-                        except (TelegramBadRequest, TelegramForbiddenError):
-                            pass
                     await msg.answer("⚠️ Запрос занял слишком много времени. Попробуй ещё раз.")
                     await active_requests.delete(user_id)
                     return
                 resp, stars_used = result
             except Exception as e:
-                if waiting_msg:
-                    try:
-                        await waiting_msg.delete()
-                    except (TelegramBadRequest, TelegramForbiddenError):
-                        pass
                 await msg.answer(f"❌ Ошибка: {e}")
                 await active_requests.delete(user_id)
                 return
@@ -593,6 +600,10 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                 logger.error(f"TTS error in text chat: {e}")
                 footer = texts.RESPONSE_FOOTER.format(char_name=char_name)
                 await msg.answer(f"{display_text}{footer}", reply_markup=keyboard)
+            
+            # Восстанавливаем reply-клавиатуру (невидимое сообщение)
+            kb_msg = await msg.answer("ㅤ", reply_markup=kb.dialog_chat_kb())
+            await state.update_data(kb_msg_id=kb_msg.message_id)
         else:
             # === ТЕКСТОВЫЙ ОТВЕТ ===
             footer = texts.RESPONSE_FOOTER.format(char_name=char_name)
@@ -605,12 +616,10 @@ async def process_luka_message(msg: Message, state: FSMContext, text: str, image
                     await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
             else:
                 await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
-        
-        # Возвращаем reply-клавиатуру
-        try:
-            await msg.answer("💬", reply_markup=kb.dialog_chat_kb())
-        except Exception:
-            pass
+            
+            # Восстанавливаем reply-клавиатуру (невидимое сообщение)
+            kb_msg = await msg.answer("ㅤ", reply_markup=kb.dialog_chat_kb())
+            await state.update_data(kb_msg_id=kb_msg.message_id)
             
     except Exception as e:
         logger.exception(f"[Luca] Error in process_luka_message: {e}")
@@ -669,6 +678,16 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str) -> N
     """
     user_id = msg.from_user.id
     
+    # Удаляем предыдущий смайлик клавиатуры (если был)
+    data = await state.get_data()
+    prev_kb_msg_id = data.get('kb_msg_id')
+    if prev_kb_msg_id:
+        try:
+            await bot.delete_message(msg.chat.id, prev_kb_msg_id)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
+        await state.update_data(kb_msg_id=None)
+    
     # Rate limiting через core.rate_limiter
     allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
@@ -688,13 +707,6 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str) -> N
     # Статус запроса с кнопкой отмены
     request_state = {'cancelled': False, 'status': None}
     await active_requests.set(user_id, request_state)
-    
-    # Меняем клавиатуру на "Отменить запрос"
-    kb_msg = await msg.answer("⌛️", reply_markup=kb.voice_chat_loading_kb())
-    try:
-        await kb_msg.delete()
-    except (TelegramBadRequest, TelegramForbiddenError):
-        pass
     
     status = await show_status(bot, msg.chat.id, "voice")
     request_state['status'] = status
@@ -793,13 +805,17 @@ async def process_voice_message(msg: Message, state: FSMContext, text: str) -> N
         
         # Отправляем голосовое сообщение
         voice_file = FSInputFile(audio_path)
-        await msg.answer_voice(voice_file, reply_markup=kb.voice_chat_kb())
+        await msg.answer_voice(voice_file)
         
         # Удаляем временный файл
         try:
             os.remove(audio_path)
         except OSError:
             pass
+        
+        # Восстанавливаем reply-клавиатуру (невидимое сообщение)
+        kb_msg = await msg.answer("ㅤ", reply_markup=kb.voice_chat_kb())
+        await state.update_data(kb_msg_id=kb_msg.message_id)
         
         await active_requests.delete(user_id)
             

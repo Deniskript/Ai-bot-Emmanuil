@@ -9,6 +9,7 @@ import logging
 import re
 
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import (
     Message, CallbackQuery, ReplyKeyboardMarkup, 
     KeyboardButton, WebAppInfo, FSInputFile
@@ -228,6 +229,10 @@ async def create_course(msg: Message, state: FSMContext):
             await msg.answer(final_text, reply_markup=keyboard)
     else:
         await msg.answer(final_text, reply_markup=keyboard)
+    
+    # Восстанавливаем reply-клавиатуру и сохраняем ID для удаления
+    kb_msg = await msg.answer("ㅤ", reply_markup=reply.study_chat_kb())
+    await state.update_data(kb_msg_id=kb_msg.message_id)
 
 
 @router.message(TitusSt.menu, F.text == "📁 Ваши курсы")
@@ -612,6 +617,16 @@ async def titus_make_summary(cb: CallbackQuery):
 async def process_titus_message(msg: Message, state: FSMContext, text: str, image_b64: str = None):
     user_id = msg.from_user.id
     
+    # Удаляем предыдущий смайлик клавиатуры (если был)
+    data = await state.get_data()
+    prev_kb_msg_id = data.get('kb_msg_id')
+    if prev_kb_msg_id:
+        try:
+            await bot.delete_message(msg.chat.id, prev_kb_msg_id)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
+        await state.update_data(kb_msg_id=None)
+    
     # Rate limiting через core
     allowed, wait_time = await rate_limiter.check(user_id)
     if not allowed:
@@ -764,28 +779,19 @@ async def process_titus_message(msg: Message, state: FSMContext, text: str, imag
         needs_preview, display_text = should_show_preview(resp, max_length=3000)
         keyboard = get_titus_keyboard(conv_id, len(resp), user_id)
 
-        temp_msg = None
-        try:
-            temp_msg = await msg.answer("💬", reply_markup=reply.study_chat_kb())
-        except Exception:
-            pass
-
-        try:
-            final_text = f"{display_text}\n\n<i>📓 Обучение{step_info}</i>"
-            
-            if sent_msg:
-                try:
-                    await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
-                except Exception:
-                    await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
-            else:
+        final_text = f"{display_text}\n\n<i>📓 Обучение{step_info}</i>"
+        
+        if sent_msg:
+            try:
+                await sent_msg.edit_text(final_text, reply_markup=keyboard, parse_mode="HTML")
+            except Exception:
                 await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
-        finally:
-            if temp_msg:
-                try:
-                    await temp_msg.delete()
-                except Exception:
-                    pass
+        else:
+            await msg.answer(final_text, reply_markup=keyboard, parse_mode="HTML")
+        
+        # Восстанавливаем reply-клавиатуру и сохраняем ID для удаления
+        kb_msg = await msg.answer("ㅤ", reply_markup=reply.study_chat_kb())
+        await state.update_data(kb_msg_id=kb_msg.message_id)
 
 
 @router.message(TitusSt.chat, F.text)
@@ -823,11 +829,6 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     user_id = cb.from_user.id
     
     await cb.answer()
-    temp_msg = None
-    try:
-        temp_msg = await cb.message.answer("💬", reply_markup=reply.study_chat_kb())
-    except Exception:
-        pass
     
     data = await state.get_data()
     cname = data.get('cname', 'Курс')
@@ -854,12 +855,6 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Stream error in course_continue: {e}")
         raise
-    finally:
-        if temp_msg:
-            try:
-                await temp_msg.delete()
-            except Exception:
-                pass
 
     resp_clean = resp.replace("---NEXT---", "").strip()
     resp_clean = clean_response(resp_clean)
@@ -879,6 +874,10 @@ async def course_continue_step(cb: CallbackQuery, state: FSMContext):
             await cb.message.answer(resp_with_footer, parse_mode="HTML", reply_markup=keyboard)
     else:
         await cb.message.answer(resp_with_footer, parse_mode="HTML", reply_markup=keyboard)
+    
+    # Восстанавливаем reply-клавиатуру и сохраняем ID для удаления
+    kb_msg = await cb.message.answer("ㅤ", reply_markup=reply.study_chat_kb())
+    await state.update_data(kb_msg_id=kb_msg.message_id)
 
 
 @router.callback_query(F.data.startswith("course:repeat:"))
@@ -887,11 +886,6 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
     user_id = cb.from_user.id
     
     await cb.answer()
-    temp_msg = None
-    try:
-        temp_msg = await cb.message.answer("💬", reply_markup=reply.study_chat_kb())
-    except Exception:
-        pass
     
     data = await state.get_data()
     cname = data.get('cname', 'Курс')
@@ -953,11 +947,9 @@ async def course_repeat_weak(cb: CallbackQuery, state: FSMContext):
                 f"<i>📓 Обучение • Повторение сложных тем</i>",
                 reply_markup=keyboard
             )
+        
+        # Восстанавливаем reply-клавиатуру и сохраняем ID для удаления
+        kb_msg = await cb.message.answer("ㅤ", reply_markup=reply.study_chat_kb())
+        await state.update_data(kb_msg_id=kb_msg.message_id)
     except Exception as e:
         await cb.message.answer(f"❌ Ошибка: {str(e)[:200]}", reply_markup=reply.study_chat_kb())
-    finally:
-        if temp_msg:
-            try:
-                await temp_msg.delete()
-            except Exception:
-                pass

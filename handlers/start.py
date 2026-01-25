@@ -34,7 +34,7 @@ HELP_TEXT = """💫 <b>От создателя</b>
 
 📢 <a href="https://t.me/soulai_ru">Наш Telegram-канал</a>
 
-🛠 <a href="https://t.me/aidusha_support_bot">Тех. поддержка</a>"""
+🛠 <a href="https://t.me/soulrus_support_bot">Тех. поддержка</a>"""
 
 router = Router()
 class Registration(StatesGroup):
@@ -43,9 +43,17 @@ class Registration(StatesGroup):
     gender = State()
 def fmt(n): 
     return f"{n:,}".replace(",", " ")
+
 async def get_text(key, default=""):
-    t = await db.get_text(key)
-    return t if t else default
+    """Получить текст из БД с fallback на default"""
+    try:
+        t = await db.get_text(key)
+        # Проверяем что текст не пустой
+        if t and len(t.strip()) > 0:
+            return t
+    except Exception as e:
+        logger.warning(f"get_text({key}) failed: {e}")
+    return default
 DEFAULT_AGREEMENT = "📜 Соглашение"
 @router.message(CommandStart())
 async def start(msg: Message, state: FSMContext, command: CommandObject = None):
@@ -65,6 +73,17 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
     
     if args and args.startswith('pair_'):
         # Это deep link для парной сессии
+        # ВАЖНО: СНАЧАЛА регистрируем пользователя, ПОТОМ показываем сессию
+        existing_user = await db.get_user(msg.from_user.id)
+        if not existing_user:
+            logger.info(f"[Deep Link] Создание нового пользователя {msg.from_user.id} через pair_ link")
+            await db.get_or_create_user(
+                msg.from_user.id,
+                msg.from_user.username,
+                msg.from_user.first_name,
+                None
+            )
+        
         pair_code = args.replace('pair_', '').upper().strip()
         
         print(f"🔵 [Deep Link] Обнаружен pair_ код: {pair_code}, user_id: {msg.from_user.id}")
@@ -177,7 +196,9 @@ async def start(msg: Message, state: FSMContext, command: CommandObject = None):
     
     if not u:
         logger.error("START: get_or_create_user returned None for %s", msg.from_user.id)
-        await msg.answer("❌ Ошибка регистрации. Попробуйте позже.")
+        logger.error("START: Details - username=%s, first_name=%s, referrer_id=%s, args=%s", 
+                     msg.from_user.username, msg.from_user.first_name, referrer_id, args)
+        await msg.answer("❌ Ошибка регистрации. Попробуйте позже.\n\nПопробуйте команду /restart или обратитесь в поддержку.")
         return
 
     # Уведомляем реферера о новом пользователе

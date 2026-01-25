@@ -391,9 +391,9 @@ def payment():
 
 @app.route('/help')
 def help_page():
-    """Telegram Mini App - Помощь"""
+    """Telegram Mini App - Помощь (новый дизайн с модулями)"""
     try:
-        return render_template('help.html')
+        return render_template('help-new.html')
     except Exception as e:
         print(f"Error loading help: {e}")
         return f"Error: {e}", 500
@@ -2008,11 +2008,16 @@ def robokassa_result():
         shp_type = request.args.get('Shp_type') or request.form.get('Shp_type')
         shp_user = request.args.get('Shp_user') or request.form.get('Shp_user')
         
+        # Логируем входящий webhook для отладки
+        logger.info(f"[Robokassa] Webhook received: inv_id={inv_id}, out_sum={out_sum}, shp_type={shp_type}, shp_user={shp_user}")
+        
         if not all([out_sum, inv_id, signature, shp_type, shp_user]):
+            logger.warning(f"[Robokassa] Missing parameters: out_sum={out_sum}, inv_id={inv_id}, shp_type={shp_type}, shp_user={shp_user}")
             return 'ERROR: Missing parameters', 400
         
         # Проверяем подпись
         if not verify_result_signature(out_sum, inv_id, shp_type, shp_user, signature):
+            logger.warning(f"[Robokassa] Invalid signature for inv_id={inv_id}")
             return 'ERROR: Invalid signature', 403
         
         # Обрабатываем оплату
@@ -2020,15 +2025,18 @@ def robokassa_result():
         loop = get_or_create_loop()
         try:
             loop.run_until_complete(process_successful_payment(int(inv_id), robokassa_id=int(inv_id)))
+            logger.info(f"[Robokassa] Payment processed successfully: inv_id={inv_id}")
         except Exception as e:
-            print(f"Error processing payment: {e}")
+            # КРИТИЧНО: возвращаем ошибку чтобы Robokassa повторила webhook!
+            logger.error(f"[Robokassa] Error processing payment {inv_id}: {e}")
             import traceback
             traceback.print_exc()
+            return f'ERROR: Payment processing failed - {str(e)}', 500
         
         return f'OK{inv_id}'
         
     except Exception as e:
-        print(f"Error in robokassa_result: {e}")
+        logger.error(f"[Robokassa] Error in robokassa_result: {e}")
         import traceback
         traceback.print_exc()
         return f'ERROR: {str(e)}', 500

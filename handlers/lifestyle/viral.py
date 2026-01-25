@@ -171,12 +171,12 @@ async def back_from_viral(msg: Message, state: FSMContext):
     await msg.answer("📲 Соцсети", reply_markup=socials_menu_kb(msg.from_user.id))
 
 
-@router.message(ViralAnalysisSt.menu, F.text == "❌ Завершить")
+@router.message(ViralAnalysisSt.menu, F.text == "🛑 Завершить")
 async def exit_viral(msg: Message, state: FSMContext):
     """Выход из вирусного разбора"""
     await state.clear()
     from keyboards.reply import socials_menu_kb
-    await msg.answer("👋 До встречи!", reply_markup=socials_menu_kb(msg.from_user.id))
+    await msg.answer("📲 Соцсети", reply_markup=socials_menu_kb(msg.from_user.id))
 
 
 # ========== ТЕКСТОВЫЙ СОВЕТ ==========

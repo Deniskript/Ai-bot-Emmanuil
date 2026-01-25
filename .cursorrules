@@ -4,10 +4,11 @@
 
 **Название:** Soul AI Bot  
 **Домен:** soul-bot.ru  
-**Стек:** Python 3.12, aiogram 3.x, PostgreSQL, Redis, aiohttp, Alembic  
+**Telegram:** @iisoul_bot  
+**Стек:** Python 3.12, aiogram 3.x, PostgreSQL, Redis, aiohttp, Flask, Alembic  
 **Сервер:** VPS Linux (root@Aibot)  
-**Готовность проекта:** ~90%
-**Последнее обновление:** Январь 2026
+**Готовность проекта:** ~95%
+**Последнее обновление:** 22 Января 2026
 
 ---
 
@@ -16,34 +17,64 @@
 ### Handlers (обработчики):
 ```
 handlers/
-├── start.py        — /start, главное меню, навигация
-├── admin.py        — Админ-панель
-├── images.py       — Генерация изображений (основной функционал)
-├── health.py       — Здоровье и калории
-├── subscription.py — Подписки и оплата
-├── voice.py        — Голосовые сообщения (Whisper) — ТОЛЬКО для Luca и Silas
-├── luca/           — Модуль Luca (Soul AI чат с голосом)
-├── silas/          — Модуль Silas (парные сессии с голосом)
-├── titus/          — Модуль Titus (обучение, ТОЛЬКО текст, голос удалён)
-└── lifestyle/      — Lifestyle модуль (viral, routine, goals, mental, finance, magic)
+├── start.py           — /start, главное меню, навигация, регистрация
+├── admin.py           — Админ-панель (/admin)
+├── images.py          — Генерация изображений и видео (Творчество)
+├── health.py          — Здоровье и калории
+├── subscription.py    — Подписки, оплата, реферальная система
+├── socials.py         — Раздел "Соцсети" (входная точка)
+├── voice.py           — ⚠️ УСТАРЕВШИЙ, не используется (голос в luca/)
+├── luca/              — Модуль Luca (Soul AI чат с голосом)
+│   ├── handler.py     — Основной обработчик
+│   ├── keyboards.py   — Reply-клавиатуры модуля
+│   ├── memory.py      — Долгая память пользователя
+│   ├── prompts.py     — Системные промпты (Soul/Mind)
+│   ├── texts.py       — Текстовые константы
+│   └── config.py      — Локальная конфигурация
+├── silas/             — Модуль Silas (Психолог + парные сессии)
+│   ├── handler.py     — Основной обработчик
+│   ├── keyboards.py   — Reply-клавиатуры модуля
+│   ├── memory.py      — Память сессий
+│   ├── prompts.py     — Системные промпты
+│   └── texts.py       — Текстовые константы
+├── titus/             — Модуль Titus (Обучение курсам)
+│   ├── handler.py     — Основной обработчик
+│   ├── memory.py      — Память курсов (course_memory)
+│   ├── prompts.py     — Промпты для обучения
+│   └── texts.py       — Текстовые константы
+└── lifestyle/         — Лайфстайл модули
+    ├── __init__.py    — Инициализация и роутер
+    ├── viral.py       — Вирусный разбор видео
+    ├── routine.py     — Режим дня (чеклисты)
+    ├── goals.py       — Трекер целей
+    ├── mental.py      — Ментальное здоровье
+    ├── finance.py     — Финансы и расходы
+    └── magic.py       — Эзотерика (Таро, Гороскопы, Гадания)
 ```
 
 ### Templates (WebApp HTML):
 ```
 templates/
+├── help-new.html           — ✅ НОВАЯ страница помощи (6 модулей + поддержка)
+├── help.html               — Старая помощь (не используется)
+├── webapp.html             — Личный кабинет пользователя
+├── payment.html            — Страница оплаты подписок
+├── luca_settings.html      — Настройки Luca (персонаж + голос)
+├── silas_settings.html     — Настройки Silas
+├── silas_pair_join.html    — Присоединение к парной сессии
+├── silas_pair_session.html — Чат парной сессии (WebSocket)
 ├── images_settings.html    — Настройки генерации изображений
 ├── photo_settings.html     — Фото настройки
 ├── video_settings.html     — Видео настройки
 ├── blogger_settings.html   — Для блогеров
 ├── creative_settings.html  — Креативные инструменты
-├── luca_settings.html      — Настройки Luca (персонаж + голос)
-├── silas_settings.html     — Настройки Silas
-├── silas_pair_join.html    — Присоединение к паре
-├── silas_pair_session.html — Парная сессия
 ├── video_notes.html        — Видео заметки (конспекты)
-├── webapp.html             — Основной WebApp (кабинет)
-├── help.html               — Помощь
-├── payment.html            — Оплата
+├── how-it-works-dialog-new.html  — Инструкция Soul Чат
+├── how-it-works-psychologist.html — Инструкция Психолог
+├── how-it-works-education.html   — Инструкция Обучение
+├── how-it-works-creative.html    — Инструкция Творчество
+├── how-it-works-socials.html     — Инструкция Соцсети
+├── how-it-works-lifestyle.html   — Инструкция Лайфстайл
 ├── magic_horoscope.html    — Гороскопы
 ├── magic_tarot.html        — Таро
 ├── magic_divination.html   — Гадания
@@ -55,16 +86,23 @@ templates/
 ### Utils (утилиты):
 ```
 utils/
-├── openrouter.py       — API OpenRouter (ask, ask_stream)
-├── streaming.py        — Единый модуль стриминга с автостатусом
-├── status_manager.py   — Анимированные статусы ожидания
-├── markdown.py         — md_to_html конвертер
-├── voice.py            — TTS и STT (Whisper)
-├── tokens.py           — Работа с токенами
-├── memory.py           — Долгосрочная память
-├── magic_calculations.py — Расчёты для магии (нумерология, луна)
-├── magic_vision.py     — Анализ фото для гаданий
-└── magic_notifications.py — Уведомления магии
+├── openrouter.py          — API OpenRouter (ask, ask_stream)
+├── streaming.py           — Единый модуль стриминга с автостатусом
+├── status_manager.py      — Анимированные статусы ожидания
+├── markdown.py            — md_to_html конвертер
+├── voice.py               — TTS (text_to_speech) и STT (transcribe_voice)
+├── tokens.py              — Работа с токенами
+├── memory.py              — Долгосрочная память (update_memory)
+├── balance_guard.py       — Проверка баланса перед операциями
+├── stars.py               — Расчёт стоимости в звёздах
+├── conversations.py       — Работа с диалогами
+├── antiflood.py           — Защита от флуда
+├── telegraph.py           — Публикация в Telegraph
+├── robokassa.py           — Интеграция с Robokassa
+├── calories.py            — Расчёт калорий
+├── magic_calculations.py  — Расчёты для магии
+├── magic_vision.py        — Анализ фото для гаданий
+└── magic_notifications.py — Уведомления о гороскопах
 ```
 
 ### Core (единое ядро):
@@ -83,18 +121,137 @@ core/
 ```
 database/
 ├── __init__.py         — Экспорт: from . import postgres_db as db
-├── postgres_db.py      — Основная БД (PostgreSQL + asyncpg)
+├── postgres_db.py      — ✅ Основная БД (PostgreSQL + asyncpg)
 ├── redis_db.py         — Кэш и настройки (Redis)
-└── db.py               — Старый SQLite (НЕ ИСПОЛЬЗОВАТЬ)
+└── db.py               — ⚠️ УСТАРЕВШИЙ SQLite (НЕ ИСПОЛЬЗОВАТЬ!)
 ```
 
-### Migrations (Alembic):
+---
+
+## 🎯 FSM СОСТОЯНИЯ МОДУЛЕЙ
+
+### Luca (handlers/luca/handler.py):
+```python
+class LukaSt(StatesGroup):
+    menu = State()           # Главное меню Luca
+    chat = State()           # Активный текстовый чат
+    char = State()           # Выбор персонажа (Soul/Mind)
+    voice_choose = State()   # Выбор голоса (male/female)
+    voice_chat = State()     # Активный голосовой чат
 ```
-migrations/
-├── env.py              — Конфигурация Alembic
-└── versions/
-    ├── 001_initial_schema.py   — Базовые таблицы
-    └── 002_add_course_memory.py — Память курсов Titus
+
+### Silas (handlers/silas/handler.py):
+```python
+class SilasSt(StatesGroup):
+    menu = State()           # Главное меню Silas
+    mood = State()           # Выбор настроения
+    custom = State()         # Своё настроение
+    duration = State()       # Выбор длительности сеанса
+    session = State()        # Активная сессия психолога
+```
+
+### Titus (handlers/titus/handler.py):
+```python
+class TitusSt(StatesGroup):
+    menu = State()           # Главное меню Titus
+    new_course = State()     # Создание нового курса
+    select_steps = State()   # Выбор количества шагов
+    chat = State()           # Активное обучение
+    courses_menu = State()   # Меню курсов
+    continue_course = State()# Выбор курса для продолжения
+    delete_course = State()  # Удаление курса
+    video_analysis = State() # Анализ видео
+```
+
+### Images (handlers/images.py):
+```python
+class ImageStates(StatesGroup):
+    menu = State()                      # Меню творчества
+    waiting_create_prompt = State()     # Ожидание промпта для создания
+    waiting_upscale_photo = State()     # Ожидание фото для улучшения
+    waiting_for_photo_with_caption = State()
+    waiting_process_photo = State()
+    waiting_blogger_prompt = State()
+    waiting_creative_photo = State()
+    waiting_creative_meme_idea = State()
+    waiting_video_confirm = State()
+    waiting_video_text = State()
+    waiting_video_photo = State()
+```
+
+### Socials (handlers/socials.py):
+```python
+class SocialsStates(StatesGroup):
+    menu = State()           # Меню раздела Соцсети
+```
+
+### Viral (handlers/lifestyle/viral.py):
+```python
+class ViralAnalysisSt(StatesGroup):
+    menu = State()           # Меню вирусного разбора
+    waiting_video = State()  # Ожидание видео
+    waiting_link = State()   # Ожидание ссылки
+    text_advice = State()    # Текстовый совет
+```
+
+### Health (handlers/health.py):
+```python
+class HealthStates(StatesGroup):
+    menu = State()           # Главное меню здоровья
+    calories_menu = State()  # Меню калорий
+    wait_photo = State()     # Ожидание фото еды
+    wait_manual_input = State() # Ручной ввод калорий
+    confirm_save = State()   # Подтверждение сохранения
+    journal_menu = State()   # Журнал калорий
+    nutrition_menu = State() # Меню питания
+    wait_goal_data = State() # Ввод цели
+```
+
+---
+
+## 🔘 КНОПКИ И НАВИГАЦИЯ
+
+### Кнопка "🛑 Завершить":
+Используется для выхода из активных сессий/диалогов. **ОБЯЗАТЕЛЬНА** в модулях с длительными AI-диалогами.
+
+| Модуль | Состояние | Клавиатура |
+|--------|-----------|------------|
+| **Luca** | `LukaSt.chat`, `LukaSt.voice_chat` | `dialog_chat_kb()`, `voice_chat_kb()` |
+| **Silas** | `SilasSt.session` | `psycho_chat_kb()` |
+| **Titus** | `TitusSt.chat` | `study_chat_kb()` |
+| **Images** | После генерации | `_done_reply_kb()` |
+| **Viral** | `ViralAnalysisSt.menu` | `viral_kb()` |
+
+### Кнопка "◀️ Назад":
+Используется для возврата в предыдущее меню. **ВАЖНО:** Обработчик ДОЛЖЕН иметь фильтр FSM-состояния!
+
+```python
+# ✅ ПРАВИЛЬНО — с фильтром состояния
+@router.message(SilasSt.menu, F.text == "◀️ Назад")
+async def silas_back(msg: Message, state: FSMContext):
+    await state.clear()
+    await msg.answer("🫧 Soul AI", reply_markup=bots_menu_kb())
+
+# ❌ НЕПРАВИЛЬНО — без фильтра (перехватит ВСЕ нажатия)
+@router.message(F.text == "◀️ Назад")
+async def global_back(msg: Message):  # НЕ ДЕЛАТЬ ТАК!
+    ...
+```
+
+### Главное меню (keyboards/reply.py):
+```python
+def main_kb(user_id: int):
+    # 🫧 Soul AI | 💼 Кабинет (WebApp)
+    # 🌟 Подписка (WebApp) | ❓ Помощь (WebApp)
+```
+
+### Меню ботов (keyboards/reply.py):
+```python
+def bots_menu_kb():
+    # ✨ Soul Чат | 🛋️ Психолог
+    # 📚 Обучение | 🎨 Творчество
+    # 📲 Соцсети  | 🏆 Лайфстайл
+    # ◀️ Главное меню
 ```
 
 ---
@@ -103,25 +260,204 @@ migrations/
 
 ### OpenRouter (основной для текста):
 - **URL:** https://openrouter.ai/api/v1
-- **Модель по умолчанию:** anthropic/claude-sonnet-4.5
-- **Использование:** Чат, анализ, генерация текста, стриминг
+- **Модель:** anthropic/claude-sonnet-4.5
 - **Функции:** `ask()`, `ask_stream()` в utils/openrouter.py
+- **Используют:** Luca, Silas, Titus, Viral, Health, Mental
 
 ### VseGPT (изображения и видео):
 - **URL:** https://api.vsegpt.ru/v1
 - **Ключ:** OPENAI_API_KEY в .env
-- **Модели изображений:** img-flux/schnell, img-flux/2, img2img-flux/kontext-pro, img2img-flux/kontext-max, img2img-recraft/v3-upscale
+- **Модели изображений:** img-flux/schnell, img-flux/2, img2img-flux/kontext-pro, img2img-flux/kontext-max
 - **Модели видео:** LTX, Veo, Sora, Kling
+- **Используют:** Images (handlers/images.py)
 
-### Robokassa (платежный шлюз):
-- **Merchant Login:** ROBOKASSA_MERCHANT_LOGIN в .env
-- **Password 1:** ROBOKASSA_PASSWORD1 (для генерации подписи)
-- **Password 2:** ROBOKASSA_PASSWORD2 (для проверки результата)
-- **Тестовый режим:** ROBOKASSA_TEST_MODE=1 (по умолчанию)
-- **Result URL:** `https://soul-bot.ru/robokassa/result` (webhook)
-- **Success URL:** `https://soul-bot.ru/payment/success`
-- **Fail URL:** `https://soul-bot.ru/payment/fail`
-- **Модуль:** utils/robokassa.py
+### ProxyAPI (для Health):
+- **URL:** https://api.proxyapi.ru/openai/v1
+- **Ключ:** OPENAI_API_KEY в .env
+- **Модель:** gpt-4o (для анализа фото еды)
+- **Используют:** Health (handlers/health.py)
+
+### Robokassa (платежи):
+- **Result URL:** https://soul-bot.ru/robokassa/result
+- **Модуль:** utils/robokassa.py, web_app.py
+
+---
+
+## 🗄️ БАЗА ДАННЫХ PostgreSQL
+
+### Основные таблицы:
+```sql
+users              — Пользователи (id, stars, subscription, referrer)
+subscriptions      — Подписки (user_id, type, stars_limit, expires_at)
+transactions       — Платежи (user_id, type, stars, status)
+bot_memory         — Память ботов (user_id, bot, facts JSON)
+conversations      — Диалоги (user_id, bot, created_at)
+messages           — Сообщения (conversation_id, role, content)
+courses            — Курсы Titus (user_id, name, steps, current_step)
+course_memory      — Память курсов (course_id, step, понимание, слабые темы)
+sessions           — Сессии Silas (user_id, duration, mood, status)
+pair_sessions      — Парные сессии Silas (code, host_id, guest_id, topic)
+user_profiles      — Профили (user_id, name, age, gender)
+user_bots          — Настройки ботов (user_id, bot, character, voice_gender)
+calorie_journal    — Журнал калорий
+user_goals         — Цели пользователей
+user_routines      — Рутины
+expenses           — Расходы
+```
+
+### Важные функции (database/postgres_db.py):
+```python
+# Пользователи
+get_user(uid)                    # Получить пользователя
+get_or_create_user(uid, ...)     # Создать если нет
+add_stars(uid, amount)           # Добавить звёзды
+use_stars_smart(uid, amount, bot) # Списать звёзды
+get_available_stars(uid)         # Доступные звёзды
+
+# Память
+get_memory(uid, bot)             # Получить память
+save_memory(uid, bot, facts)     # Сохранить память
+delete_memory_fact(uid, bot, idx) # Удалить факт
+clear_user_memory(uid, bot)      # Очистить память
+
+# Диалоги
+add_msg(uid, bot, role, content) # Добавить сообщение
+get_msgs(uid, bot, limit)        # Получить историю
+clear_msgs(uid, bot)             # Очистить историю
+
+# Курсы
+create_course(uid, name, steps)  # Создать курс
+get_user_courses(uid)            # Список курсов
+save_step_progress(...)          # Сохранить прогресс
+
+# Парные сессии
+create_pair_session(...)         # Создать сессию
+join_pair_session(code, guest_id) # Присоединиться
+get_pair_session(code)           # Получить сессию
+```
+
+---
+
+## ⚙️ ВАЖНЫЕ СИСТЕМЫ
+
+### 1. Стриминг (utils/streaming.py):
+```python
+from utils.streaming import stream_response
+
+resp, sent_msg = await stream_response(
+    bot=bot,
+    message=msg,
+    messages=[{"role": "user", "content": text}],
+    model="anthropic/claude-sonnet-4.5",
+    status_type="text"  # text, photo, voice, magic, generate
+)
+
+# ⚠️ sent_msg — УЖЕ отправленное сообщение!
+# Редактируй его, НЕ создавай новое!
+if sent_msg:
+    await sent_msg.edit_text(final_text, reply_markup=keyboard)
+```
+
+### 2. Статусы ожидания (utils/status_manager.py):
+```python
+from utils.status_manager import show_status
+
+status = await show_status(bot, chat_id, "text")
+try:
+    # ... работа ...
+finally:
+    await status.stop()
+
+# Типы: text, photo, voice, magic, generate
+```
+
+### 3. Проверка баланса (utils/balance_guard.py):
+```python
+from utils.balance_guard import ensure_balance
+
+# Проверит баланс и покажет красивое сообщение если недостаточно
+if not await ensure_balance(msg, required=MIN_STARS):
+    return
+```
+
+### 4. Память AI (utils/memory.py):
+```python
+from utils.memory import update_memory
+
+# Вызывается в фоне после каждого диалога
+create_safe_task(
+    update_memory(user_id, 'luca', user_text, bot_response),
+    f"update_memory:{user_id}"
+)
+```
+
+### 5. API очередь (core/queue.py):
+```python
+from core import api_queue
+
+# Все AI-запросы через очередь с таймаутами
+result = await api_queue.execute(ask, messages, model)
+```
+
+---
+
+## 🔧 SYSTEMD СЕРВИСЫ
+
+### aibot.service (Telegram бот):
+```bash
+systemctl restart aibot
+systemctl status aibot
+journalctl -u aibot -n 50 --no-pager
+journalctl -u aibot -f  # Реальное время
+```
+
+### soul-bot-web.service (Flask WebApp):
+```bash
+systemctl restart soul-bot-web
+systemctl status soul-bot-web
+journalctl -u soul-bot-web -n 30 --no-pager
+```
+
+### websocket_server.service (WebSocket для парных сессий):
+```bash
+systemctl restart websocket_server
+systemctl status websocket_server
+journalctl -u websocket_server -n 30 --no-pager
+```
+
+### Nginx:
+```bash
+nginx -t                    # Проверка конфига
+systemctl reload nginx      # Перезагрузка
+```
+
+---
+
+## 🐛 ИСПРАВЛЕННЫЕ БАГИ (Январь 2026)
+
+### 1. Глобальный перехват кнопки "◀️ Назад"
+**Проблема:** Обработчики без FSM-фильтра перехватывали ВСЕ нажатия.
+**Решение:** Добавлены FSM-состояния в images.py и socials.py.
+
+### 2. Отсутствие функций удаления памяти в PostgreSQL
+**Проблема:** Функции `delete_memory_fact()` и `clear_user_memory()` были только в SQLite.
+**Решение:** Добавлены в database/postgres_db.py.
+
+### 3. WebSocket сервер не запущен
+**Проблема:** Парная терапия возвращала 401 Unauthorized.
+**Решение:** Создан systemd сервис websocket_server.service.
+
+### 4. Лишний смайлик в Luca
+**Проблема:** После ответа бота отправлялось пустое сообщение "💬".
+**Решение:** Удалён лишний `msg.answer("💬", ...)` в handlers/luca/handler.py.
+
+### 5. Разные иконки кнопки "Завершить"
+**Проблема:** "✅ Завершить" в Images, "❌ Завершить" в Viral.
+**Решение:** Унифицировано на "🛑 Завершить" везде.
+
+### 6. Отсутствие кнопки в viral_kb
+**Проблема:** Обработчик "Завершить" был, но кнопки в клавиатуре не было.
+**Решение:** Добавлена кнопка "🛑 Завершить" в viral_kb().
 
 ---
 
@@ -136,136 +472,25 @@ migrations/
 ### Тарифы подписок:
 | Подписка | Звёзды | Цена | Особенности |
 |----------|--------|------|-------------|
-| **Mini** 💎 | 4,000 ⭐ | 490₽/мес | GPT-4o mini, 50 картинок |
-| **Standard** 👑 | 9,000 ⭐ | 990₽/мес | GPT-4o + Claude Sonnet, 150 картинок, видео |
-| **Premium** ✨ | 20,000 ⭐ | 1,990₽/мес | Все модели, безлимит картинок, приоритет |
-
-### Пакеты звёзд (разовые покупки):
-| Пакет | Цена |
-|-------|------|
-| 1,000 ⭐ | 149₽ |
-| 2,000 ⭐ | 249₽ |
+| **Mini** 💎 | 4,000 ⭐ | 490₽/мес | Claude Sonnet, 50 картинок |
+| **Standard** 👑 | 9,000 ⭐ | 990₽/мес | Все модели, 150 картинок, видео |
+| **Premium** ✨ | 20,000 ⭐ | 1,990₽/мес | Все модели, безлимит, приоритет |
 
 ### Бонусы:
-- **Новый пользователь:** 250 ⭐ (бесплатно)
-- **Реферал Mini:** +1,000 ⭐ реферу
-- **Реферал Standard:** +2,000 ⭐ реферу
-- **Реферал Premium:** +4,000 ⭐ реферу
+- **Новый пользователь:** 250 ⭐
+- **Реферал Mini:** +1,000 ⭐
+- **Реферал Standard:** +2,000 ⭐
+- **Реферал Premium:** +4,000 ⭐
 
-### Цены на функционал:
-| Функция | Цена | Модель |
-|---------|------|--------|
-| **Текстовый диалог** | ~1-5 ⭐ | Claude Sonnet 4.5 |
-| **Картинка Flux Schnell** | 50 ⭐ | img-flux/schnell |
-| **Картинка Flux 2** | 120 ⭐ | img-flux/2 |
-| **Картинка Kontext Pro** | 200 ⭐ | img2img-flux/kontext-pro |
-| **Картинка Kontext Max** | 350 ⭐ | img2img-flux/kontext-max |
-| **Upscale (улучшение)** | 30 ⭐ | img2img-recraft/v3-upscale |
-| **Видео Эконом 5s** | 167 ⭐ | LTX |
-| **Видео Стандарт (no audio)** | 1,371 ⭐ | Veo |
-| **Видео Премиум 4s (Sora)** | 1,371 ⭐ | Sora |
+### Формула расчёта цен:
+```javascript
+const STAR_COST_RUB = 0.1225;
+const MARKUP = 1.7;
 
----
-
-## 🎯 МОДУЛИ И ИХ СОСТОЯНИЕ
-
-### ✅ ГОТОВО:
-- **Luca** — AI чат с персонажами (Soul/Alter), голосом, памятью
-- **Silas** — Парные сессии с голосом
-- **Titus** — Обучение курсам (ТОЛЬКО текст, голос удалён)
-- **Images** — Генерация изображений
-- **Lifestyle** — Viral анализ, рутина, цели, финансы
-- **Magic** — Гороскопы, Таро, Гадания, Нумерология, Луна, Ритуалы
-- **Health** — Калории, здоровье
-
-### 🔧 ТРЕБУЕТ ДОРАБОТКИ:
-- **Admin** — Админ-панель (баги)
-- **Subscription** — Оплата (тестовый режим)
-
----
-
-## ⚙️ ВАЖНЫЕ СИСТЕМЫ
-
-### 0. Core (core/):
-```python
-from core import cleanup_manager, rate_limiter
-
-cleanup_manager.register(rate_limiter.cleanup)
-await cleanup_manager.start()
+function rubToStars(rub) {
+    return Math.round((rub * MARKUP) / STAR_COST_RUB);
+}
 ```
-
-### 1. Стриминг (utils/streaming.py):
-```python
-from utils.streaming import stream_response
-
-resp, sent_msg = await stream_response(
-    bot=bot,
-    message=msg,
-    messages=[{"role": "user", "content": text}],
-    model="anthropic/claude-sonnet-4.5",
-    status_type="text"  # text, photo, voice, magic, generate
-)
-
-# sent_msg — уже отправленное сообщение, не отправлять повторно!
-if sent_msg:
-    await sent_msg.edit_text(final_text, reply_markup=keyboard)
-```
-
-### 2. Статусы ожидания (utils/status_manager.py):
-```python
-from utils.status_manager import show_status
-
-status = await show_status(bot, chat_id, "text")
-try:
-    # ... работа ...
-finally:
-    await status.stop()
-```
-
-Типы: `text`, `photo`, `voice`, `magic`, `generate`
-
-### 3. Память курсов (handlers/titus/memory.py):
-- `save_step_progress()` — сохранение прогресса
-- `build_smart_context()` — построение контекста
-- Таблица `course_memory` в PostgreSQL
-
-### 4. Миграции БД (Alembic):
-```bash
-cd /root/ai-bot
-source venv/bin/activate
-alembic upgrade head    # Применить миграции
-alembic current         # Текущая версия
-alembic history         # История миграций
-```
-
----
-
-## ✅ ПРАВИЛА КОДА
-
-### Стиль:
-- Всегда async/await (проект полностью асинхронный)
-- Type hints обязательны
-- Docstrings и комментарии на русском
-- Использовать logging вместо print()
-
-### Форматирование для пользователя:
-- Заголовки **жирные**
-- Эмодзи для визуала 😊🎨✨
-- HTML-теги: `<b>`, `<i>`, `<code>`
-
-### База данных:
-- Только asyncpg (PostgreSQL)
-- НЕ использовать SQLite (db.py устарел)
-- Миграции через Alembic
-
-### Стриминг:
-- Использовать `stream_response()` из utils/streaming.py
-- Возвращает `(text, sent_msg)` — НЕ отправлять повторно!
-- Статус автоматически выключается при первом chunk
-
-### WebApp:
-- Данные через `Telegram.WebApp.sendData(JSON)`
-- Обработка в handlers через `web_app_data`
 
 ---
 
@@ -274,8 +499,35 @@ alembic history         # История миграций
 - `main.py` — точка входа, только добавлять роутеры
 - `config.py` — только через .env
 - `loader.py` — инициализация bot, dp
-- `database/db.py` — устаревший SQLite, не использовать
-- `prompts/` — папка с устаревшими промптами (актуальные в handlers/*/prompts.py)
+- `database/db.py` — устаревший SQLite
+- `handlers/voice.py` — устаревший (голос в luca/)
+- `prompts/` — устаревшие промпты (актуальные в handlers/*/prompts.py)
+
+---
+
+## ✅ ПРАВИЛА КОДА
+
+### Стиль:
+- Всегда async/await
+- Type hints обязательны
+- Docstrings на русском
+- logging вместо print()
+
+### Кнопки:
+- "🛑 Завершить" — выход из сессии
+- "◀️ Назад" — возврат в меню (с FSM-фильтром!)
+
+### FSM:
+- Каждый модуль имеет свой StatesGroup
+- Обработчики "Назад" ОБЯЗАТЕЛЬНО с фильтром состояния
+
+### Стриминг:
+- `stream_response()` возвращает `(text, sent_msg)`
+- `sent_msg` уже отправлено — редактируй, не создавай новое
+
+### База данных:
+- Только database/postgres_db.py
+- НЕ использовать database/db.py (SQLite)
 
 ---
 
@@ -283,57 +535,71 @@ alembic history         # История миграций
 
 ```
 /root/ai-bot/
-├── main.py             — Точка входа
-├── config.py           — Конфигурация из .env
-├── loader.py           — Инициализация bot, dp
-├── web_app.py          — Flask WebApp сервер
-├── alembic.ini         — Конфиг Alembic
-├── requirements.txt    — Зависимости
-├── .env                — Секреты (НЕ коммитить!)
-├── handlers/           — Обработчики
-│   ├── luca/           — Luca (чат + голос)
-│   ├── silas/          — Silas (пары + голос)
-│   ├── titus/          — Titus (обучение, только текст)
-│   └── lifestyle/      — Lifestyle + Magic
-├── templates/          — HTML для WebApp
-├── database/           — PostgreSQL + Redis
-├── migrations/         — Alembic миграции
-├── utils/              — Утилиты
-├── keyboards/          — Клавиатуры
-└── assets/             — Статика (картинки таро)
+├── main.py                 — Точка входа
+├── config.py               — Конфигурация из .env
+├── loader.py               — Инициализация bot, dp
+├── web_app.py              — Flask WebApp сервер
+├── websocket_server.py     — WebSocket для парных сессий
+├── admin_routes.py         — Админ-маршруты Flask
+├── alembic.ini             — Конфиг Alembic
+├── requirements.txt        — Зависимости Python
+├── .env                    — Секреты (НЕ коммитить!)
+├── handlers/               — Telegram обработчики
+│   ├── start.py
+│   ├── admin.py
+│   ├── images.py
+│   ├── health.py
+│   ├── socials.py
+│   ├── subscription.py
+│   ├── luca/               — Soul AI чат
+│   ├── silas/              — Психолог
+│   ├── titus/              — Обучение
+│   └── lifestyle/          — Лайфстайл модули
+├── templates/              — HTML для WebApp
+├── database/               — PostgreSQL + Redis
+├── migrations/             — Alembic миграции
+├── utils/                  — Утилиты
+├── core/                   — Единое ядро
+├── keyboards/              — Клавиатуры
+│   ├── inline.py           — Inline-кнопки
+│   └── reply.py            — Reply-клавиатуры
+└── assets/                 — Статика (баннеры, картинки)
 ```
 
 ---
 
-## 🔧 УПРАВЛЕНИЕ СЕРВИСАМИ
+## 🛠️ БЫСТРЫЕ КОМАНДЫ
 
+### Перезапуск всех сервисов:
 ```bash
-# Бот
-systemctl restart aibot
-systemctl status aibot
-journalctl -u aibot -n 50 --no-pager
-
-# WebApp
-systemctl restart soul-bot-web
-systemctl status soul-bot-web
-
-# Логи в реальном времени
-journalctl -u aibot -f
+systemctl restart aibot soul-bot-web websocket_server
+systemctl status aibot soul-bot-web websocket_server --no-pager | grep -E "(Active:|●)"
 ```
 
----
+### Просмотр логов:
+```bash
+journalctl -u aibot -n 50 --no-pager          # Бот
+journalctl -u soul-bot-web -n 30 --no-pager   # WebApp
+journalctl -u websocket_server -n 30 --no-pager # WebSocket
+journalctl -u aibot -f                         # Реальное время
+```
 
-## 🗄️ БАЗА ДАННЫХ
+### Проверка импортов:
+```bash
+cd /root/ai-bot && source venv/bin/activate
+python -c "from handlers.luca.handler import router; print('OK')"
+python -c "from handlers.silas.handler import router; print('OK')"
+python -c "from handlers.titus.handler import router; print('OK')"
+python -c "from handlers.images import router; print('OK')"
+```
 
-### PostgreSQL (основная):
-- **Подключение:** DATABASE_URL в .env
-- **Модуль:** database/postgres_db.py
-- **Таблицы:** users, conversations, messages, courses, course_memory, и др.
-
-### Redis (кэш):
-- **Подключение:** REDIS_URL в .env
-- **Модуль:** database/redis_db.py
-- **Использование:** Настройки Luca/Silas, кэш, rate limiting
+### БД миграции:
+```bash
+source venv/bin/activate
+alembic revision -m "description"   # Создать
+alembic upgrade head                # Применить
+alembic current                     # Текущая версия
+```
 
 ---
 
@@ -341,205 +607,96 @@ journalctl -u aibot -f
 
 ### Первые шаги:
 1. Прочитай этот файл полностью
-2. Изучи структуру: `ls -la /root/ai-bot/handlers/`
-3. Проверь статус: `systemctl status aibot`
-4. Посмотри логи: `journalctl -u aibot -n 30`
+2. `systemctl status aibot soul-bot-web websocket_server --no-pager`
+3. `journalctl -u aibot -n 30 --no-pager`
+4. Изучи структуру: `ls -la handlers/`
 
 ### Частые задачи:
 
-**Добавить функционал в модуль:**
+**Добавить кнопку "Завершить" в модуль:**
+1. Добавить кнопку в клавиатуру
+2. Добавить обработчик с FSM-фильтром
+3. Вернуть пользователя в меню
+
+**Добавить новый FSM-модуль:**
+1. Создать StatesGroup
+2. Добавить обработчик входа (F.text == "Название")
+3. Добавить обработчик "Назад" С ФИЛЬТРОМ СОСТОЯНИЯ
+4. Добавить роутер в main.py
+
+**Работа с памятью:**
 ```python
-# Смотри существующие handlers как пример
-# handlers/luca/handler.py — хороший пример с голосом
-# handlers/titus/handler.py — пример без голоса
-```
+# Получить память
+facts = await db.get_memory(user_id, 'luca')
 
-**Работа со стримингом:**
-```python
-from utils.streaming import stream_response
+# Обновить память (в фоне)
+create_safe_task(update_memory(user_id, 'luca', user_text, resp))
 
-resp, sent_msg = await stream_response(bot, msg, messages, status_type="text")
-# sent_msg уже содержит ответ! Редактируй, не создавай новое
-```
-
-**Добавить миграцию БД:**
-```bash
-alembic revision -m "003_add_new_table"
-# Редактируй созданный файл в migrations/versions/
-alembic upgrade head
+# Очистить память
+await db.clear_user_memory(user_id, 'luca')
 ```
 
 ### Что проверять после изменений:
-1. `python -c "from handlers.MODULE.handler import router; print('OK')"`
-2. `systemctl restart aibot`
-3. `journalctl -u aibot -n 20`
-4. Протестировать в боте
-
----
-
-## ⚠️ ИЗВЕСТНЫЕ ОСОБЕННОСТИ
-
-1. **Titus без голоса** — удалён в январе 2026, только текстовый режим
-2. **stream_response() возвращает tuple** — `(text, sent_msg)`, не дублировать отправку
-3. **Промпты в handlers/** — актуальные промпты в `handlers/*/prompts.py`, не в `prompts/`
-4. **database/db.py устарел** — использовать только `database/postgres_db.py`
-5. **Звёзды ⭐ не токены OpenAI** — это внутренняя валюта бота (1 ⭐ = 0.1225₽)
-
----
-
-## 💳 КАРТА ЦЕН В ФАЙЛАХ
-
-### Где захардкожены цены:
-
-| Файл | Что хранит | Назначение |
-|------|------------|------------|
-| **config.py** | SUBSCRIPTIONS, STAR_PACKAGES | Источник истины для подписок |
-| **keyboards/inline.py** | subscription_plans_kb(), stars_packages_kb() | Кнопки в боте |
-| **templates/payment.html** | HTML карточки подписок и пакетов | WebApp покупок |
-| **templates/webapp.html** | Пакеты звёзд в личном кабинете | WebApp профиль |
-| **handlers/images.py** | DEFAULT_MODELS (create/upscale/edit) | Дефолтные цены картинок |
-| **database/postgres_db.py** | create_price=50, upscale_price=350, edit_price=120 | Дефолты БД |
-| **handlers/subscription.py** | Реферальные награды (1000/2000/4000⭐) | Логика рефералов |
-| **templates/video_settings.html** | STAR_COST_RUB=0.1225, MARKUP=1.7 | Формула расчёта видео |
-| **templates/images_settings.html** | rubToTokens(rub * 1.7 * 1000) | Формула расчёта картинок |
-
-### Формулы ценообразования:
-
-**Для звёзд из рублей:**
-```javascript
-// video_settings.html, images_settings.html
-const STAR_COST_RUB = 0.1225;  // 1⭐ = 0.1225₽
-const MARKUP = 1.7;             // Маржа 70%
-
-function rubToStars(rub) {
-    return Math.round((rub * MARKUP) / STAR_COST_RUB);
-}
-```
-
-**Пример:**
-- API стоит 12₽
-- Цена для пользователя: `(12 × 1.7) / 0.1225 = 167⭐`
-- В рублях для пользователя: `167 × 0.1225 = 20.46₽`
-
----
-
-## 🚀 ВАЖНЫЕ ЭНДПОИНТЫ
-
-### Flask (web_app.py):
-```python
-/api/user/<user_id>            # GET: Данные пользователя (баланс, подписка)
-/api/image_settings/<user_id>  # GET: Настройки картинок
-/api/payment/create             # POST: Создание платежа Robokassa
-/robokassa/result               # POST: Webhook от Robokassa
-/payment/success                # GET: Успешная оплата
-/payment/fail                   # GET: Неудачная оплата
-```
-
-### Telegram Bot (handlers/):
-```python
-/start                          # handlers/start.py
-/admin                          # handlers/admin.py (только ADMIN_IDS)
-callback: sub:buy:mini          # handlers/subscription.py
-callback: sub:buy:standard      # handlers/subscription.py
-callback: sub:buy:premium       # handlers/subscription.py
-callback: stars:buy:1000        # handlers/subscription.py
-callback: stars:buy:2000        # handlers/subscription.py
-```
-
----
-
-## 📝 ПЕРВЫЙ ПРОМПТ ДЛЯ CURSOR
-
-После открытия проекта:
-
-```
-@.cursorrules Прочитай правила проекта.
-
-Затем изучи ключевые файлы:
-@handlers/luca/handler.py @handlers/titus/handler.py @utils/streaming.py
-
-Подтверди что понял:
-1. Какой стек используется
-2. Как работает стриминг
-3. Какие модули есть и их состояние
-4. Что НЕ трогать
-```
-
----
-
-## 🛠️ БЫСТРЫЕ КОМАНДЫ
-
-### Перезапуск сервисов:
-```bash
-systemctl restart aibot soul-bot-web
-systemctl status aibot soul-bot-web --no-pager
-```
-
-### Просмотр логов:
-```bash
-journalctl -u aibot -n 50 --no-pager          # Последние 50 строк бота
-journalctl -u soul-bot-web -n 30 --no-pager   # Последние 30 строк веба
-journalctl -u aibot -f                         # Реальное время
-```
-
-### Git:
-```bash
-git status -sb                                 # Краткий статус
-git add . && git commit -m "message"           # Коммит
-git push origin main                           # Пуш
-```
-
-### БД миграции:
-```bash
-source venv/bin/activate
-alembic revision -m "description"              # Создать миграцию
-alembic upgrade head                           # Применить
-alembic current                                # Текущая версия
-```
-
-### Проверка импортов:
-```bash
-python -c "from handlers.MODULE.handler import router; print('OK')"
-```
-
----
-
-## 📚 ПОЛЕЗНЫЕ ССЫЛКИ
-
-- **Проект:** https://github.com/YOUR_USERNAME/ai-bot
-- **Домен:** https://soul-bot.ru
-- **Бот:** @soul_ai_bot
-- **OpenRouter:** https://openrouter.ai
-- **VseGPT:** https://api.vsegpt.ru
-- **Robokassa:** https://auth.robokassa.ru/Merchant/Index.aspx
-- **aiogram 3.x:** https://docs.aiogram.dev/en/latest/
+1. Проверка импортов: `python -c "from handlers.MODULE import router"`
+2. Перезапуск: `systemctl restart aibot`
+3. Логи: `journalctl -u aibot -n 20`
+4. Тест в боте
 
 ---
 
 ## 🔐 .ENV ПЕРЕМЕННЫЕ
 
-Обязательные для запуска:
-
 ```bash
 # Telegram
 BOT_TOKEN=                      # Токен бота
-ADMIN_IDS=                      # Comma-separated ID админов
+ADMIN_IDS=                      # ID админов через запятую
 
 # PostgreSQL
 DATABASE_PATH=                  # asyncpg://user:pass@host/db
+DATABASE_URL=                   # То же самое
 
 # Redis
 REDIS_URL=                      # redis://localhost:6379/0
 
-# OpenRouter
+# OpenRouter (текст)
 OPENROUTER_API_KEY=             # sk-or-...
 
-# VseGPT (изображения/видео)
-OPENAI_API_KEY=                 # API ключ VseGPT
+# VseGPT (изображения/видео) и ProxyAPI (Health)
+OPENAI_API_KEY=                 # API ключ
 
 # Robokassa
 ROBOKASSA_MERCHANT_LOGIN=       # Логин магазина
 ROBOKASSA_PASSWORD1=            # Пароль 1
 ROBOKASSA_PASSWORD2=            # Пароль 2
 ROBOKASSA_TEST_MODE=1           # 1=тест, 0=боевой
+```
+
+---
+
+## 📚 ПОЛЕЗНЫЕ ССЫЛКИ
+
+- **Домен:** https://soul-bot.ru
+- **Бот:** @iisoul_bot
+- **Поддержка:** @aidusha_support_bot
+- **Канал:** https://t.me/soulai_ru
+- **OpenRouter:** https://openrouter.ai
+- **VseGPT:** https://vsegpt.ru
+- **aiogram 3.x:** https://docs.aiogram.dev
+
+---
+
+## 📝 ПЕРВЫЙ ПРОМПТ ДЛЯ CURSOR
+
+```
+@.cursorrules Прочитай правила проекта.
+
+Изучи ключевые файлы:
+@handlers/luca/handler.py @handlers/silas/handler.py @handlers/titus/handler.py
+
+Подтверди что понял:
+1. FSM-состояния каждого модуля
+2. Как работает кнопка "🛑 Завершить"
+3. Как работает кнопка "◀️ Назад" (с фильтром!)
+4. Как работает стриминг (stream_response возвращает tuple)
+5. Что НЕ трогать
 ```

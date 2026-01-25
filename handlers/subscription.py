@@ -276,14 +276,25 @@ async def show_plans(cb: CallbackQuery):
 # === ОБРАБОТКА УСПЕШНОЙ ОПЛАТЫ ===
 async def process_successful_payment(tx_id: int, robokassa_id: int = None):
     """
-    Обработка успешной оплаты и начисление рефераль rewards
-    Эта функция должна вызываться из webhook ResultURL от Robokassa
+    Обработка успешной оплаты и начисление реферальных rewards.
+    Эта функция вызывается из webhook ResultURL от Robokassa.
+    
+    ВАЖНО: Защита от дублирования — проверяем статус ДО и ПОСЛЕ обновления.
     """
+    import logging
     from aiogram import Bot
     from config import BOT_TOKEN
     
+    logger = logging.getLogger(__name__)
+    logger.info(f"[Payment] Processing tx_id={tx_id}, robokassa_id={robokassa_id}")
+    
     tx = await db.get_transaction(tx_id)
-    if not tx or tx['status'] == 'completed':
+    if not tx:
+        logger.warning(f"[Payment] Transaction {tx_id} not found!")
+        return
+    
+    if tx['status'] == 'completed':
+        logger.info(f"[Payment] Transaction {tx_id} already completed, skipping")
         return
     
     user_id = tx['user_id']
@@ -317,30 +328,40 @@ async def process_successful_payment(tx_id: int, robokassa_id: int = None):
             # Проверяем реферальную систему
             referrer_id = await db.get_referrer_id(user_id)
             if referrer_id:
-                # Начисляем награду рефереру
-                if sub_type == 'mini':
-                    reward_stars = 1000  # 1,000 ⭐ за Mini
-                elif sub_type == 'standard':
-                    reward_stars = 2000  # 2,000 ⭐ за Standard
-                elif sub_type == 'premium':
-                    reward_stars = 4000  # 4,000 ⭐ за Premium
-                else:
-                    reward_stars = 0
+                logger.info(f"[Payment] User {user_id} has referrer {referrer_id}")
                 
-                if reward_stars > 0:
-                    await db.add_referral_reward(referrer_id, user_id, reward_stars, sub_type)
+                # Проверяем что реферальный бонус ещё не начислялся за эту подписку
+                # (защита от дублирования при повторном webhook)
+                existing_reward = await db.get_referral_reward(referrer_id, user_id)
+                if existing_reward and existing_reward.get('stars_earned', 0) > 0:
+                    logger.info(f"[Payment] Referral reward already given to {referrer_id} for user {user_id}, skipping")
+                else:
+                    # Начисляем награду рефереру
+                    if sub_type == 'mini':
+                        reward_stars = 1000  # 1,000 ⭐ за Mini
+                    elif sub_type == 'standard':
+                        reward_stars = 2000  # 2,000 ⭐ за Standard
+                    elif sub_type == 'premium':
+                        reward_stars = 4000  # 4,000 ⭐ за Premium
+                    else:
+                        reward_stars = 0
                     
-                    # Уведомляем реферера
-                    try:
-                        await bot.send_message(
-                            referrer_id,
-                            f"🎉🎉🎉 <b>Реферальная награда!</b>\n\n"
-                            f"Ваш реферал оформил подписку <b>{plan_name}</b>!\n\n"
-                            f"⭐ Вам начислено: <b>{fmt(reward_stars)}</b>\n\n"
-                            f"Продолжайте делиться ссылкой и зарабатывайте больше! 🚀"
-                        )
-                    except:
-                        pass  # Реферер мог заблокировать бота
+                    if reward_stars > 0:
+                        await db.add_referral_reward(referrer_id, user_id, reward_stars, sub_type)
+                        logger.info(f"[Payment] Referral reward {reward_stars}⭐ given to {referrer_id}")
+                        
+                        # Уведомляем реферера
+                        try:
+                            await bot.send_message(
+                                referrer_id,
+                                f"🎉🎉🎉 <b>Реферальная награда!</b>\n\n"
+                                f"Ваш реферал оформил подписку <b>{plan_name}</b>!\n\n"
+                                f"⭐ Вам начислено: <b>{fmt(reward_stars)}</b>\n\n"
+                                f"Продолжайте делиться ссылкой и зарабатывайте больше! 🚀"
+                            )
+                            logger.info(f"[Payment] Referral notification sent to {referrer_id}")
+                        except Exception as notify_err:
+                            logger.warning(f"[Payment] Failed to notify referrer {referrer_id}: {notify_err}")
                     
         elif tx_type.startswith('stars:'):
             # Докупка звёзд

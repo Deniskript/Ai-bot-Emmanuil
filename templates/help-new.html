@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soul AI — Помощь</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 16px;
+            padding-bottom: 100px;
+            overflow-x: hidden;
+            color: #fff;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 20px; height: 20px; top: 10%; left: 15%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 15px; height: 15px; top: 25%; left: 75%; animation-delay: 1s; }
+        .particle:nth-child(3) { width: 25px; height: 25px; top: 50%; left: 25%; animation-delay: 2s; }
+        .particle:nth-child(4) { width: 12px; height: 12px; top: 70%; left: 80%; animation-delay: 3s; }
+        .particle:nth-child(5) { width: 18px; height: 18px; top: 85%; left: 40%; animation-delay: 4s; }
+
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); opacity: 0.3; }
+            50% { transform: translateY(-40px) rotate(180deg); opacity: 0.6; }
+            100% { transform: translateY(0px) rotate(360deg); opacity: 0.3; }
+        }
+
+        .container {
+            max-width: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 20px 0 25px;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .hero-icon {
+            font-size: 64px;
+            display: inline-block;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .hero-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffffff;
+            margin: 12px 0 8px;
+        }
+
+        .hero-subtitle {
+            font-size: 18px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hero-desc {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            margin-top: 5px;
+            line-height: 1.6;
+            padding: 0 10px;
+        }
+
+        .intro-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.6s ease-out 0.2s forwards;
+            opacity: 0;
+        }
+
+        .intro-card p {
+            color: #555;
+            line-height: 1.7;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .intro-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .intro-card strong {
+            color: #667eea;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+            animation: fadeIn 0.6s ease-out 0.4s forwards;
+            opacity: 0;
+        }
+
+        .module-btn {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 20px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-decoration: none;
+            display: block;
+        }
+
+        .module-btn:active {
+            transform: scale(0.95);
+        }
+
+        .module-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .module-icon {
+            font-size: 36px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .module-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .module-desc {
+            font-size: 12px;
+            color: #777;
+            margin-top: 5px;
+        }
+
+        /* Полноширинная кнопка поддержки */
+        .support-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            text-decoration: none;
+            display: block;
+            margin: 20px 0;
+            animation: fadeIn 0.6s ease-out 0.6s forwards;
+            opacity: 0;
+        }
+
+        .support-btn:active {
+            transform: scale(0.98);
+        }
+
+        .support-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .support-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .support-desc {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 5px;
+        }
+
+        .cta-button {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #667eea);
+            background-size: 200% 200%;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5);
+            animation: gradient 3s ease infinite, fadeIn 0.6s ease-out 0.8s forwards;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(30px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @media (max-width: 350px) {
+            .hero-title { font-size: 24px; }
+            .hero-icon { font-size: 56px; }
+            .module-btn { padding: 16px 10px; }
+            .module-icon { font-size: 30px; }
+            .module-title { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <span class="hero-icon">✨</span>
+            <h1 class="hero-title">Soul AI</h1>
+            <p class="hero-subtitle">Твой личный AI-помощник</p>
+        </div>
+
+        <div class="intro-card">
+            <p><strong>Когда мне было очень тяжело</strong> — я нашёл поддержку в искусственном интеллекте. Он помог мне стать лучше.</p>
+            <p>Я решил поделиться этим с людьми.</p>
+            <p>Изучил программирование, написал тысячи строк кода — чтобы создать инструмент, который поможет:</p>
+            <p>• Справиться с трудностями и одиночеством<br>
+            • Найти мотивацию для саморазвития<br>
+            • Изучить новое и прокачать навыки<br>
+            • Разобраться в себе и своих целях</p>
+            <p><strong>Относитесь к этому как к разговору со своей душой.</strong></p>
+        </div>
+
+        <div class="modules-grid">
+            <a href="https://soul-bot.ru/how-it-works/dialog-new" class="module-btn">
+                <span class="module-icon">💬</span>
+                <span class="module-title">Soul Чат</span>
+                <span class="module-desc">Друг, который рядом</span>
+            </a>
+            <a href="https://soul-bot.ru/how-it-works/psychologist" class="module-btn">
+                <span class="module-icon">🛋️</span>
+                <span class="module-title">Психолог</span>
+                <span class="module-desc">Пространство для себя</span>
+            </a>
+            <a href="https://soul-bot.ru/how-it-works/education" class="module-btn">
+                <span class="module-icon">📚</span>
+                <span class="module-title">Обучение</span>
+                <span class="module-desc">Курсы под тебя</span>
+            </a>
+            <a href="https://soul-bot.ru/how-it-works/creative" class="module-btn">
+                <span class="module-icon">🎨</span>
+                <span class="module-title">Творчество</span>
+                <span class="module-desc">Фото, видео, аудио</span>
+            </a>
+            <a href="https://soul-bot.ru/how-it-works/socials" class="module-btn">
+                <span class="module-icon">📲</span>
+                <span class="module-title">Соцсети</span>
+                <span class="module-desc">Вирусный контент</span>
+            </a>
+            <a href="https://soul-bot.ru/how-it-works/lifestyle" class="module-btn">
+                <span class="module-icon">🏆</span>
+                <span class="module-title">Лайфстайл</span>
+                <span class="module-desc">Режим и здоровье</span>
+            </a>
+        </div>
+
+        <a href="https://t.me/soulrus_support_bot" class="support-btn">
+            <span class="support-icon">🛠</span>
+            <span class="support-title">Техническая поддержка</span>
+            <span class="support-desc">Есть вопросы? Напишите нам!</span>
+        </a>
+    </div>
+
+    <button class="cta-button" onclick="closeMiniApp()">← Вернуться в бот</button>
+
+    <script>
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        function closeMiniApp() {
+            Telegram.WebApp.close();
+        }
+    </script>
+</body>
+</html>

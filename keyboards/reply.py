@@ -100,7 +100,7 @@ def viral_kb(user_id: int):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="💬 Текстовый совет")],
         [KeyboardButton(text="📤 Загрузить видео"), KeyboardButton(text="🔗 Отправить ссылку")],
-        [KeyboardButton(text="◀️ Назад")]
+        [KeyboardButton(text="🛑 Завершить")]
     ], resize_keyboard=True)
 
 def health_kb(user_id: int):

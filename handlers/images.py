@@ -493,6 +493,7 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
             reply_markup=_done_inline_kb("creative"),
             parse_mode="HTML",
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("creative"),
@@ -503,7 +504,6 @@ async def creative_generate_meme(message: Message, state: FSMContext, *, user_id
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 async def creative_meme_idea(message: Message, state: FSMContext):
@@ -594,6 +594,7 @@ async def creative_process_photo(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("creative"),
             parse_mode="HTML",
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("creative"),
@@ -604,7 +605,6 @@ async def creative_process_photo(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 def _load_font(size: int) -> ImageFont.ImageFont:
@@ -853,6 +853,7 @@ async def get_user_model_settings(user_id: int, action: str) -> dict:
     return result
 
 class ImageStates(StatesGroup):
+    menu = State()  # Состояние меню Творчества
     waiting_create_prompt = State()
     waiting_upscale_photo = State()
     waiting_for_photo_with_caption = State()  # Новое состояние: фото с подписью в одном сообщении
@@ -863,6 +864,7 @@ class ImageStates(StatesGroup):
     waiting_video_confirm = State()
     waiting_video_text = State()
     waiting_video_photo = State()
+    done = State()  # Состояние после генерации (для кнопки Завершить)
 
 
 @router.message(ImageStates.waiting_blogger_prompt, F.text)
@@ -946,6 +948,7 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("blogger"),
             parse_mode="HTML",
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("blogger"),
@@ -956,7 +959,6 @@ async def blogger_process_prompt(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 @router.message(ImageStates.waiting_creative_meme_idea, F.text)
@@ -970,8 +972,9 @@ async def creative_process_photo_handler(message: Message, state: FSMContext):
 
 
 @router.message(F.text.in_(["🎨 Творчество", "📷 Фото", "📸 Фото"]))
-async def photo_menu(message: Message):
+async def photo_menu(message: Message, state: FSMContext):
     """Показать меню творчества (WebApp-кнопки)"""
+    await state.set_state(ImageStates.menu)
     
     # Отправляем баннер вместо текста
     banner = FSInputFile("assets/banner_creative.png")
@@ -979,6 +982,13 @@ async def photo_menu(message: Message):
         photo=banner,
         reply_markup=photo_kb(message.from_user.id)
     )
+
+
+@router.message(ImageStates.menu, F.text == "◀️ Назад")
+async def back_from_creativity_menu(message: Message, state: FSMContext):
+    """Возврат из меню Творчества в меню ботов"""
+    await state.clear()
+    await message.answer("🫧 Soul AI", reply_markup=bots_menu_kb())
 
 
 @router.message(F.text == "🎵 Аудио")
@@ -1429,7 +1439,7 @@ def _flow_done_kb(kind: str) -> ReplyKeyboardMarkup:
     }.get(kind, "🔁 Ещё раз")
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=label), KeyboardButton(text="✅ Завершить")],
+            [KeyboardButton(text=label), KeyboardButton(text="🛑 Завершить")],
             [KeyboardButton(text="🎨 Творчество")],
         ],
         resize_keyboard=True
@@ -1451,7 +1461,7 @@ def _done_inline_kb(kind: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text=label, callback_data=f"flow_again:{kind}"),
-            InlineKeyboardButton(text="✅ Завершить", callback_data="flow_finish"),
+            InlineKeyboardButton(text="🛑 Завершить", callback_data="flow_finish"),
         ]
     ])
 
@@ -1587,6 +1597,7 @@ async def process_video_text(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("video"),
             parse_mode="HTML"
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("video"),
@@ -1598,7 +1609,6 @@ async def process_video_text(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 @router.message(ImageStates.waiting_video_photo, F.photo)
@@ -1655,6 +1665,7 @@ async def process_video_photo(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("video"),
             parse_mode="HTML"
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("video"),
@@ -1666,7 +1677,6 @@ async def process_video_photo(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 @router.message(F.text == "📷 Создать")
@@ -1870,6 +1880,7 @@ async def process_process_photo(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("process"),
             parse_mode="HTML",
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("process"),
@@ -1880,7 +1891,6 @@ async def process_process_photo(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 @router.message(F.text == "🛑 Отменить")
@@ -1921,7 +1931,7 @@ async def flow_again(message: Message, state: FSMContext):
     await create_photo_start(message, state)
 
 
-@router.message(F.text == "✅ Завершить")
+@router.message(ImageStates.done, F.text == "🛑 Завершить")
 async def finish_flow(message: Message, state: FSMContext):
     """Явно закрыть сценарий и вернуть в общее меню."""
     await state.clear()
@@ -1974,12 +1984,8 @@ async def cb_legacy_finish(cb: CallbackQuery, state: FSMContext):
     await cb_flow_finish(cb, state)
 
 
-@router.message(F.text == "◀️ Назад")
-async def back_from_photo(message: Message, state: FSMContext):
-    """Возврат из меню фото"""
-    await state.clear()
-    # Просто меняем клавиатуру без сообщения
-    await message.answer("🫧 Soul AI", reply_markup=bots_menu_kb())
+# Обработчик "◀️ Назад" УДАЛЁН — он перехватывал все нажатия глобально
+# Каждый модуль должен обрабатывать свою кнопку "Назад" с фильтром состояния
 
 
 # === СОЗДАНИЕ ФОТО ПО ТЕКСТУ ===
@@ -2021,6 +2027,7 @@ async def process_create(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("create"),
             parse_mode="HTML"
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("create"),
@@ -2032,7 +2039,6 @@ async def process_create(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 # === UPSCALE 4K ===
@@ -2091,6 +2097,7 @@ async def process_upscale(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("upscale"),
             parse_mode="HTML"
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("upscale"),
@@ -2103,7 +2110,6 @@ async def process_upscale(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 # === РЕДАКТОР ===
@@ -2212,6 +2218,7 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
             reply_markup=_done_inline_kb("edit"),
             parse_mode="HTML"
         )
+        await state.set_state(ImageStates.done)
         await message.answer(
             "✨ <b>Готово!</b> Что делаем дальше?",
             reply_markup=_flow_done_kb("edit"),
@@ -2227,7 +2234,6 @@ async def process_photo_with_caption(message: Message, state: FSMContext):
     finally:
         if status:
             await status.stop()
-        await state.clear()
 
 
 @router.message(ImageStates.waiting_for_photo_with_caption)
