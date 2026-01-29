@@ -40,7 +40,8 @@ async def magic_menu(msg: Message, state: FSMContext):
 @router.message(MagicSt.menu, F.text == "◀️ Назад")
 async def magic_back(msg: Message, state: FSMContext):
     """Возврат в меню Лайфстайл"""
-    await state.clear()
+    from .handler import LifestyleStates
+    await state.set_state(LifestyleStates.menu)
     await msg.answer(
         "🏆 <b>Лайфстайл</b>\n\n"
         "Улучшай качество жизни:\n\n"

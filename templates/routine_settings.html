@@ -700,6 +700,8 @@
         .section-visible {
             display: block;
         }
+            /* Все внутренние элементы кнопок не блокируют клики */
+        button *, .btn-back *, .btn-apply *, .btn-start *, .choice-btn *, .model-option * { pointer-events: none; }
     </style>
 </head>
 <body>

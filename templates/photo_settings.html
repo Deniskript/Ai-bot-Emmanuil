@@ -446,6 +446,8 @@
             .tab { padding: 12px 8px; min-height: 65px; }
             .tab-title { font-size: 14px; }
         }
+            /* Все внутренние элементы кнопок не блокируют клики */
+        button *, .btn-back *, .btn-apply *, .btn-start *, .choice-btn *, .model-option * { pointer-events: none; }
     </style>
 </head>
 <body>

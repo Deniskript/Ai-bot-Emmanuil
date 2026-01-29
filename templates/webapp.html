@@ -241,6 +241,15 @@
             color: var(--text-secondary);
         }
 
+        .user-id-text:hover {
+            color: var(--text-primary) !important;
+            transform: scale(1.02);
+        }
+
+        .user-id-text:active {
+            transform: scale(0.98);
+        }
+
         /* ===== WALLET CARD ===== */
         .wallet-card {
             background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
@@ -528,11 +537,22 @@
 
         .action-icon {
             font-size: 24px;
+            pointer-events: none;
         }
 
         .action-text {
             font-size: 14px;
             font-weight: 600;
+            pointer-events: none;
+        }
+
+        /* Все внутренние элементы кнопок не должны блокировать клики */
+        .btn-subscription *,
+        .btn-referral *,
+        .action-btn *,
+        .btn-back *,
+        button * {
+            pointer-events: none;
         }
 
         /* ===== BACK BUTTON ===== */
@@ -948,6 +968,10 @@
                 <div class="greeting">
                     <span class="greeting-text" id="greetingText">Добрый день, Пользователь!</span>
                     <span class="greeting-emoji" id="greetingEmoji">🌤</span>
+                    <span class="user-id-text" id="userIdText" onclick="copyUserId()" style="font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s;">
+                        <span id="userIdValue"></span>
+                        <span style="font-size: 14px;">📋</span>
+                    </span>
                 </div>
             </div>
 
@@ -1203,6 +1227,68 @@
             const greeting = getGreeting();
             document.getElementById('greetingText').textContent = `${greeting.text}, ${name}!`;
             document.getElementById('greetingEmoji').textContent = greeting.emoji;
+            
+            // Отображаем User ID
+            if (userId) {
+                document.getElementById('userIdValue').textContent = `ID: ${userId}`;
+                document.getElementById('userIdText').style.display = 'inline-flex';
+            }
+        }
+
+        // ===== COPY USER ID =====
+        function copyUserId() {
+            if (!userId) return;
+            
+            // Копируем в буфер обмена
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(userId).then(() => {
+                    showCopyNotification();
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    fallbackCopy(userId);
+                });
+            } else {
+                fallbackCopy(userId);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showCopyNotification();
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function showCopyNotification() {
+            const idElement = document.getElementById('userIdText');
+            const originalColor = idElement.style.color;
+            
+            // Анимация успешного копирования
+            idElement.style.color = 'var(--green)';
+            idElement.style.transform = 'scale(1.05)';
+            
+            setTimeout(() => {
+                idElement.style.color = originalColor;
+                idElement.style.transform = 'scale(1)';
+            }, 300);
+            
+            // Показываем уведомление через Telegram
+            if (window.Telegram?.WebApp) {
+                window.Telegram.WebApp.showPopup({
+                    title: '✅ Скопировано',
+                    message: `ID ${userId} скопирован в буфер обмена`,
+                    buttons: [{type: 'ok'}]
+                });
+            }
         }
 
         // ===== BALANCE ANIMATION =====

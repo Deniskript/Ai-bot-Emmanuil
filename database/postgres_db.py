@@ -663,6 +663,16 @@ async def get_user(uid: int) -> Optional[Dict]:
         return dict(row) if row else None
 
 
+async def get_user_profile(uid: int) -> Optional[Dict]:
+    """Получить профиль пользователя (имя, возраст, пол)"""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM user_profile WHERE user_id = $1",
+            uid
+        )
+        return dict(row) if row else None
+
+
 async def create_user(
     uid: int,
     uname: str = None,

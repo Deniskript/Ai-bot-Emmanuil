@@ -293,6 +293,8 @@
             .content-card { padding: 18px; }
             .content-title { font-size: 17px; }
         }
+            /* Все внутренние элементы кнопок не блокируют клики */
+        button *, .btn-back *, .btn-apply *, .btn-start *, .choice-btn *, .card *, .option * { pointer-events: none; }
     </style>
 </head>
 <body>

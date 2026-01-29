@@ -501,6 +501,8 @@
             .gallery { grid-template-columns: repeat(2, 1fr); }
             .card-item { height: 130px; }
         }
+            /* Все внутренние элементы кнопок не блокируют клики */
+        button *, .btn-back *, .btn-apply *, .btn-start *, .choice-btn *, .card *, .option * { pointer-events: none; }
     </style>
 </head>
 <body>

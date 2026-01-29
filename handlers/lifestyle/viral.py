@@ -156,18 +156,20 @@ async def link_start(msg: Message, state: FSMContext):
 
 @router.message(F.text == "🛑 Отменить")
 async def cancel_operation(msg: Message, state: FSMContext):
-    """Отменить операцию"""
+    """Отменить операцию и вернуться в меню Вирусного разбора"""
     current_state = await state.get_state()
     if current_state and current_state.startswith("ViralAnalysisSt"):
-        await state.clear()
+        # Возвращаем в меню Вирусного разбора (не очищаем состояние!)
+        await state.set_state(ViralAnalysisSt.menu)
         await msg.answer("❌ Операция отменена", reply_markup=reply.viral_kb(msg.from_user.id))
 
 
 @router.message(ViralAnalysisSt.menu, F.text == "◀️ Назад")
 async def back_from_viral(msg: Message, state: FSMContext):
-    """Возврат из меню вирусного разбора"""
-    await state.clear()
+    """Возврат из меню вирусного разбора в Соцсети"""
+    from handlers.socials import SocialsStates
     from keyboards.reply import socials_menu_kb
+    await state.set_state(SocialsStates.menu)
     await msg.answer("📲 Соцсети", reply_markup=socials_menu_kb(msg.from_user.id))
 
 

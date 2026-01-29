@@ -362,6 +362,16 @@
             border-radius: 20px;
         }
 
+        /* Все внутренние элементы карточек не должны блокировать клики */
+        .sub-card *,
+        .pkg-card *,
+        .method *,
+        .btn-pay *,
+        .btn-back *,
+        button * {
+            pointer-events: none;
+        }
+
         /* ===== BUTTONS ===== */
         .btn-pay {
             width: 100%;
@@ -455,7 +465,7 @@
             
             <div class="sub-card" data-type="sub" data-id="mini" data-price="490" data-stars="4000">
                 <div class="sub-header">
-                    <div class="sub-name">🌟 Mini</div>
+                    <div class="sub-name">💎 Mini</div>
                     <div class="sub-price">
                         <div class="sub-price-value">490 ₽</div>
                         <div class="sub-price-period">/ месяц</div>
@@ -463,26 +473,26 @@
                 </div>
                 <div class="sub-stars">+4,000 ⭐ звёзд</div>
                 <div class="sub-features">
-                    <div class="sub-feature">GPT-4o mini без ограничений</div>
-                    <div class="sub-feature">50 картинок в месяц</div>
-                    <div class="sub-feature">Базовая поддержка</div>
+                    <div class="sub-feature">~250-300 диалогов в месяц</div>
+                    <div class="sub-feature">~80 картинок для творчества</div>
+                    <div class="sub-feature">Базовые функции (без обучения)</div>
                 </div>
             </div>
 
             <div class="sub-card popular" data-type="sub" data-id="standard" data-price="990" data-stars="9000">
                 <div class="sub-header">
-                    <div class="sub-name">💫 Standard</div>
+                    <div class="sub-name">👑 Standard</div>
                     <div class="sub-price">
                         <div class="sub-price-value">990 ₽</div>
                         <div class="sub-price-period">/ месяц</div>
                     </div>
                 </div>
-                <div class="sub-stars">+9,000 ⭐ звёзд (+12% бонус)</div>
+                <div class="sub-stars">+9,000 ⭐ звёзд (в 2.3× больше)</div>
                 <div class="sub-features">
-                    <div class="sub-feature">GPT-4o + Claude Sonnet</div>
-                    <div class="sub-feature">150 картинок в месяц</div>
-                    <div class="sub-feature">Генерация видео</div>
-                    <div class="sub-feature">Приоритетная поддержка</div>
+                    <div class="sub-feature">~600 диалогов в месяц</div>
+                    <div class="sub-feature">~180 картинок + улучшение фото</div>
+                    <div class="sub-feature">Все функции + обучение</div>
+                    <div class="sub-feature">Парные сессии психолога</div>
                 </div>
             </div>
 
@@ -494,12 +504,12 @@
                         <div class="sub-price-period">/ месяц</div>
                     </div>
                 </div>
-                <div class="sub-stars">+20,000 ⭐ звёзд (+22% бонус)</div>
+                <div class="sub-stars">+20,000 ⭐ звёзд (в 5× больше)</div>
                 <div class="sub-features">
-                    <div class="sub-feature">Все модели без ограничений</div>
-                    <div class="sub-feature">Безлимит картинок</div>
-                    <div class="sub-feature">Приоритетная очередь</div>
-                    <div class="sub-feature">Эксклюзивные функции</div>
+                    <div class="sub-feature">~1,300 диалогов в месяц</div>
+                    <div class="sub-feature">~400 картинок + видео генерация</div>
+                    <div class="sub-feature">Без очередей, быстрая обработка</div>
+                    <div class="sub-feature">Ранний доступ к новинкам</div>
                 </div>
             </div>
         </div>

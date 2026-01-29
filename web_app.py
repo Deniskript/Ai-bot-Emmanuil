@@ -84,6 +84,289 @@ def get_conversation_messages_sync(conv_id: int) -> list:
         return []
 
 
+def get_user_sync(user_id: int) -> dict:
+    """Синхронное получение пользователя."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+                result = cur.fetchone()
+                return dict(result) if result else None
+    except Exception as e:
+        print(f"[ERROR] get_user_sync({user_id}): {e}")
+        return None
+
+
+def get_subscription_sync(user_id: int) -> dict:
+    """Синхронное получение подписки."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT * FROM subscriptions 
+                    WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                    ORDER BY expires_at DESC LIMIT 1
+                """, (user_id,))
+                result = cur.fetchone()
+                return dict(result) if result else None
+    except Exception as e:
+        print(f"[ERROR] get_subscription_sync({user_id}): {e}")
+        return None
+
+
+def get_available_stars_sync(user_id: int) -> int:
+    """Синхронное получение доступных звёзд."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                # Сначала проверяем подписку
+                cur.execute("""
+                    SELECT stars_limit, stars_used FROM subscriptions 
+                    WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                    ORDER BY expires_at DESC LIMIT 1
+                """, (user_id,))
+                sub = cur.fetchone()
+                if sub:
+                    return max(0, sub['stars_limit'] - sub['stars_used'])
+                
+                # Иначе берём из users.stars
+                cur.execute("SELECT stars FROM users WHERE user_id = %s", (user_id,))
+                user = cur.fetchone()
+                return user['stars'] if user else 0
+    except Exception as e:
+        print(f"[ERROR] get_available_stars_sync({user_id}): {e}")
+        return 0
+
+
+def create_user_sync(user_id: int, username: str, first_name: str) -> None:
+    """Синхронное создание пользователя."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (user_id, username, first_name, stars, created_at)
+                    VALUES (%s, %s, %s, 250, NOW())
+                    ON CONFLICT (user_id) DO NOTHING
+                """, (user_id, username, first_name))
+                conn.commit()
+    except Exception as e:
+        print(f"[ERROR] create_user_sync({user_id}): {e}")
+
+
+def get_all_users_sync() -> list:
+    """Синхронное получение всех пользователей."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM users ORDER BY user_id")
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        print(f"[ERROR] get_all_users_sync: {e}")
+        return []
+
+
+def add_stars_sync(user_id: int, amount: int) -> bool:
+    """Синхронное добавление звёзд пользователю.
+    Если есть активная подписка - увеличиваем stars_limit.
+    Иначе - добавляем в users.stars (бонусные).
+    """
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                # Проверяем есть ли активная подписка
+                cur.execute("""
+                    SELECT user_id FROM subscriptions 
+                    WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                    LIMIT 1
+                """, (user_id,))
+                sub = cur.fetchone()
+                
+                if sub:
+                    # Есть подписка - увеличиваем лимит
+                    cur.execute("""
+                        UPDATE subscriptions SET stars_limit = stars_limit + %s 
+                        WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                    """, (amount, user_id))
+                else:
+                    # Нет подписки - добавляем в бонусные
+                    cur.execute(
+                        "UPDATE users SET stars = stars + %s WHERE user_id = %s",
+                        (amount, user_id)
+                    )
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"[ERROR] add_stars_sync({user_id}, {amount}): {e}")
+        return False
+
+
+def give_stars_to_all_users_sync(amount: int) -> int:
+    """Синхронная выдача звёзд всем пользователям.
+    Если есть подписка - увеличиваем stars_limit, иначе users.stars.
+    """
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT user_id FROM users")
+                users = cur.fetchall()
+                count = 0
+                for u in users:
+                    user_id = u['user_id']
+                    # Проверяем подписку
+                    cur.execute("""
+                        SELECT user_id FROM subscriptions 
+                        WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                        LIMIT 1
+                    """, (user_id,))
+                    sub = cur.fetchone()
+                    
+                    if sub:
+                        cur.execute("""
+                            UPDATE subscriptions SET stars_limit = stars_limit + %s 
+                            WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                        """, (amount, user_id))
+                    else:
+                        cur.execute(
+                            "UPDATE users SET stars = stars + %s WHERE user_id = %s",
+                            (amount, user_id)
+                        )
+                    count += 1
+                conn.commit()
+                return count
+    except Exception as e:
+        print(f"[ERROR] give_stars_to_all_users_sync({amount}): {e}")
+        return 0
+
+
+def count_users_sync() -> int:
+    """Синхронный подсчёт пользователей."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) as cnt FROM users")
+                result = cur.fetchone()
+                return result['cnt'] if result else 0
+    except Exception as e:
+        print(f"[ERROR] count_users_sync: {e}")
+        return 0
+
+
+def count_users_without_subscription_sync() -> int:
+    """Синхронный подсчёт пользователей без подписки."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COUNT(*) as cnt FROM users u
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM subscriptions s 
+                        WHERE s.user_id = u.user_id AND s.is_active = 1 AND s.expires_at > NOW()
+                    )
+                """)
+                result = cur.fetchone()
+                return result['cnt'] if result else 0
+    except Exception as e:
+        print(f"[ERROR] count_users_without_subscription_sync: {e}")
+        return 0
+
+
+def get_users_without_subscription_sync() -> list:
+    """Синхронное получение пользователей без подписки."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT u.* FROM users u
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM subscriptions s 
+                        WHERE s.user_id = u.user_id AND s.is_active = 1 AND s.expires_at > NOW()
+                    )
+                """)
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        print(f"[ERROR] get_users_without_subscription_sync: {e}")
+        return []
+
+
+def get_active_subscriptions_sync() -> list:
+    """Синхронное получение активных подписок."""
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT * FROM subscriptions 
+                    WHERE is_active = 1 AND expires_at > NOW()
+                """)
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        print(f"[ERROR] get_active_subscriptions_sync: {e}")
+        return []
+
+
+def give_stars_to_users_sync(user_ids: list, amount: int) -> int:
+    """Синхронная выдача звёзд списку пользователей.
+    Если есть подписка - увеличиваем stars_limit, иначе users.stars.
+    """
+    try:
+        with psycopg2.connect(get_sync_db_url(), cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                count = 0
+                for user_id in user_ids:
+                    # Проверяем подписку
+                    cur.execute("""
+                        SELECT user_id FROM subscriptions 
+                        WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                        LIMIT 1
+                    """, (user_id,))
+                    sub = cur.fetchone()
+                    
+                    if sub:
+                        cur.execute("""
+                            UPDATE subscriptions SET stars_limit = stars_limit + %s 
+                            WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()
+                        """, (amount, user_id))
+                    else:
+                        cur.execute(
+                            "UPDATE users SET stars = stars + %s WHERE user_id = %s",
+                            (amount, user_id)
+                        )
+                    count += 1
+                conn.commit()
+                return count
+    except Exception as e:
+        print(f"[ERROR] give_stars_to_users_sync: {e}")
+        return 0
+
+
+def notify_user_stars_sync(user_id: int, amount: int) -> bool:
+    """Синхронное уведомление пользователя о начислении звёзд."""
+    import requests
+    try:
+        bot_token = os.getenv("BOT_TOKEN")
+        if not bot_token:
+            print("[ERROR] BOT_TOKEN not set")
+            return False
+        
+        text = (
+            f"🎉 <b>Вам начислены звёзды!</b>\n\n"
+            f"💰 Количество: <b>{amount:,}</b> ⭐\n\n"
+            f"Спасибо за использование бота! 🙏"
+        )
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        data = {
+            "chat_id": user_id,
+            "text": text,
+            "parse_mode": "HTML"
+        }
+        
+        response = requests.post(url, data=data, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"[ERROR] notify_user_stars_sync({user_id}): {e}")
+        return False
+
+
 TAROT_CARDS = [
     {"name": "Шут", "slug": "fool"},
     {"name": "Маг", "slug": "magician"},
@@ -1739,26 +2022,23 @@ def save_image_settings_api():
 
 
 def _build_user_response(user_id: int):
-    """Собрать данные пользователя для WebApp"""
-    # Используем run_async для автоматической обработки ошибок подключения
-    user = run_async(get_user(user_id))
+    """Собрать данные пользователя для WebApp (синхронно через psycopg2)"""
+    user = get_user_sync(user_id)
     if not user:
-        run_async(create_user(uid=user_id, uname=f"user_{user_id}", fname="Пользователь"))
-        user = run_async(get_user(user_id))
+        create_user_sync(user_id, f"user_{user_id}", "Пользователь")
+        user = get_user_sync(user_id)
 
-    # Получаем подписку
-    subscription = run_async(get_subscription(user_id))
-
-    # Получаем доступные звёзды (из подписки или бонусные)
-    stars = run_async(get_available_stars(user_id))
+    # Получаем подписку и звёзды синхронно
+    subscription = get_subscription_sync(user_id)
+    stars = get_available_stars_sync(user_id)
 
     # Формируем ответ
     response = {
         'user_id': user['user_id'],
         'username': user.get('username'),
         'first_name': user.get('first_name'),
-        'stars': stars,        # основной ключ
-        'balance': stars,      # совместимость со старыми клиентами
+        'stars': stars,
+        'balance': stars,
         'total_used': user.get('total_used', 0),
         'total_requests': user.get('total_requests', 0),
         'subscription': None

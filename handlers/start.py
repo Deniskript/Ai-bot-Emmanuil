@@ -248,6 +248,22 @@ async def agree_yes(cb: CallbackQuery, state: FSMContext):
         await db.accept_agreement(cb.from_user.id)
         await db.add_stars(cb.from_user.id, NEW_USER_BONUS)
 
+    # Проверяем есть ли профиль пользователя
+    profile = await db.get_user_profile(cb.from_user.id)
+    
+    if not profile:
+        # Запускаем регистрацию (имя, возраст, пол)
+        await cb.message.edit_text(
+            "✨ <b>Давайте познакомимся!</b>\n\n"
+            "👋 <b>Как вас зовут?</b>\n\n"
+            "<i>Это поможет боту лучше понимать вас</i>",
+            reply_markup=inline.skip_kb("skip:name")
+        )
+        await state.set_state(Registration.name)
+        await cb.answer("Начинаем регистрацию! 📝")
+        return
+
+    # Если профиль уже есть — показываем главное меню
     await state.clear()
     stars = await db.get_available_stars(cb.from_user.id)
     await cb.message.delete()

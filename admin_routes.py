@@ -499,11 +499,12 @@ def subscriptions():
 def tokens():
     """Tokens management - auth checked by JavaScript"""
     """Star management"""
+    from web_app import count_users_sync, count_users_without_subscription_sync
     message = request.args.get('message')
     message_type = request.args.get('message_type', 'success')
     
-    total_users = run_async(db.count_users())
-    users_without_sub = run_async(count_users_without_subscription())
+    total_users = count_users_sync()
+    users_without_sub = count_users_without_subscription_sync()
     
     history = []
     
@@ -829,16 +830,12 @@ def api_give_tokens():
 @admin_required
 def api_give_tokens_mass():
     """API: Give tokens to all users"""
+    from web_app import give_stars_to_all_users_sync
     data = request.get_json() or {}
     amount = data.get('amount', 0)
     
     if amount > 0:
-        users = run_async(db.get_all_users())
-        count = 0
-        for u in users:
-            run_async(db.add_stars(u['user_id'], amount))
-            count += 1
-        
+        count = give_stars_to_all_users_sync(amount)
         return jsonify({'success': True, 'message': f'Выдано {amount} звёзд {count} пользователям'})
     
     return jsonify({'success': False, 'message': 'Ошибка'}), 400
@@ -1070,15 +1067,28 @@ def give_subscription():
 @admin_required
 def give_tokens():
     """Give tokens to single user"""
-    user_id = request.form.get('user_id', 0, type=int)
-    amount = request.form.get('amount', 0, type=int)
-    init_data = get_init_data()
+    from web_app import add_stars_sync, notify_user_stars_sync
+    
+    if request.is_json:
+        data = request.get_json() or {}
+        user_id = int(data.get('user_id', 0))
+        amount = int(data.get('amount', 0))
+    else:
+        user_id = request.form.get('user_id', 0, type=int)
+        amount = request.form.get('amount', 0, type=int)
     
     if user_id and amount > 0:
-        run_async(db.add_stars(user_id, amount))
-        run_async(notify_user_stars(user_id, amount))
+        add_stars_sync(user_id, amount)
+        notify_user_stars_sync(user_id, amount)
+        
+        if request.is_json:
+            return jsonify({'success': True, 'message': f'Выдано {amount} звёзд пользователю {user_id}'})
+        init_data = get_init_data()
         return redirect(url_for('admin.tokens', message=f'Выдано {amount} звёзд', initData=init_data))
     
+    if request.is_json:
+        return jsonify({'success': False, 'message': 'Проверьте данные'}), 400
+    init_data = get_init_data()
     return redirect(url_for('admin.tokens', message='Ошибка', message_type='error', initData=init_data))
 
 
@@ -1086,16 +1096,36 @@ def give_tokens():
 @admin_required
 def give_tokens_mass():
     """Give tokens to all users"""
-    amount = request.form.get('amount', 0, type=int)
-    init_data = get_init_data()
+    from web_app import give_stars_to_all_users_sync, get_all_users_sync, notify_user_stars_sync
+    import threading
+    
+    # Проверяем тип запроса - JSON или form
+    if request.is_json:
+        data = request.get_json() or {}
+        amount = int(data.get('amount', 0))
+    else:
+        amount = request.form.get('amount', 0, type=int)
     
     if amount > 0:
-        users = run_async(db.get_all_users())
-        for u in users:
-            run_async(db.add_stars(u['user_id'], amount))
+        count = give_stars_to_all_users_sync(amount)
         
-        return redirect(url_for('admin.tokens', message=f'Выдано {amount} звёзд {len(users)} пользователям', initData=init_data))
+        # Отправляем уведомления в фоне
+        def send_notifications():
+            users = get_all_users_sync()
+            for u in users:
+                notify_user_stars_sync(u['user_id'], amount)
+        threading.Thread(target=send_notifications, daemon=True).start()
+        
+        # Возвращаем JSON для AJAX запросов
+        if request.is_json:
+            return jsonify({'success': True, 'message': f'Выдано {amount} звёзд {count} пользователям'})
+        # Redirect для обычных форм
+        init_data = get_init_data()
+        return redirect(url_for('admin.tokens', message=f'Выдано {amount} звёзд {count} пользователям', initData=init_data))
     
+    if request.is_json:
+        return jsonify({'success': False, 'message': 'Укажите количество'}), 400
+    init_data = get_init_data()
     return redirect(url_for('admin.tokens', message='Ошибка', message_type='error', initData=init_data))
 
 
@@ -1103,16 +1133,27 @@ def give_tokens_mass():
 @admin_required
 def give_tokens_no_sub():
     """Give tokens to users without subscription"""
-    amount = request.form.get('amount', 0, type=int)
-    init_data = get_init_data()
+    from web_app import get_users_without_subscription_sync, give_stars_to_users_sync
+    
+    if request.is_json:
+        data = request.get_json() or {}
+        amount = int(data.get('amount', 0))
+    else:
+        amount = request.form.get('amount', 0, type=int)
     
     if amount > 0:
-        users = run_async(get_users_without_subscription())
-        for u in users:
-            run_async(db.add_stars(u['user_id'], amount))
+        users = get_users_without_subscription_sync()
+        user_ids = [u['user_id'] for u in users]
+        count = give_stars_to_users_sync(user_ids, amount)
         
-        return redirect(url_for('admin.tokens', message=f'Выдано {amount} звёзд {len(users)} пользователям', initData=init_data))
+        if request.is_json:
+            return jsonify({'success': True, 'message': f'Выдано {amount} звёзд {count} пользователям'})
+        init_data = get_init_data()
+        return redirect(url_for('admin.tokens', message=f'Выдано {amount} звёзд {count} пользователям', initData=init_data))
     
+    if request.is_json:
+        return jsonify({'success': False, 'message': 'Укажите количество'}), 400
+    init_data = get_init_data()
     return redirect(url_for('admin.tokens', message='Ошибка', message_type='error', initData=init_data))
 
 
@@ -1120,20 +1161,29 @@ def give_tokens_no_sub():
 @admin_required
 def give_tokens_subscribers():
     """Give tokens to subscribers"""
-    amount = request.form.get('amount', 0, type=int)
-    sub_type = request.form.get('sub_type', 'all')
-    init_data = get_init_data()
+    from web_app import get_active_subscriptions_sync, give_stars_to_users_sync
+    
+    if request.is_json:
+        data = request.get_json() or {}
+        amount = int(data.get('amount', 0))
+        sub_type = data.get('sub_type', 'all')
+    else:
+        amount = request.form.get('amount', 0, type=int)
+        sub_type = request.form.get('sub_type', 'all')
     
     if amount > 0:
-        subs = run_async(db.get_active_subscriptions())
-        count = 0
-        for s in subs:
-            if sub_type == 'all' or s.get('type') == sub_type:
-                run_async(db.add_stars(s['user_id'], amount))
-                count += 1
+        subs = get_active_subscriptions_sync()
+        user_ids = [s['user_id'] for s in subs if sub_type == 'all' or s.get('type') == sub_type]
+        count = give_stars_to_users_sync(user_ids, amount)
         
+        if request.is_json:
+            return jsonify({'success': True, 'message': f'Выдано {amount} звёзд {count} подписчикам'})
+        init_data = get_init_data()
         return redirect(url_for('admin.tokens', message=f'Выдано {amount} звёзд {count} подписчикам', initData=init_data))
     
+    if request.is_json:
+        return jsonify({'success': False, 'message': 'Укажите количество'}), 400
+    init_data = get_init_data()
     return redirect(url_for('admin.tokens', message='Ошибка', message_type='error', initData=init_data))
 
 

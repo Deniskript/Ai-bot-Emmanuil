@@ -202,6 +202,7 @@
             font-size: 30px;
             margin-bottom: 8px;
             display: block;
+            pointer-events: none;
         }
 
         .choice-btn.active .icon {
@@ -217,10 +218,20 @@
             font-size: 13px;
             font-weight: 700;
             color: #333;
+            pointer-events: none;
         }
 
         .choice-btn.active .label {
             color: #7B68A6;
+        }
+
+        /* Все внутренние элементы кнопок не блокируют клики */
+        .choice-btn *,
+        .mood-button *,
+        .save-btn *,
+        .back-btn *,
+        button * {
+            pointer-events: none;
         }
 
         /* === MOOD BUTTON (Большая кнопка-ссылка) === */

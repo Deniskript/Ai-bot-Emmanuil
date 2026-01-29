@@ -7,11 +7,20 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from keyboards import reply
 from database import postgres_db as db
 from utils.calories import format_calories_summary
 
 logger = logging.getLogger(__name__)
+
+
+# ========== FSM СОСТОЯНИЯ ЛАЙФСТАЙЛ ==========
+
+class LifestyleStates(StatesGroup):
+    """Состояния модуля Лайфстайл"""
+    menu = State()  # Главное меню Лайфстайл
+
 
 # Локальные импорты модуля
 from . import config as lifestyle_config
@@ -40,6 +49,7 @@ router.include_router(magic.router)
 @router.message(F.text == "🏆 Лайфстайл")
 async def lifestyle_menu(msg: Message, state: FSMContext):
     """Меню раздела Лайфстайл"""
+    await state.set_state(LifestyleStates.menu)
     
     # Отправляем баннер вместо текста
     banner = FSInputFile("assets/banner_lifestyle.png")
@@ -47,6 +57,15 @@ async def lifestyle_menu(msg: Message, state: FSMContext):
         photo=banner,
         reply_markup=reply.lifestyle_kb(msg.from_user.id)
     )
+
+
+# ========== КНОПКА НАЗАД ИЗ ЛАЙФСТАЙЛ ==========
+
+@router.message(LifestyleStates.menu, F.text == "◀️ Назад")
+async def lifestyle_back(msg: Message, state: FSMContext):
+    """Возврат из меню Лайфстайл в меню ботов"""
+    await state.clear()
+    await msg.answer("🫧 Soul AI", reply_markup=reply.bots_menu_kb())
 
 
 # ========== ПЕРЕХОД В ЗДОРОВЬЕ ИЗ ЛЮБОГО СОСТОЯНИЯ ==========

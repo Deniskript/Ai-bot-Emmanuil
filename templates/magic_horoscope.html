@@ -379,6 +379,8 @@
             .card { padding: 16px; }
             .grid { grid-template-columns: 1fr; }
         }
+            /* Все внутренние элементы кнопок не блокируют клики */
+        button *, .btn-back *, .btn-apply *, .btn-start *, .choice-btn *, .card *, .option * { pointer-events: none; }
     </style>
 </head>
 <body>

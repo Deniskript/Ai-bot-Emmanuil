@@ -175,7 +175,9 @@
       cursor:pointer;
       margin-top:14px;
     }
-  </style>
+          /* Все внутренние элементы кнопок не блокируют клики */
+        button *, .btn-back *, .btn-apply *, .btn-start *, .choice-btn *, .model-option * { pointer-events: none; }
+    </style>
 </head>
 <body>
   <div class="container">

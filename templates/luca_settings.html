@@ -190,6 +190,7 @@
             font-size: 36px;
             margin-bottom: 10px;
             display: block;
+            pointer-events: none;
         }
 
         .choice-btn.active .icon {
@@ -205,10 +206,19 @@
             font-size: 15px;
             font-weight: 700;
             color: #333;
+            pointer-events: none;
         }
 
         .choice-btn.active .label {
             color: #667eea;
+        }
+
+        /* Все внутренние элементы кнопок не блокируют клики */
+        .choice-btn *,
+        .save-btn *,
+        .back-btn *,
+        button * {
+            pointer-events: none;
         }
 
         /* === TOGGLE SWITCH === */

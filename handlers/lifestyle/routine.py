@@ -413,7 +413,8 @@ async def productivity_stats(msg: Message):
 @router.message(RoutineStates.menu, F.text == "◀️ Назад")
 async def back_from_routine(msg: Message, state: FSMContext):
     """Вернуться в меню Лайфстайл"""
-    await state.clear()
+    from .handler import LifestyleStates
+    await state.set_state(LifestyleStates.menu)
     await msg.answer("🏆 <b>Лайфстайл</b>", parse_mode="HTML", reply_markup=reply.lifestyle_kb(msg.from_user.id))
 
 
